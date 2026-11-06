@@ -169,35 +169,83 @@ def ler_nfse_xml(conteudo: bytes) -> dict:
 
 
 def nfse_nacional_xml(inv: dict, nome_prestador: str, nome_tomador: str = "Cliente Bernhoeft (demonstração)") -> bytes:
-    """Monta uma NFS-e no leiaute nacional a partir de uma nota do gerador sintético (só para demonstração)."""
-    ns = "http://www.sped.fazenda.gov.br/nfse"
-    E, S = ElementTree.Element, ElementTree.SubElement
+    """Monta uma NFS-e fictícia no leiaute nacional v1.01 (valida no XSD oficial NFSe_v1.01.xsd).
+
+    Os dados são do gerador sintético; a assinatura digital é um marcador (não é uma assinatura válida)."""
+    ns, ds = "http://www.sped.fazenda.gov.br/nfse", "http://www.w3.org/2000/09/xmldsig#"
+    ElementTree.register_namespace("", ns)
+    E = lambda tag, attrs=None: ElementTree.Element(f"{{{ns}}}{tag}", attrs or {})
+    def S(pai, tag, texto=None, attrs=None, espaco=ns):
+        el = ElementTree.SubElement(pai, f"{{{espaco}}}{tag}", attrs or {})
+        if texto is not None:
+            el.text = str(texto)
+        return el
+    cmun = "2606002"  # Garanhuns/PE (IBGE)
     cnpj = so_digitos(inv["prestador_cnpj"])
-    # Chave fictícia de 50 dígitos, única por nota: município + CNPJ + número + data + sequência do gerador.
+    numero = str(int(so_digitos(inv["numero"]) or 1))
     seq = so_digitos(inv.get("invoice_id", ""))[-6:].rjust(6, "0")
-    chave = ("2611606" + cnpj + "0" + f"{int(so_digitos(inv['numero']) or 0):012d}"
-             + inv["data_emissao"].replace("-", "") + seq + "00")[:50]
-    raiz = E("NFSe", {"xmlns": ns, "versao": "1.00"})
-    inf = S(raiz, "infNFSe", {"Id": "NFS" + chave})
-    S(inf, "xLocEmi").text = "Garanhuns"
-    S(inf, "nNFSe").text = str(inv["numero"])
-    S(inf, "dhProc").text = inv["data_emissao"] + "T09:00:00-03:00"
+    data, valor = inv["data_emissao"], f"{float(inv['valor_servico']):.2f}"
+    # Chave de 50 dígitos: município + ambiente + tipo de inscrição + CNPJ + número + AAMM + código + DV (fictícios).
+    chave = cmun + "1" + "2" + cnpj + numero.rjust(13, "0") + data[2:4] + data[5:7] + ("000" + seq) + "0"
+    id_dps = cmun + "2" + cnpj + "00001" + numero.rjust(15, "0")
+
+    raiz = E("NFSe", {"versao": "1.01"})
+    inf = S(raiz, "infNFSe", attrs={"Id": "NFS" + chave})
+    S(inf, "xLocEmi", "Garanhuns")
+    S(inf, "xLocPrestacao", "Garanhuns")
+    S(inf, "nNFSe", numero)
+    S(inf, "xTribNac", "Limpeza, manutenção e conservação de imóveis")
+    S(inf, "verAplic", "ConciliaAI-demo")
+    S(inf, "ambGer", "2")
+    S(inf, "tpEmis", "1")
+    S(inf, "cStat", "100")
+    S(inf, "dhProc", data + "T09:00:00-03:00")
+    S(inf, "nDFSe", numero)
     emit = S(inf, "emit")
-    S(emit, "CNPJ").text = cnpj
-    S(emit, "xNome").text = nome_prestador
-    v = S(inf, "valores")
-    S(v, "vLiq").text = f"{float(inv['valor_servico']):.2f}"
-    dps = S(S(inf, "DPS", {"versao": "1.00"}), "infDPS", {"Id": "DPS" + chave[:42]})
-    S(dps, "dhEmi").text = inv["data_emissao"] + "T08:00:00-03:00"
-    S(dps, "dCompet").text = inv["competencia"] + "-01"
-    S(S(dps, "prest"), "CNPJ").text = cnpj
+    S(emit, "CNPJ", cnpj)
+    S(emit, "xNome", nome_prestador[:150])
+    end = S(emit, "enderNac")
+    for tag, v in (("xLgr", "Rua Exemplo"), ("nro", "100"), ("xBairro", "Centro"), ("cMun", cmun), ("UF", "PE"), ("CEP", "55290000")):
+        S(end, tag, v)
+    S(S(inf, "valores"), "vLiq", valor)
+    dps = S(S(inf, "DPS", attrs={"versao": "1.01"}), "infDPS", attrs={"Id": "DPS" + id_dps})
+    S(dps, "tpAmb", "2")
+    S(dps, "dhEmi", data + "T08:00:00-03:00")
+    S(dps, "verAplic", "ConciliaAI-demo")
+    S(dps, "serie", "1")
+    S(dps, "nDPS", numero)
+    S(dps, "dCompet", data)
+    S(dps, "tpEmit", "1")
+    S(dps, "cLocEmi", cmun)
+    prest = S(dps, "prest")
+    S(prest, "CNPJ", cnpj)
+    reg = S(prest, "regTrib")
+    S(reg, "opSimpNac", "3")  # optante do Simples Nacional (ME/EPP)
+    S(reg, "regEspTrib", "0")
     toma = S(dps, "toma")
-    S(toma, "CNPJ").text = so_digitos(inv["tomador_cnpj"])
-    S(toma, "xNome").text = nome_tomador
-    serv = S(S(dps, "serv"), "cServ")
-    S(serv, "cTribNac").text = "070101"
-    S(serv, "xDescServ").text = inv["descricao_servico"]
-    S(S(S(dps, "valores"), "vServPrest"), "vServ").text = f"{float(inv['valor_servico']):.2f}"
+    S(toma, "CNPJ", so_digitos(inv["tomador_cnpj"]))
+    S(toma, "xNome", nome_tomador[:150])
+    serv = S(dps, "serv")
+    S(S(serv, "locPrest"), "cLocPrestacao", cmun)
+    c = S(serv, "cServ")
+    S(c, "cTribNac", "070101")
+    S(c, "xDescServ", inv["descricao_servico"])
+    vals = S(dps, "valores")
+    S(S(vals, "vServPrest"), "vServ", valor)
+    trib = S(vals, "trib")
+    tm = S(trib, "tribMun")
+    S(tm, "tribISSQN", "1")
+    S(tm, "tpRetISSQN", "1")
+    S(S(trib, "totTrib"), "pTotTribSN", "6.00")
+    # Marcador no lugar da assinatura digital do Sistema Nacional (o esquema exige o bloco).
+    sig = S(raiz, "Signature", espaco=ds)
+    si = S(sig, "SignedInfo", espaco=ds)
+    S(si, "CanonicalizationMethod", attrs={"Algorithm": "http://www.w3.org/TR/2001/REC-xml-c14n-20010315"}, espaco=ds)
+    S(si, "SignatureMethod", attrs={"Algorithm": "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"}, espaco=ds)
+    ref = S(si, "Reference", attrs={"URI": "#NFS" + chave}, espaco=ds)
+    S(ref, "DigestMethod", attrs={"Algorithm": "http://www.w3.org/2001/04/xmlenc#sha256"}, espaco=ds)
+    S(ref, "DigestValue", "QVNTSU5BVFVSQS1GSUNUSUNJQQ==", espaco=ds)
+    S(sig, "SignatureValue", "QVNTSU5BVFVSQS1GSUNUSUNJQQ==", espaco=ds)
     return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ElementTree.tostring(raiz, encoding="utf-8")
 
 
