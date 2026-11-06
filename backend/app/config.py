@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     operador_username: str = "operador"
     operador_password: str = "local_operador_change_me"
     llm_api_key: str = ""
-    llm_model: str = "claude-opus-5-5"
+    llm_model: str = "claude-sonnet-5-5"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

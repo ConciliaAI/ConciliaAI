@@ -17,7 +17,7 @@ from app.intelligence import DOC_TYPES, _date, _money, extract_fields, normalize
 
 log = logging.getLogger(__name__)
 USO: list[dict] = []  # tokens de cada chamada, para medir custo
-MAX_IMAGENS = 6  # imagens por documento (cada uma custa ~1,5 mil tokens)
+MAX_IMAGENS = 6  # imagens por documento (cada uma custa ~2 mil tokens)
 IMAGEM_TETO = 0.7  # confiança máxima de página lida só pela imagem: abaixo de 0,75, vai para revisão
 
 # Campos que a conferência (intelligence.reconcile) usa, por tipo.
