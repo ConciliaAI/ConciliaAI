@@ -46,8 +46,7 @@ def digitalizar(pdf: Path, destino: Path, semente: int = 7) -> Path:
             sorte = rng.random()
             if sorte < 0.06:  # folha ruim (xerox apagado, torto e fora de foco): deve ir para revisão humana
                 im = im.rotate(rng.choice([-5, 4.5]), fillcolor=255, expand=False)
-                im = im.filter(ImageFilter.GaussianBlur(3.2))
-                im = ImageEnhance.Brightness(ImageEnhance.Contrast(im).enhance(0.22)).enhance(1.25)
+                im = ImageEnhance.Contrast(im.filter(ImageFilter.GaussianBlur(3.0))).enhance(0.55)
             elif sorte < 0.45:  # leve inclinação e ruído de scanner
                 im = im.rotate(rng.choice([-0.8, 0.6, 1.1]), fillcolor=255, expand=False)
                 im = im.filter(ImageFilter.GaussianBlur(0.4))

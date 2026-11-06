@@ -265,7 +265,10 @@ V.pendencias=async()=>{
   let titulo,resp;
   if(d.duvida==='fronteira'&&d.paginas.length>1){
     titulo=`Estas ${d.paginas.length} páginas são um ${esc(d.tipo)} só ou mais de um documento?`;
-    resp=[[`É um documento só`,{acao:'confirmar'}],...d.paginas.slice(1).map(p=>[`Começa outro na página ${p.n}`,{acao:'dividir',pagina:p.n}])];
+    const fraca=+((d.motivo||'').match(/\d+/)||[0])[0];
+    resp=[[`É um documento só`,{acao:'confirmar'}]];
+    if(fraca>d.pag_ini&&fraca<=d.pag_fim)resp.push([`Começa outro na página ${fraca}`,{acao:'dividir',pagina:fraca}]);
+    S.outrasPags=d.paginas.slice(1).map(p=>p.n).filter(n=>n!==fraca);
   }else{
     titulo=d.tipo==='Não identificado'?'Que documento é este?':`Este documento é mesmo ${esc(d.tipo)}?`;
     const c=d.candidatos.map(x=>x[0]).filter(x=>x!=='Não identificado');if(!c.includes(d.tipo)&&d.tipo!=='Não identificado')c.unshift(d.tipo);
@@ -278,7 +281,8 @@ V.pendencias=async()=>{
   <div class="qpages">${imgs.map(p=>`<div class="qp ${fora(p)?'viz':''}"><img src="/api/paginas/${p.id}/imagem?largura=420" alt="Página ${p.n}" data-zoom="${p.id}"><small>pág. ${p.n}${fora(p)?' (outro documento)':''}</small></div>`).join('')}</div>
   ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode responder as dúvidas.</div>`:''}
   <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec='${JSON.stringify(x[1])}'><span>${x[0]}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
-  <div class="actions"><select class="inp" id="outrotipo" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+  ${d.duvida==='fronteira'&&d.paginas.length>1?`<p class="small muted">Dica: uma folha ilegível ou em branco no meio de um contrato normalmente continua o mesmo documento. Só separe se a página tiver outro título, outro fornecedor ou recomeçar a numeração (“1 de …”).</p>`:''}
+  <div class="actions">${d.duvida==='fronteira'&&S.outrasPags&&S.outrasPags.length?`<select class="inp" id="outrapag" style="max-width:260px" aria-label="Começa outro em outra página"><option value="">Começa outro em outra página…</option>${S.outrasPags.map(n=>`<option value="${n}">Página ${n}</option>`).join('')}</select>`:''}<select class="inp" id="outrotipo" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
   ${temAnterior?`<button class="btn light sm" data-dec='{"acao":"juntar"}'>Juntar com o anterior</button>`:''}<button class="btn light sm" data-dec='{"acao":"reprocessar"}'>${ic('refresh')}Ler de novo</button><button class="btn light sm" data-dec='{"acao":"pedir"}'>Pedir nova cópia</button></div>
   <details class="why"><summary>Por que estou vendo isso?</summary><ul>${d.sinais.map(s=>`<li>${esc(s)}</li>`).join('')}<li>Ponto mais fraco: ${esc(d.motivo)}</li></ul></details></div>
   <div class="c" style="display:grid;gap:8px;align-content:start"><h3>Fila de revisão</h3>${L.map((x,i)=>`<div class="li" style="cursor:pointer;${i===S.q?'opacity:.5':''}" data-q="${i}"><span class="doci warn">${ic('pendencias')}</span><div class="t"><b>${esc(x.tipo)}</b><span>${cw(x.conf)} ${x.conf}% · ${esc(x.empresa||'empresa não identificada')}</span></div></div>`).join('')}</div></div>`,L.length];
@@ -298,7 +302,8 @@ V.documentos=async()=>{
    <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
    ${d.conf<d.limiar||d.status==='revisao'?`<div style="background:var(--ambar-fundo);color:var(--ambar-texto);border-radius:12px;padding:12px 14px;display:grid;gap:6px"><b>Por que a confiança está baixa</b>
     <ul style="margin:0;padding-left:18px;display:grid;gap:3px" class="small">${d.fracas.map(p=>`<li>Página ${p.n} (${p.conf}%): ${esc(p.sinais.filter(s=>!/Primeira página|Numeração/.test(s)).join('; ')||'pouco texto legível')}</li>`).join('')}<li>A confiança do documento é a da página mais fraca. Abaixo de ${d.limiar}%, uma pessoa confirma antes de o documento entrar na conferência.</li></ul>
-    ${d.status==='revisao'?`<a class="btn sm" href="#pendencias" style="justify-self:start">Confirmar em Dúvidas da leitura</a>`:`<span class="small">Já confirmado por uma pessoa${d.decisao?': '+esc(d.decisao):''}.</span>`}</div>`:''}
+    ${d.status==='revisao'?`<b class="small">O que fazer: confirme em Dúvidas da leitura se este documento está certo (tipo e onde começa).</b><a class="btn sm" href="#pendencias" style="justify-self:start">Confirmar em Dúvidas da leitura</a>`
+     :`<b class="small">Nada pendente: uma pessoa já decidiu${d.decisao?` (“${esc(d.decisao)}”)`:''}.</b>${d.pag_ini>1&&pode('revisor')?`<span class="small">Se esta página na verdade continua o documento anterior (ex.: folha ilegível no meio de um contrato), junte de volta:</span><button class="btn light sm" data-juntar="${d.id}" style="justify-self:start">Juntar com o documento anterior</button>`:''}`}</div>`:''}
    ${C?`<div><p class="small muted" style="margin-bottom:6px">${d.dados.provisorio?'Campos lidos (ainda não usados na conferência: aguardando confirmação)':'Campos lidos para a conferência'}${d.dados.motor==='claude'?' (pelo Claude)':''}</p><div class="kv">${Object.entries(C).map(([k,v])=>`<span>${NOMES[k]||k}</span><b class="num">${campo(k,v)}</b>`).join('')}</div></div>`:''}
    ${d.aviso?`<p class="small" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:10px 12px;border-radius:10px">${esc(d.aviso)}</p>`:''}
    <div><p class="small muted" style="margin-bottom:6px">Texto reconhecido (pesquisável)</p><div class="ocr">${txt}</div></div>
@@ -483,10 +488,11 @@ async function enviarArquivos(files){
 }
 document.addEventListener('click',async ev=>{
   if(S.menu&&!ev.target.closest('.ws')){S.menu=false;render();}
-  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-nota],[data-div],[data-fdiv],[data-fedit],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
+  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-nota],[data-div],[data-fdiv],[data-fedit],[data-juntar],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
   if(t.hasAttribute('data-sair')){ev.preventDefault();await post('/api/sair');S.usuario=null;location.hash='#entrar';render();return}
   if(t.id==='avaliar'){t.disabled=true;t.textContent='Gerando lote com gabarito…';try{const e=await post(`/api/ws/${S.ws}/avaliacao`,{fornecedores:8});toast(`${e.notas_xml} notas e ${e.total} páginas na fila. O resultado aparece ao terminar.`);render();}catch(e){toast(e.message);t.disabled=false}return}
   if(t.dataset.fdiv){S.fdiv=t.dataset.fdiv;render();return}
+  if(t.dataset.juntar){t.disabled=true;try{const r=await post(`/api/docs/${t.dataset.juntar}/decisao`,{acao:'juntar'});S.doc=null;toast(r.msg);render();}catch(e){toast(e.message);t.disabled=false}return}
   if(t.dataset.fedit!==undefined){S.fedit=+t.dataset.fedit||null;await render();document.getElementById('fornecedor')?.scrollIntoView({behavior:'smooth'});return}
   if(t.dataset.div){const id=t.dataset.div,acao=t.dataset.acaoDiv,com=document.getElementById(`com-${id}`)?.value||'';t.disabled=true;
     try{const r=await post(`/api/divergencias/${id}/decisao`,{acao,comentario:com});toast(r.msg);render();}catch(e){const er=document.getElementById(`err-${id}`);if(er)er.textContent=e.message;else toast(e.message);t.disabled=false}return}
@@ -509,6 +515,7 @@ document.addEventListener('change',async ev=>{
   if(ev.target.dataset.cfg){await post(`/api/ws/${S.ws}/config`,{[ev.target.dataset.cfg]:ev.target.checked?1:0});toast(ev.target.checked?'Ativado':'Desativado');if(ev.target.dataset.cfg==='usar_claude'){S.cfgClaude=ev.target.checked?'1':'0';render();}}
   if(ev.target.id==='limiar'){await post(`/api/ws/${S.ws}/config`,{limiar:ev.target.value});toast(`Limite de revisão: ${ev.target.value}%`)}
   if(ev.target.id==='tolerancia'){try{await post(`/api/ws/${S.ws}/config`,{tolerancia:ev.target.value});toast(`Tolerância de valor: ${ev.target.value}%. Conferência refeita.`)}catch(e){toast(e.message)}}
+  if(ev.target.id==='outrapag'&&ev.target.value){const d=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias[S.q];try{const r=await post(`/api/docs/${d.id}/decisao`,{acao:'dividir',pagina:+ev.target.value});toast(r.msg)}catch(e){toast(e.message)}render();}
   if(ev.target.id==='outrotipo'&&ev.target.value){const d=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias[S.q];const r=await post(`/api/docs/${d.id}/decisao`,{acao:'confirmar',tipo:ev.target.value});toast(r.msg);render();}
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='limiar')document.getElementById('vlim').textContent=ev.target.value;if(ev.target.id==='tolerancia')document.getElementById('vtol').textContent=ev.target.value;});
