@@ -170,6 +170,18 @@ def _schema(nomes: list[str]) -> dict:
     }
 
 
+USOS: list[dict] = []  # tokens cobrados em cada chamada (para medir custo real; ferramentas/medir_custo_ia.py)
+
+
+def registrar_uso(etapa: str, resp) -> None:
+    u = resp.usage
+    USOS.append({"etapa": etapa, "modelo": getattr(resp, "model", config.MODELO),
+                 "entrada": u.input_tokens, "saida": u.output_tokens,
+                 "cache_escrita": getattr(u, "cache_creation_input_tokens", 0) or 0,
+                 "cache_leitura": getattr(u, "cache_read_input_tokens", 0) or 0})
+    del USOS[:-5000]  # não cresce sem limite num servidor ligado por muito tempo
+
+
 def _imagem_b64(png: str) -> str:
     with Image.open(png) as im:
         im = im.convert("RGB")
@@ -211,11 +223,15 @@ Página anterior: {ant}.
             {"type": "text", "text": prompt},
         ]}],
     )
-    try:
-        resp = cliente.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **pedido)
-    except TypeError:
-        resp = cliente.beta.messages.create(betas=["server-side-fallback-2026-07-01"],
-                                            extra_body={"fallbacks": "default"}, **pedido)
+    if config.MODELO.startswith("claude-haiku"):
+        resp = cliente.messages.create(**pedido)  # Haiku não tem fallback no servidor
+    else:
+        try:
+            resp = cliente.beta.messages.create(betas=["server-side-fallback-2026-07-01"], fallbacks="default", **pedido)
+        except TypeError:
+            resp = cliente.beta.messages.create(betas=["server-side-fallback-2026-07-01"],
+                                                extra_body={"fallbacks": "default"}, **pedido)
+    registrar_uso("pagina", resp)
     if resp.stop_reason == "refusal":
         raise RuntimeError("o modelo recusou a página")
     if resp.stop_reason == "max_tokens":

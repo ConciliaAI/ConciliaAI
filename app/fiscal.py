@@ -362,6 +362,8 @@ cnpj_prestador é o da empresa contratada (quem presta o serviço e emite a nota
         model=config.MODELO, max_tokens=4000,
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": _schema(tipo)}},
         messages=[{"role": "user", "content": prompt}])
+    from .analise import registrar_uso
+    registrar_uso("extracao", resp)
     if resp.stop_reason in ("refusal", "max_tokens"):
         raise RuntimeError(f"resposta incompleta ({resp.stop_reason})")
     d = json.loads(next(b.text for b in resp.content if b.type == "text"))

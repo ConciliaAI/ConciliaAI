@@ -87,3 +87,13 @@ Com o sistema aberto, rode num segundo terminal:
 ```
 
 Ele mostra um endereço `https://….trycloudflare.com`. O link funciona enquanto o notebook e os dois programas estiverem abertos e muda a cada vez. Antes, troque as senhas no `.env`. O `cloudflared.exe` oficial fica em github.com/cloudflare/cloudflared (versão Windows amd64).
+
+## Medir o custo real da IA (Claude)
+
+Com a chave no `.env` (`ANTHROPIC_API_KEY=...`), rode:
+
+```cmd
+.venv\Scripts\python.exe ferramentas\medir_custo_ia.py --paginas 10 --modelos opus,sonnet,haiku --dolar 5.40
+```
+
+Ele faz chamadas reais (pagas, centavos) com as páginas do lote digitalizado, soma os tokens que a API informa em cada resposta e mostra o custo por página e por 1 mil, 10 mil e 100 mil páginas, com e sem o modo "só as duvidosas". O resultado fica em `casos-de-teste/custo-ia-medido.json`. Preços usados (US$ por milhão de tokens, entrada/saída): Opus 5.5 4/20, Sonnet 5.5 2/10, Haiku 5.5 0,10/0,50.
