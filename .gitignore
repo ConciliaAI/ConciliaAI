@@ -1,0 +1,12 @@
+.env
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+node_modules/
+dist/
+.coverage
+.DS_Store
+
+# Gerador de dados: arquivos de demonstração locais
+data/
