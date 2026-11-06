@@ -174,3 +174,20 @@ def test_aviso_ao_fornecedor(cliente):
     assert a["assunto"] in csv
     d2 = next(x for x in cliente.get("/api/ws/horizonte/divergencias", params={"status": "todas"}).json()["divergencias"] if x["id"] == d["id"])
     assert d2["avisado_em"]
+
+
+def test_excluir_documento(cliente):
+    entrar(cliente, "operador")
+    docs = cliente.get("/api/ws/horizonte/documentos").json()
+    nota = next(d for d in docs if d["tipo"] == "Nota fiscal de serviço")
+    assert cliente.delete(f"/api/docs/{nota['id']}").status_code == 403  # operador não exclui
+    entrar(cliente, "revisor")
+    r = cliente.delete(f"/api/docs/{nota['id']}")
+    assert r.status_code == 200, r.text
+    assert all(d["id"] != nota["id"] for d in cliente.get("/api/ws/horizonte/documentos").json())
+    assert cliente.get(f"/api/docs/{nota['id']}").status_code == 404
+    # A nota lida só desse PDF sai da conferência; a trilha registra quem excluiu.
+    assert "501" not in [n["numero"] for n in cliente.get("/api/ws/horizonte/notas").json()]
+    assert "excluiu o documento" in cliente.get("/api/ws/horizonte/relatorio.csv", params={"tipo": "trilha"}).text
+    pags = cliente.get(f"/api/envios/{nota['envio_id']}").json()["paginas"]
+    assert all(p["status"] == "excluida" for p in pags if nota["pag_ini"] <= p["n"] <= nota["pag_fim"])

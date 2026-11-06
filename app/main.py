@@ -617,6 +617,37 @@ def doc(did: int):
     return out
 
 
+@app.delete("/api/docs/{did}")
+def excluir_documento(request: Request, did: int):
+    """Exclui o documento: some das telas, da busca e do ZIP; as imagens das páginas são apagadas do disco.
+    As páginas ficam marcadas como 'excluida' para o documento não voltar se o envio for reagrupado."""
+    from pathlib import Path
+    u = auth.exigir(request, "revisor")
+    d = _doc(did)
+    pags = db.q("SELECT id, img FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ?", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
+    for p in pags:
+        if p["img"]:
+            try:
+                Path(p["img"]).unlink(missing_ok=True)
+            except OSError:
+                pass
+    db.x("""UPDATE paginas SET status='excluida', img=NULL, texto=NULL, linhas=NULL, sensiveis=NULL, doc_id=NULL
+            WHERE envio_id=? AND n BETWEEN ? AND ?""", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
+    # O que foi lido deste documento também sai da conferência (notas vindas do XML continuam: só perdem o PDF).
+    for nota in db.q("SELECT id FROM notas WHERE doc_id=? AND origem='pdf'", (did,)):
+        db.x("DELETE FROM divergencias WHERE nota_id=?", (nota["id"],))
+        db.x("DELETE FROM notas WHERE id=?", (nota["id"],))
+    db.x("UPDATE notas SET doc_id=NULL WHERE doc_id=?", (did,))
+    db.x("DELETE FROM contratos WHERE doc_id=?", (did,))
+    db.x("DELETE FROM aditivos WHERE doc_id=?", (did,))
+    db.x("DELETE FROM busca WHERE doc_id=?", (did,))
+    db.x("DELETE FROM docs WHERE id=?", (did,))
+    db.trilha(d["ws"], u["nome"], f"excluiu o documento #{did} ({d['tipo']}, envio #{d['envio_id']}, páginas {d['pag_ini']}–{d['pag_fim']})")
+    db.evento(d["envio_id"], f"{u['nome']} excluiu o documento {d['tipo']} (páginas {d['pag_ini']}–{d['pag_fim']}).")
+    conciliacao.conciliar(d["ws"])
+    return {"ok": True, "msg": f"{d['tipo']} excluído (páginas {d['pag_ini']}–{d['pag_fim']} do envio #{d['envio_id']})."}
+
+
 @app.post("/api/docs/{did}/revelar")
 def revelar(request: Request, did: int, corpo: dict):
     u = auth.exigir(request, "revisor")
