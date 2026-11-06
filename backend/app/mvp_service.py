@@ -1,3 +1,4 @@
+﻿from app.status_sync import sync_batch
 """Persistência e reaplicação segura do pipeline do MVP Essencial."""
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ def pages_for_group(db: Session, group: DocumentGroup):
 
 
 def build_groups(db: Session, batch_id: int):
+    sync_batch(db, batch_id)
     files = list(db.scalars(select(SourceFile).where(SourceFile.batch_id == batch_id).order_by(SourceFile.id)))
     if not files:
         raise ValueError("Lote sem arquivos")
@@ -57,3 +59,4 @@ def audit(db: Session, group: DocumentGroup, reviewer_id: int, action: str, befo
                         before=before, after={"start_page": group.start_page, "end_page": group.end_page,
                                               "document_type": group.document_type, "review_status": group.review_status},
                         justification=note))
+

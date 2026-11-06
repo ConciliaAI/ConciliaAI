@@ -1,3 +1,4 @@
+﻿from app.status_sync import sync_batch
 from contextlib import asynccontextmanager
 from hashlib import sha256
 from io import BytesIO
@@ -174,6 +175,7 @@ def start_batch(batch_id: int, user: User = Depends(current_user),
 def progress(batch_id: int, user: User = Depends(current_user),
              db: Session = Depends(get_db)):
     batch = owned_batch(batch_id, user, db)
+    sync_batch(db, batch_id)
     files = list(db.scalars(select(SourceFile).where(SourceFile.batch_id == batch_id)
                             .order_by(SourceFile.id)))
     counters = {"pending": 0, "processing": 0, "ok": 0, "error": 0}
@@ -210,3 +212,4 @@ def index():
 # MVP Essencial: rotas adicionais sobre a API já existente.
 from app.mvp_api import router as mvp_router
 app.include_router(mvp_router)
+
