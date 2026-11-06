@@ -39,3 +39,29 @@ def test_pagina_sem_texto_util_vai_para_baixa_confianca():
 def test_limpeza_do_ocr_separa_nomes_colados():
     b = analise.extrair_basico("Contratada:.Limpeza Brilho ME.CNPJ :12.345.678/0001-90")
     assert b["empresa"] == "Limpeza Brilho ME"
+
+
+def _pags(*textos):
+    return [{"n": i + 1, "texto": t} for i, t in enumerate(textos)]
+
+
+def test_integridade_documento_inteiro():
+    from app.pipeline import integridade
+    assert integridade(_pags(*(f"Contrato\nSecao {k}\nPagina {k} de 3" for k in (1, 2, 3)))) == []
+
+
+def test_integridade_pagina_repetida_e_faltando():
+    from app.pipeline import integridade
+    rep = integridade(_pags(*(f"Contrato secao {k}\nPagina {k} de 4" for k in (1, 2, 2, 3, 4))))
+    assert any("Página repetida: a página 2 de 4" in p for p in rep)
+    falta = integridade(_pags(*(f"Contrato secao {k}\nPagina {k} de 5" for k in (1, 2, 4, 5))))
+    assert falta == ["Documento incompleto: falta a página 3 de 5"]
+    # Página ilegível (sem numeração) no lugar da que falta: não acusa.
+    assert integridade(_pags("Contrato\nPagina 1 de 3", "xx", "Contrato\nPagina 3 de 3")) == []
+
+
+def test_integridade_mesma_folha_escaneada_duas_vezes():
+    from app.pipeline import integridade
+    folha = "NOTA FISCAL DE SERVICOS " + "Prestador Limpeza Brilho ME valor do servico 4.000,00 " * 6
+    r = integridade(_pags("Contrato " * 30, folha, folha))
+    assert any("escaneada duas vezes" in p for p in r)

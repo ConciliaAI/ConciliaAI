@@ -60,13 +60,15 @@ def renderizar(caminho: str, indice: int, origem: str, saida_png: str):
             if indice:
                 im.seek(indice)
             im = ImageOps.exif_transpose(im).convert("RGB")
-            if max(im.size) > 2400:
-                im.thumbnail((2400, 2400))
+            # 1800 px no lado maior (~150 dpi num A4) basta para o OCR e é mais rápido que 300 dpi.
+            if max(im.size) > 1800:
+                im.thumbnail((1800, 1800))
             im.save(saida_png)
             larg, alt = im.size
     if len(texto) >= 25 and linhas:
         return larg, alt, texto, linhas, "pdf"
-    resultado, _ = _ocr()(saida_png)
+    # Sem o classificador de giro do texto: as linhas de um documento escaneado já vêm na horizontal (mais rápido).
+    resultado, _ = _ocr()(saida_png, use_cls=False)
     linhas = []
     for caixa, t, conf in resultado or []:
         xs = [p[0] for p in caixa]

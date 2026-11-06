@@ -190,7 +190,47 @@ def retomar_envio(eid, motivo="Retomado"):
 
 
 # ------------------------------------------------------------------ agrupamento
-def _doc_de_paginas(eid, ws, pags, limiar):
+def _chave_texto(texto: str) -> str:
+    return "".join(ch for ch in analise.norm(texto or "") if ch.isalnum())
+
+
+def integridade(pags: list[dict], todas: list[dict] | None = None) -> list[str]:
+    """Problemas do documento pela numeração ("3 de 9") e pelo texto: página repetida, páginas faltando,
+    página escaneada duas vezes. Lista vazia = documento inteiro."""
+    problemas = []
+    nums = [(p, analise.extrair_basico(p["texto"] or "")["pag"]) for p in pags]
+    com_num = [(p, k) for p, k in nums if k]
+    if com_num:
+        totais = [k[1] for _, k in com_num]
+        n = max(set(totais), key=totais.count)
+        vistos = {}
+        for p, (k, tot) in com_num:
+            if tot == n and 1 <= k <= n:
+                vistos.setdefault(k, []).append(p["n"])
+        for k, onde in sorted(vistos.items()):
+            if len(onde) > 1:
+                problemas.append(f"Página repetida: a página {k} de {n} aparece {len(onde)} vezes (págs. {', '.join(map(str, onde))} do lote)")
+        faltam = [k for k in range(1, n + 1) if k not in vistos]
+        sem_num = len(pags) - len(com_num)  # páginas ilegíveis podem ser justamente as que "faltam"
+        if faltam and len(faltam) > sem_num and len(com_num) >= max(2, len(pags) // 2):
+            lista = ", ".join(map(str, faltam[:6])) + ("…" if len(faltam) > 6 else "")
+            problemas.append(f"Documento incompleto: falta{'m' if len(faltam) > 1 else ''} a{'s' if len(faltam) > 1 else ''} página{'s' if len(faltam) > 1 else ''} {lista} de {n}")
+    # Mesma folha escaneada duas vezes (texto praticamente igual, sem depender da numeração).
+    chaves = {}
+    for p in (todas or pags):
+        c = _chave_texto(p["texto"])
+        if len(c) >= 200:
+            chaves.setdefault(c, []).append(p["n"])
+    meus = {p["n"] for p in pags}
+    for onde in chaves.values():
+        if len(onde) > 1 and meus & set(onde[1:]):
+            texto = f"Página escaneada duas vezes: o conteúdo das págs. {', '.join(map(str, onde))} do lote é igual"
+            if not any(texto[:40] in x or "Página repetida" in x for x in problemas):
+                problemas.append(texto)
+    return problemas
+
+
+def _doc_de_paginas(eid, ws, pags, limiar, todas=None):
     tipo = pags[0]["tipo"]
     confs = [p["conf"] for p in pags]
     conf = min(confs)
@@ -202,6 +242,14 @@ def _doc_de_paginas(eid, ws, pags, limiar):
     if tipo == "Não identificado":
         duvida = "tipo"
     status = "revisao" if conf < limiar or tipo == "Não identificado" else "confirmado"
+    problemas = integridade(pags, todas)
+    sinais_fraca = fraca["sinais"]
+    motivo = f"página {fraca['n']}"
+    if problemas:
+        # Documento com página repetida ou faltando: uma pessoa decide antes de entrar na conferência.
+        conf, status, duvida = min(conf, 55), "revisao", "integridade"
+        sinais_fraca = json.dumps(problemas + json.loads(fraca["sinais"] or "[]"), ensure_ascii=False)
+        motivo = problemas[0]
     def primeiro(campo):
         return next((p[campo] for p in pags if p[campo]), None)
     sens = []
@@ -210,7 +258,7 @@ def _doc_de_paginas(eid, ws, pags, limiar):
     did = db.x("""INSERT INTO docs(envio_id, ws, tipo, conf, pag_ini, pag_fim, pessoa, cpf, empresa, status, duvida,
                 motivo, sinais, candidatos, sensiveis, criado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                (eid, ws, tipo, conf, pags[0]["n"], pags[-1]["n"], primeiro("pessoa"), primeiro("cpf"),
-                primeiro("empresa"), status, duvida, f"página {fraca['n']}", fraca["sinais"],
+                primeiro("empresa"), status, duvida, motivo, sinais_fraca,
                 pags[0]["candidatos"], json.dumps(sens, ensure_ascii=False), db.agora()))
     db.x("UPDATE paginas SET doc_id=? WHERE envio_id=? AND n BETWEEN ? AND ?", (did, eid, pags[0]["n"], pags[-1]["n"]))
     texto = "\n".join(p["texto"] or "" for p in pags)
@@ -228,11 +276,11 @@ def agrupar(eid):
     grupo = []
     for p in pags:
         if grupo and p["inicio"]:
-            _doc_de_paginas(eid, e["ws"], grupo, limiar)
+            _doc_de_paginas(eid, e["ws"], grupo, limiar, pags)
             grupo = []
         grupo.append(p)
     if grupo:
-        _doc_de_paginas(eid, e["ws"], grupo, limiar)
+        _doc_de_paginas(eid, e["ws"], grupo, limiar, pags)
 
 
 def reindexar_doc(did):

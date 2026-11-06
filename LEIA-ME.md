@@ -58,3 +58,22 @@ Com a chave, cada página é lida pelo Claude (`claude-opus-5-5`) olhando **a im
 | `dados/` | Banco de dados e imagens das páginas (apague para recomeçar do zero) |
 | `app/fiscal.py`, `app/conciliacao.py` | Leitura da NFS-e e dos contratos; regras de conferência |
 | `ferramentas/medir_acerto.py` | Mede o acerto com um lote com gabarito (servidor aberto) |
+
+## Casos de teste para a demonstração
+
+Gere a pasta `casos-de-teste/` (todos os arquivos dos mesmos fornecedores fictícios):
+
+```cmd
+.venv\Scripts\python.exe ferramentas\gerar_casos_teste.py
+```
+
+| Arquivo | O que mostra |
+|---|---|
+| `01-lote-grande-304-paginas.tif` | Grande volume só de imagem: separação, OCR, confiança, fila de revisão, retomada |
+| `02-notas-do-lote-xml.zip` | 60 NFS-e em XML conferidas contra os contratos do 01 |
+| `03-contrato-...-pagina-repetida.pdf` | "Página repetida: a página 4 de 9 aparece 2 vezes" → revisão |
+| `04-contrato-...-falta-pagina-6.pdf` | "Documento incompleto: falta a página 6 de 9" → revisão |
+| `05-nota-...-folha-cortada.pdf` | Folha cortada: valor ilegível, nota não entra pela imagem (use o XML) |
+| `06` a `09` (XML) | Nota reenviada (não duplica), mesmo número, valor acima, fornecedor sem contrato |
+
+O roteiro completo e o resultado esperado de cada um ficam em `casos-de-teste/LEIA-ME.txt`. O 01 leva uns 6 segundos por página: processe antes da apresentação e mostre ao vivo só os arquivos pequenos.

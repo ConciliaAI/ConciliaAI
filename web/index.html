@@ -223,6 +223,11 @@ V.inicio=async()=>{
   <div class="grid" style="align-content:start">${ativoCard}<div class="c dark" style="display:grid;gap:14px"><h3>O que a Concilia já fez</h3><div class="value"><div><b class="num">${r.notas}</b><span>notas conferidas</span></div><div><b class="num">${r.contratos}</b><span>contratos lidos</span></div><div><b class="num">${pct??'—'}${pct!=null?'%':''}</b><span>batem ou já decididas</span></div></div></div>
   <div class="c"><div class="ch"><h3>Envios recentes</h3></div>${r.envios.length?r.envios.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div></div>`, {pendencias:r.pendencias,divergencias:r.div_abertas}, !!a];
 };
+// Estimativa pelo ritmo até agora (inclui a espera na fila e a primeira página, que carrega o OCR).
+function restante(e){if(!e.feitas||e.feitas>=e.total||!e.criado_em)return '';
+  const ini=new Date(e.criado_em.replace(' ','T'));const passou=(Date.now()-ini)/1000;if(!(passou>0))return '';
+  const s=passou/e.feitas*(e.total-e.feitas);const t=s<60?'menos de 1 min':s<3600?`${Math.round(s/60)} min`:`${(s/3600).toFixed(1).replace('.',',')} h`;
+  return ` Faltam cerca de ${t}.`;}
 const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div class="t"><b>#${e.id} · ${esc(e.nome)}</b><span>${esc(e.criado_em)}${e.notas_xml?` · ${e.notas_xml} XML de nota`:''}${e.total?` · ${e.total} páginas`:''}${e.retomadas?` · retomado ${e.retomadas}x após falha`:''}</span></div>${stEnvio(e)}<a class="btn light sm" href="#envio-${e.id}">Ver</a></div>`;
 
 V.enviar=async()=>{
@@ -247,7 +252,7 @@ V.envio=async(id)=>{
    <div class="tablewrap"><table><thead><tr><th>Nota</th><th>Prestador</th><th>Valor</th><th>Origem</th><th>Situação</th></tr></thead><tbody>${d.notas.map(n=>`<tr><td class="num"><b>${esc(n.numero)}</b></td><td>${esc(n.nome_prestador||n.cnpj_prestador)}</td><td class="num">${brl(n.valor)}</td><td>${n.origem==='xml'?'XML':'PDF'}</td><td>${stNota(n.status)}</td></tr>`).join('')}</tbody></table></div></div>`:'';
   return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#enviar" style="font-weight:700;text-decoration:none">← Envios</a></p><h1>Envio #${e.id}</h1><p>${esc(e.nome)}${e.notas_xml?` · ${e.notas_xml} nota(s) em XML`:''}${e.total?` · ${e.total} páginas${d.docs.length?` viraram ${d.docs.length} documentos`:''}${e.motor==='claude'?' · lido pelo Claude (imagem + texto)':''}`:''}</p></div>
   <div class="actions">${stEnvio(e)}${e.status==='processando'||e.status==='fila'?`<button class="btn light sm" data-acao="pausar">${ic('pause')}Pausar</button><button class="btn light sm" data-acao="simular-falha">${ic('zap')}Simular queda</button>`:''}${e.status==='pausado'||e.status==='falhou'?`<button class="btn sm" data-acao="retomar">${ic('play')}Retomar</button>`:''}</div></div>
-  ${ativo||e.status==='pausado'?`<div class="c"><div class="bar"><span style="width:${e.total?Math.round(100*e.feitas/e.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${e.feitas} de ${e.total} páginas lidas e salvas. ${e.status==='falhou'?'Retomando sozinho em instantes…':''}</p></div>`:''}
+  ${ativo||e.status==='pausado'?`<div class="c"><div class="bar"><span style="width:${e.total?Math.round(100*e.feitas/e.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${e.feitas} de ${e.total} páginas lidas e salvas.${restante(e)} ${e.status==='falhou'?'Retomando sozinho em instantes…':''}</p><p class="small muted" style="margin-top:4px">Pode sair desta tela e continuar usando o sistema: o envio segue sozinho, e as notas em XML já estão disponíveis.</p></div>`:''}
   ${e.total?`<div class="c"><div class="ch"><div><h3>Onde cada documento começa e termina</h3><p class="small muted">A borda escura marca a primeira página de cada documento. Clique numa página para ampliar.</p></div>
   <div class="legend"><span><i style="background:var(--confere)"></i>Confiança alta</span><span><i style="background:var(--media)"></i>Média</span><span><i style="background:var(--ambar)"></i>Vai para você confirmar</span></div></div>
   ${docs.length?`<div class="strip">${docs.map(grp).join('')}</div>`:soltas.length?`<div class="strip">${soltas.map(p=>`<div class="grp"><div class="pages">${th(p)}</div><div class="gl"><b>${esc(p.tipo)}</b><span class="muted">pág. ${p.n} · ${p.conf}%</span></div></div>`).join('')}</div>`:`<p class="muted">${e.total?'As páginas aparecem aqui conforme são lidas.':'Este envio só tinha XML: nenhuma página para separar.'}</p>`}</div>`:''}
@@ -263,7 +268,11 @@ V.pendencias=async()=>{
   const imgs=[...d.vizinhas.filter(v=>v.n<d.pag_ini),...d.paginas,...d.vizinhas.filter(v=>v.n>d.pag_fim)];
   const fora=v=>v.n<d.pag_ini||v.n>d.pag_fim;
   let titulo,resp;
-  if(d.duvida==='fronteira'&&d.paginas.length>1){
+  if(d.duvida==='integridade'){
+    titulo=`Este ${esc(d.tipo).toLowerCase()} chegou com problema nas páginas. O que fazer?`;
+    resp=[['Pedir o documento completo ao fornecedor',{acao:'pedir'}],['Aceitar assim mesmo',{acao:'confirmar'}]];
+    S.outrasPags=[];
+  }else if(d.duvida==='fronteira'&&d.paginas.length>1){
     titulo=`Estas ${d.paginas.length} páginas são um ${esc(d.tipo)} só ou mais de um documento?`;
     const fraca=+((d.motivo||'').match(/\d+/)||[0])[0];
     resp=[[`É um documento só`,{acao:'confirmar'}]];
@@ -278,6 +287,7 @@ V.pendencias=async()=>{
   return [`<div class="head"><div><h1>Dúvidas da leitura</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar. Depois da sua resposta, o documento entra na conferência e sua resposta vira exemplo para as próximas.</p></div></div>
   <div class="qwrap"><div class="qcard"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small muted num">Pergunta ${S.q+1} de ${L.length} · envio #${d.envio_id}</span>${conf(d.conf)}</div>
   <div style="display:grid;gap:6px"><h2>${titulo}</h2><p class="small muted">${esc(d.empresa||'Empresa não identificada')} · páginas ${d.pag_ini}–${d.pag_fim}</p></div>
+  ${d.duvida==='integridade'?`<div style="background:var(--erro-fundo);color:var(--erro);border-radius:12px;padding:12px 14px;display:grid;gap:4px">${d.sinais.filter(s=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(s)).map(s=>`<b class="small">${esc(s)}.</b>`).join('')}<span class="small">Um contrato incompleto ou com página trocada não deve ser usado para conferir notas. Peça a via completa ou aceite se tiver certeza.</span></div>`:''}
   <div class="qpages">${imgs.map(p=>`<div class="qp ${fora(p)?'viz':''}"><img src="/api/paginas/${p.id}/imagem?largura=420" alt="Página ${p.n}" data-zoom="${p.id}"><small>pág. ${p.n}${fora(p)?' (outro documento)':''}</small></div>`).join('')}</div>
   ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode responder as dúvidas.</div>`:''}
   <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec='${JSON.stringify(x[1])}'><span>${x[0]}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
@@ -301,7 +311,7 @@ V.documentos=async()=>{
     <span class="small num" style="font-weight:600;color:${fraca?'var(--ambar-texto)':'var(--suave)'}">pág. ${p.n} · ${cw(p.conf)} ${p.conf}%${fraca?' · esta página derrubou a confiança':''}</span></div>`}).join('')}</div>
    <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
    ${d.conf<d.limiar||d.status==='revisao'?`<div style="background:var(--ambar-fundo);color:var(--ambar-texto);border-radius:12px;padding:12px 14px;display:grid;gap:6px"><b>Por que a confiança está baixa</b>
-    <ul style="margin:0;padding-left:18px;display:grid;gap:3px" class="small">${d.fracas.map(p=>`<li>Página ${p.n} (${p.conf}%): ${esc(p.sinais.filter(s=>!/Primeira página|Numeração/.test(s)).join('; ')||'pouco texto legível')}</li>`).join('')}<li>A confiança do documento é a da página mais fraca. Abaixo de ${d.limiar}%, uma pessoa confirma antes de o documento entrar na conferência.</li></ul>
+    <ul style="margin:0;padding-left:18px;display:grid;gap:3px" class="small">${d.sinais.filter(s=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(s)).map(s=>`<li><b>${esc(s)}</b></li>`).join('')}${d.fracas.map(p=>`<li>Página ${p.n} (${p.conf}%): ${esc(p.sinais.filter(s=>!/Primeira página|Numeração/.test(s)).join('; ')||'pouco texto legível')}</li>`).join('')}<li>A confiança do documento é a da página mais fraca. Abaixo de ${d.limiar}%, uma pessoa confirma antes de o documento entrar na conferência.</li></ul>
     ${d.status==='revisao'?`<b class="small">O que fazer: confirme em Dúvidas da leitura se este documento está certo (tipo e onde começa).</b><a class="btn sm" href="#pendencias" style="justify-self:start">Confirmar em Dúvidas da leitura</a>`
      :`<b class="small">Nada pendente: uma pessoa já decidiu${d.decisao?` (“${esc(d.decisao)}”)`:''}.</b>${d.pag_ini>1&&pode('revisor')?`<span class="small">Se esta página na verdade continua o documento anterior (ex.: folha ilegível no meio de um contrato), junte de volta:</span><button class="btn light sm" data-juntar="${d.id}" style="justify-self:start">Juntar com o documento anterior</button>`:''}`}</div>`:''}
    ${C?`<div><p class="small muted" style="margin-bottom:6px">${d.dados.provisorio?'Campos lidos (ainda não usados na conferência: aguardando confirmação)':'Campos lidos para a conferência'}${d.dados.motor==='claude'?' (pelo Claude)':''}</p><div class="kv">${Object.entries(C).map(([k,v])=>`<span>${NOMES[k]||k}</span><b class="num">${campo(k,v)}</b>`).join('')}</div></div>`:''}

@@ -19,3 +19,6 @@ exemplos/
 rascunhos/
 .claude/
 concilia-ai-marca/
+
+# Casos de teste gerados por ferramentas/gerar_casos_teste.py
+casos-de-teste/

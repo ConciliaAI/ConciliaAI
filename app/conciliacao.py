@@ -252,16 +252,21 @@ def conciliar(ws: str) -> dict:
     aditivos = db.q("SELECT * FROM aditivos WHERE ws=?", (ws,))
     notas = db.q("SELECT * FROM notas WHERE ws=? ORDER BY id", (ws,))
     tol = float(db.get_config(ws).get("tolerancia", "0") or 0)
-    # Documentos ainda em "Dúvidas da leitura" podem ser o contrato que falta: não acusar "sem contrato" antes disso.
-    em_duvida = db.q("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='revisao'", (ws,), um=True)["c"]
+    # Um documento ainda em "Dúvidas da leitura" que cita o CNPJ do prestador pode ser o contrato que falta:
+    # nesse caso a nota espera a confirmação em vez de acusar "sem contrato".
+    texto_duvida = ""
+    for d in db.q("SELECT envio_id, pag_ini, pag_fim FROM docs WHERE ws=? AND status='revisao'", (ws,)):
+        for p in db.q("SELECT texto FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ?", (d["envio_id"], d["pag_ini"], d["pag_fim"])):
+            texto_duvida += " " + fiscal.so_digitos(p["texto"])
     abertas = 0
     for nota in notas:
         achados, c, obs = avaliar_nota(nota, contratos, aditivos, notas, tol)
         esperando = False
-        if em_duvida and any(a[0] == "SEM_CONTRATO" for a in achados):
+        if (any(a[0] == "SEM_CONTRATO" for a in achados) and nota["cnpj_prestador"]
+                and nota["cnpj_prestador"] in texto_duvida):
             achados = [a for a in achados if a[0] != "SEM_CONTRATO"]
             esperando = True
-            obs = f"Contrato ainda não encontrado: há {em_duvida} documento(s) em Dúvidas da leitura. A nota é conferida depois da confirmação."
+            obs = "Contrato ainda não confirmado: há um documento deste fornecedor em Dúvidas da leitura. A nota é conferida depois da confirmação."
         existentes = {d["regra"]: d for d in db.q("SELECT * FROM divergencias WHERE nota_id=?", (nota["id"],))}
         vistas = set()
         for regra, msg, esperado, encontrado in achados:

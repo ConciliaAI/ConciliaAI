@@ -12,6 +12,9 @@ TIPOS = {
                                 "documento auxiliar da nfs-e", "nota fiscal eletronica de servico"],
                                ["prestador", "tomador", "data emissao", "valor do servico", "competencia",
                                 "contrato referenciado", "iss", "codigo de tributacao"]),
+    "Nota fiscal de produto (NF-e)": (["danfe", "documento auxiliar da nota fiscal eletronica", "nf-e"],
+                                      ["chave de acesso", "natureza da operacao", "protocolo de autorizacao", "icms",
+                                       "ncm", "cfop", "destinatario", "valor total da nota", "emitente"]),
     "Contrato de prestação de serviços": (["contrato de prestacao de servicos", "contrato de prestacao de servico"],
                                           ["contratada", "contratante", "objeto", "valor mensal", "instrumento",
                                            "clausula", "vigencia"]),
@@ -65,7 +68,12 @@ def criar_cliente(nome: str, setor: str = "", cnpj: str | None = None) -> str:
 
 
 def semear():
-    """Cria os clientes que ainda não existem."""
+    """Cria os clientes que ainda não existem e acrescenta tipos novos aos clientes já criados."""
+    for w in db.q("SELECT id FROM workspaces"):
+        for nome_t, (tit, pal) in TIPOS.items():
+            if not db.q("SELECT 1 FROM tipos WHERE ws=? AND nome=?", (w["id"], nome_t)):
+                db.x("INSERT INTO tipos(ws, nome, titulos, palavras, exigido) VALUES(?,?,?,?,?)",
+                     (w["id"], nome_t, json.dumps(tit), json.dumps(pal), 0))
     for i, (wid, nome, setor, cor, sigla) in enumerate(WORKSPACES):
         if db.q("SELECT 1 FROM workspaces WHERE id=?", (wid,)):
             continue
