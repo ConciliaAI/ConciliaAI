@@ -1,0 +1,14 @@
+# Plataforma (app/ + web/). Rode com iniciar.bat ou: uvicorn app.main:app
+fastapi
+uvicorn[standard]
+python-multipart
+pymupdf
+pillow
+anthropic
+rapidocr-onnxruntime
+# Gerador sintético com gabarito (scripts/generate_synthetic_batch.py)
+Faker==37.1.0
+reportlab==4.3.1
+# Testes
+pytest
+httpx

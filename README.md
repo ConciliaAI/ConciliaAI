@@ -4,9 +4,64 @@
 **Plataforma de inteligência documental e conciliação contratual**  
 **Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory**
 
-> **Estado do projeto: Fase 3 (MVP em desenvolvimento).** A aplicação já oferece autenticação, lotes, upload de PDFs e imagens, processamento assíncrono por página e extração de texto com OCR. A segmentação automática, a classificação documental e a conciliação contratual ainda não estão implementadas.
->
 > **Aviso:** ferramenta de apoio à conferência documental. Não substitui análise jurídica, contábil ou tributária.
+
+## Plataforma completa (`app/` + `web/`) — o que roda na apresentação
+
+O repositório tem duas partes que se complementam:
+
+| Parte | Pastas | Para que serve |
+|---|---|---|
+| **Plataforma** | `app/`, `web/`, `tests/`, `iniciar.bat` | Fluxo completo do desafio funcionando, sem Docker. É o que vai para a demonstração. |
+| **Infraestrutura Docker (fases 1–3)** | `backend/`, `frontend/`, `compose.yaml` | Base para produção: PostgreSQL, fila Celery/Redis, armazenamento S3, React. Descrita a partir de [Visão geral](#visão-geral). |
+
+O gerador sintético com gabarito (`scripts/generate_synthetic_batch.py`) é usado pelas duas partes.
+
+### Como abrir (Windows)
+
+Dê dois cliques em **`iniciar.bat`**. Ele instala o necessário na primeira vez e abre http://127.0.0.1:8000.
+Contas de demonstração: **admin / admin123**, **revisor / revisor123**, **operador / operador123** (troque pelo `.env`: `CONCILIA_SENHA_ADMIN` etc.).
+
+### Desafio 3 · Document AI Factory: o que está implementado
+
+| Item do desafio | Como funciona | Onde ver |
+|---|---|---|
+| Início e fim de cada documento | Cada página recebe “começa novo” ou “continua”, por título no topo, numeração (“2 de 9”), mudança de CPF/pessoa e tipo | Envios → Ver |
+| Agrupamento de páginas | Páginas seguidas do mesmo documento viram um documento | Envios → Ver |
+| Classificação por tipo | Tipos configuráveis por cliente; novos tipos podem ser ensinados pela tela | Documentos, Configurações |
+| OCR pesquisável | Texto do PDF ou OCR local (RapidOCR); busca full-text (SQLite FTS5) e download de PDF pesquisável | Busca, Documentos |
+| Confiança e revisão humana | Confiança por página e documento; abaixo do limite (padrão 75%) vai para a fila, com as páginas na tela | Pendências |
+| **Multimodal** | Com `ANTHROPIC_API_KEY` no `.env`, cada página vai para o Claude (`claude-opus-5-5`) com **imagem + texto** e resposta estruturada; sem chave, usa a leitura local | Configurações |
+| **Retomada após falha** | Cada página é salva ao terminar; queda ou fechamento continua da próxima página. Botão “Simular queda” para demonstrar | Envios → Ver |
+| **Anonimização** | CPF/RG, conta, saúde (CID), endereço e contato escondidos no texto, na busca, na imagem e no PDF. Ver o original exige motivo, registrado em relatório | Configurações, Documentos |
+| Workspaces por cliente | Cada cliente da Bernhoeft com seus tipos, documentos exigidos e regras | Seletor no topo |
+| **Acerto medido com gabarito** | Gera lote sintético (gerador da fase 2), processa sem ver o gabarito e mede F1 da separação, documento inteiro certo e acerto do que foi aprovado sem revisão | Acerto da IA |
+| Login com perfis | Operador envia; revisor decide pendências e revela dados; admin configura. Sessão em cookie assinado | Tela de entrada |
+| Proteções no envio | 40 MB e 500 páginas por arquivo, PDF com senha recusado, arquivo repetido ignorado (SHA-256) | Enviar documentos |
+
+**Resultado medido** (lote sintético de 64 páginas, 18 documentos, parte digitalizada, leitura local): separação F1 **100%**, documento inteiro certo **100%**, 5,6% enviados para revisão humana. Os dados sintéticos são mais fáceis que documentos reais; o número serve para comparar versões, não como promessa de acerto.
+
+### Testes da plataforma
+
+```cmd
+.venv\Scripts\python.exe -m pytest tests -q
+```
+
+14 testes: análise e separação, anonimização (texto e imagem), métricas com gabarito, gerador, e fluxo completo pela API (login, perfis, envio, busca, revisão, arquivo repetido, PDF com senha). O CI do GitHub roda estes testes no job `plataforma`.
+
+### Estrutura da plataforma
+
+```text
+app/          motor: OCR, análise (local e Claude), separação, anonimização, fila com retomada, login, avaliação, API
+web/          telas (HTML + JS, sem build)
+tests/        testes da plataforma
+ferramentas/  gerador do lote de exemplo, teste ponta a ponta, medição de acerto
+docs/marca/   identidade visual (logo, cores, tipografia)
+```
+
+---
+
+> **Infraestrutura Docker — estado: Fase 3.** A partir daqui, o texto descreve a parte `backend/` + `frontend/`, que oferece autenticação, lotes, upload, processamento assíncrono por página e OCR com Tesseract.
 
 ## Sumário
 

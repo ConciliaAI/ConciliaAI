@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concilia AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--noite:#0F1E3D;--confere:#2F6BFF;--tinta:#1D47B8;--ambar:#F5B700;--nevoa:#E9EFFD;--papel:#F7F8FA;--painel:#F2F4F8;--card:#fff;
+--apoio:#5B6680;--suave:#8A93A8;--borda:#E3E7EF;--ambar-fundo:#FFF4D1;--ambar-texto:#7A5A00;--erro:#C93434;--erro-fundo:#FDE8E8;--media:#8AA6E8;
+--fonte:"Plus Jakarta Sans",system-ui,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--noite);font-family:var(--fonte);font-size:15px;line-height:1.5}
+body{padding:16px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--confere);outline-offset:2px}
+h1,h2,h3{margin:0;letter-spacing:-.02em}
+p{margin:0}
+a{color:var(--tinta)}
+.ic{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.num{font-variant-numeric:tabular-nums}.muted{color:var(--apoio)}.small{font-size:13px}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);gap:16px;max-width:1440px;margin:0 auto;align-items:start}
+.side{background:var(--painel);border-radius:24px;padding:24px 16px;position:sticky;top:16px;min-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:6px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 12px}
+.brand b{font-weight:800;font-size:22px;letter-spacing:-.035em}.brand span{font-weight:700;font-size:22px;color:var(--tinta)}
+.navlabel{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--suave);padding:14px 12px 6px;font-weight:600}
+.nav a{position:relative;display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;color:var(--apoio);text-decoration:none;font-weight:500}
+.nav a:hover{background:#E8ECF4;color:var(--noite)}
+.nav a.on{color:var(--noite);font-weight:700;background:#fff}
+.nav a.on::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:var(--confere)}
+.nav a.on .ic{color:var(--confere)}
+.count{margin-left:auto;font-size:12px;font-weight:700;background:var(--ambar);color:#3D2C00;border-radius:999px;padding:1px 8px}
+.motor{margin-top:auto;background:var(--noite);color:#F7F8FA;border-radius:18px;padding:16px;display:grid;gap:6px}
+.motor p{font-size:13px;color:#B9C3DA}
+.main{display:grid;gap:16px;min-width:0}
+.top{background:var(--painel);border-radius:20px;padding:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:relative;z-index:5}
+.ws{position:relative}
+.wsbtn{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--borda);border-radius:14px;padding:6px 12px 6px 6px;text-align:left;min-width:230px}
+.wslogo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none}
+.wsbtn b,.wsopt b{display:block;font-size:14px;line-height:1.2}.wsbtn small,.wsopt small{font-size:12px;color:var(--suave)}
+.wsmenu{position:absolute;top:calc(100% + 8px);left:0;width:300px;background:#fff;border:1px solid var(--borda);border-radius:16px;box-shadow:0 16px 40px rgba(15,30,61,.14);padding:8px;display:grid;gap:2px;z-index:10}
+.wsopt{display:flex;align-items:center;gap:10px;border:0;background:transparent;border-radius:10px;padding:8px 10px;text-align:left;width:100%}
+.wsopt:hover{background:var(--papel)}.wsopt.on{background:var(--nevoa)}
+.search{flex:1 1 240px;display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:10px 14px;color:var(--suave)}
+.search input{border:0;outline:0;background:transparent;flex:1;min-width:0;color:var(--noite)}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;white-space:nowrap}
+.panel{background:var(--painel);border-radius:24px;padding:24px;display:grid;gap:16px;min-width:0}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.head h1{font-size:30px;font-weight:800}.head p{color:var(--apoio);margin-top:4px;max-width:66ch}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:11px 18px;font-weight:700;border:1.5px solid transparent;background:var(--confere);color:#fff;text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--tinta)}.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;color:var(--tinta);border-color:var(--tinta)}
+.btn.light{background:#fff;color:var(--noite);border-color:var(--borda)}
+.btn.white{background:#fff;color:var(--tinta)}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
+.grid{display:grid;gap:16px}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g-wide{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.c{background:#fff;border-radius:20px;padding:20px;min-width:0}.c h3{font-size:16px;font-weight:700}
+.ch{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.task{display:grid;gap:10px;align-content:start}.task .eb{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.task .big{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.15}.task p{font-size:14px;color:var(--apoio)}
+.task.hl{background:var(--confere);color:#fff}.task.hl p{color:#DCE6FF}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;border:1px solid transparent}
+.chip i{width:7px;height:7px;border-radius:50%;display:block}
+.s-ok{background:var(--nevoa);color:var(--tinta)}.s-ok i{background:var(--confere)}
+.s-rev{background:var(--ambar-fundo);color:var(--ambar-texto)}.s-rev i{background:var(--ambar)}
+.s-run{background:#fff;color:var(--confere);border-color:#BFD0FF}.s-run i{background:var(--confere);animation:pulse 1.4s infinite}
+.s-err{background:var(--erro-fundo);color:var(--erro)}.s-err i{background:var(--erro)}
+.s-neu{background:#EEF0F4;color:var(--apoio)}.s-neu i{background:var(--suave)}
+@keyframes pulse{50%{opacity:.3}}
+.bar{height:8px;border-radius:99px;background:#EDF0F6;overflow:hidden}.bar span{display:block;height:100%;border-radius:99px;background:var(--confere);transition:width .4s}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--borda);flex-wrap:wrap}.li:first-child{border-top:0}
+.li .t{min-width:180px;flex:1}.li .t b{display:block;font-size:14px}.li .t span{font-size:13px;color:var(--apoio)}
+.doci{width:38px;height:38px;border-radius:11px;background:var(--nevoa);color:var(--tinta);display:grid;place-items:center;flex:none}
+.doci.warn{background:var(--ambar-fundo);color:var(--ambar-texto)}.doci.bad{background:var(--erro-fundo);color:var(--erro)}
+.dark{background:var(--noite);color:#F7F8FA}
+.value{display:flex;gap:28px;flex-wrap:wrap}.value b{display:block;font-size:26px;font-weight:800}.value span{font-size:13px;color:#AEB8D0}
+.conf{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13px;white-space:nowrap}
+.conf .m{width:44px;height:6px;border-radius:9px;background:#EDF0F6;overflow:hidden}.conf .m span{display:block;height:100%}
+.drop{border:2px dashed #B9C8EE;background:#FBFCFF;border-radius:20px;padding:36px 24px;display:grid;justify-items:center;gap:10px;text-align:center;cursor:pointer}
+.drop.over{background:var(--nevoa);border-color:var(--confere)}
+.bigic{width:60px;height:60px;border-radius:18px;background:var(--nevoa);color:var(--confere);display:grid;place-items:center}
+.strip{display:flex;gap:16px;overflow-x:auto;padding:8px 4px 12px}
+.grp{display:grid;gap:8px;flex:none;align-content:start;cursor:pointer}
+.grp .pages{display:flex;gap:5px}
+.thumb{width:74px;height:100px;border-radius:6px;border:1px solid var(--borda);object-fit:cover;object-position:top;background:#fff;display:block}
+.thumb.start{border-left:4px solid var(--noite)}
+.thumb.wait{display:grid;place-items:center;color:var(--suave);font-size:12px}
+.grp .bk{height:6px;border-radius:4px}
+.grp .gl{font-size:12px;line-height:1.35;max-width:240px}.grp .gl b{display:block;font-size:13px}
+.grp.doubt .pages{outline:2px dashed var(--ambar);outline-offset:4px;border-radius:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--apoio);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:16px;height:6px;border-radius:3px;display:block}
+.qwrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+.qcard{background:#fff;border-radius:22px;padding:24px;display:grid;gap:18px}
+.qcard h2{font-size:24px;font-weight:800;line-height:1.25}
+.qpages{display:flex;gap:12px;flex-wrap:wrap}
+.qp{display:grid;gap:6px;justify-items:center}
+.qp img{width:170px;border:1.5px solid var(--borda);border-radius:8px;background:#fff;cursor:zoom-in}
+.qp.viz img{opacity:.45}.qp small{font-size:12px;color:var(--suave);font-weight:600}
+.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.ans{display:flex;align-items:center;gap:12px;text-align:left;background:#fff;border:1.5px solid var(--borda);border-radius:14px;padding:14px 16px;font-weight:700}
+.ans:hover{border-color:var(--confere);background:#F8FAFF}.ans span{flex:1}
+.ans kbd{font-family:inherit;font-size:12px;color:var(--suave);border:1.5px solid var(--borda);border-radius:6px;padding:1px 7px}
+.ans.main{background:var(--confere);border-color:var(--confere);color:#fff}.ans.main kbd{color:#DCE6FF;border-color:rgba(255,255,255,.4)}
+details.why{background:var(--papel);border-radius:12px;padding:12px 14px;font-size:14px}
+details.why summary{cursor:pointer;font-weight:600;color:var(--tinta)}details.why ul{margin:8px 0 0;padding-left:18px;color:var(--apoio)}
+.inp{width:100%;border:1.5px solid var(--borda);border-radius:12px;padding:10px 12px;background:#fff}.inp:focus{border-color:var(--confere);outline:0}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;font-weight:600;color:var(--suave);padding:8px 10px;border-bottom:1px solid var(--borda);white-space:nowrap}
+td{padding:11px 10px;border-bottom:1px solid var(--borda);vertical-align:middle}tr:last-child td{border-bottom:0}
+.matrix td,.matrix th{text-align:center}.matrix td:first-child,.matrix th:first-child{text-align:left}
+.cell{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:8px;padding:5px 9px;border:1.5px solid transparent;white-space:nowrap;background:none}
+.cell.ok{background:var(--nevoa);color:var(--tinta)}.cell.rev{background:var(--ambar-fundo);color:var(--ambar-texto)}.cell.falta{background:var(--erro-fundo);color:var(--erro)}
+button.cell:hover{border-color:currentColor}.cell .ic{width:14px;height:14px;stroke-width:2.4}
+.viewer{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:20px}
+.viewer .pgs{display:grid;gap:10px}.viewer .pgs img{width:100%;border:1px solid var(--borda);border-radius:8px}
+.ocr{background:var(--papel);border-radius:12px;padding:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;max-height:420px;overflow:auto}
+.pm{background:var(--noite);color:#fff;border-radius:4px;padding:0 6px;font-size:12px;font-weight:600}
+mark{background:#FFE18A;color:inherit;border-radius:3px;padding:0 2px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}.kv span{color:var(--suave)}
+.row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:12px 0;border-top:1px solid var(--borda)}.row:first-child{border-top:0}
+.row .t b{display:block;font-size:14px}.row .t span{font-size:13px;color:var(--apoio)}
+.sw{position:relative;width:42px;height:24px;flex:none}.sw input{opacity:0;width:100%;height:100%;margin:0;position:absolute;cursor:pointer;z-index:1}
+.sw span{position:absolute;inset:0;border-radius:99px;background:#D3D9E4;transition:.15s}
+.sw span::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s}
+.sw input:checked+span{background:var(--confere)}.sw input:checked+span::after{transform:translateX(18px)}
+.tagset{display:flex;gap:6px;flex-wrap:wrap}.tagset span{background:var(--nevoa);color:var(--tinta);border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600}
+.tagset span.ex{background:var(--noite);color:#fff}
+.req{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:14px;align-items:center;background:#fff;border-radius:16px;padding:14px 16px}
+.req .ok{width:36px;height:36px;border-radius:50%;background:var(--confere);color:#fff;display:grid;place-items:center}
+.req.dif .ok{background:var(--noite)}.req b{display:block}.req span{font-size:13px;color:var(--apoio)}
+.ev{display:flex;gap:10px;font-size:13px;padding:6px 0}.ev time{color:var(--suave);white-space:nowrap}
+.res{background:#fff;border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.res .t{flex:1;min-width:220px;display:grid;gap:4px}.res p{color:var(--apoio);font-size:14px}
+.empty{text-align:center;padding:40px 20px;display:grid;gap:10px;justify-items:center}
+.err{color:var(--erro);font-size:13px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--noite);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:20;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.zoom{position:fixed;inset:0;background:rgba(15,30,61,.7);display:grid;place-items:center;z-index:30;padding:20px;cursor:zoom-out}
+.zoom img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+@media (max-width:1180px){.g-wide,.qwrap,.viewer{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}.side{position:static;min-height:0;flex-direction:row;overflow-x:auto;padding:12px}
+.navlabel,.motor{display:none}.nav{display:flex}.nav a{white-space:nowrap}.nav a.on::before{display:none}.g3,.g2{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+const P={inicio:'M3 11 12 3l9 8M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5',enviar:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
+pendencias:'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',documentos:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+busca:'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',relatorios:'M4 20V10M10 20V4M16 20v-8M22 20H2',configuracoes:'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+como:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',check:'M20 6 9 17l-5-5',x:'M18 6 6 18M6 6l12 12',clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
+alert:'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',file:'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6',
+download:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',arrow:'M5 12h14M13 6l6 6-6 6',eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+chev:'M6 9l6 6 6-6',refresh:'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',play:'M7 4l13 8-13 8z',pause:'M7 4h3v16H7zM14 4h3v16h-3z',plus:'M12 5v14M5 12h14',shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',zap:'M13 2 3 14h9l-1 8 10-12h-9z'};
+const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const MARK=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13" fill="#2F6BFF"/><rect x="12" y="15.5" width="24" height="6" rx="3" fill="#fff"/><rect x="12" y="26.5" width="24" height="6" rx="3" fill="#fff"/></svg>`;
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const prot=s=>esc(s).replace(/⟦([^⟧]+)⟧/g,'<span class="pm">$1</span>');
+const cc=c=>c>=95?'var(--confere)':c>=75?'var(--media)':'var(--ambar)';
+const cw=c=>c>=95?'Alta':c>=75?'Média':'Baixa';
+const conf=c=>`<span class="conf num"><span class="m"><span style="width:${c}%;background:${cc(c)}"></span></span>${cw(c)} · ${c}%</span>`;
+const chip=(k,t)=>`<span class="chip s-${k}"><i></i>${t}</span>`;
+const ST={recusado:['err','Recusado'],recebendo:['neu','Recebendo'],fila:['run','Na fila'],processando:['run','Organizando'],pausado:['neu','Pausado'],falhou:['err','Falhou, retomando'],concluido:['ok','Pronto']};
+const stEnvio=e=>{const s=ST[e.status]||['neu',e.status];return chip(s[0],s[1]+(e.status==='processando'||e.status==='fila'?` · ${e.total?Math.round(100*e.feitas/e.total):0}%`:''));};
+const S={ws:null,clientes:[],estado:{},menu:false,q:0,timer:null,doc:null,revelado:null};
+async function api(u,o){const r=await fetch(u,o);if(r.status===401&&!u.endsWith('/api/login')){S.usuario=null;location.hash='#entrar';throw new Error('Entre na sua conta para continuar')}
+  if(!r.ok){let m='Algo deu errado. Tente de novo.';try{m=(await r.json()).detail||m}catch(e){}throw new Error(m)}return r.headers.get('content-type')?.includes('json')?r.json():r;}
+const PERF={admin:3,revisor:2,operador:1};const pode=p=>S.usuario&&PERF[S.usuario.perfil]>=PERF[p];
+const NOMEPERF={admin:'Administrador',revisor:'Revisor',operador:'Operador'};
+const post=(u,b)=>api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+const W=()=>S.clientes.find(c=>c.id===S.ws)||S.clientes[0];
+const logo=c=>`<span class="wslogo" style="background:${c.cor};${c.cor==='#F5B700'?'color:#3D2C00':''}">${c.sigla}</span>`;
+
+const NAV=[['inicio','Início'],['enviar','Enviar documentos'],['pendencias','Pendências'],['documentos','Documentos'],['busca','Busca'],['relatorios','Relatórios'],['acerto','Acerto da IA']];
+P.acerto='M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z';
+P.sair='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9';
+function shell(rota,inner,pend){
+  const w=W();const claude=S.estado.claude_configurado&&S.cfgClaude!=='0';
+  return `<div class="app"><aside class="side"><div class="brand">${MARK(34)}<b>concilia</b><span>AI</span></div><nav class="nav" style="display:contents">
+  ${NAV.map(([k,t])=>`<a href="#${k}" class="${rota===k||(rota==='envio'&&k==='enviar')?'on':''}">${ic(k)}${t}${k==='pendencias'&&pend?`<span class="count num">${pend}</span>`:''}</a>`).join('')}
+  <div class="navlabel">Conta</div><a href="#configuracoes" class="${rota==='configuracoes'?'on':''}">${ic('configuracoes')}Configurações</a><a href="#como-funciona" class="${rota==='como-funciona'?'on':''}">${ic('como')}Como funciona</a><a href="#entrar" data-sair>${ic('sair')}Sair</a></nav>
+  <div class="motor"><b>${claude?'Claude conectado':'Leitura local'}</b><p>${claude?`Cada página é lida pelo ${esc(S.estado.modelo)} (imagem + texto).`:'Funcionando sem internet com OCR e regras. Coloque a chave do Claude no arquivo .env para ligar a IA.'}</p></div></aside>
+  <div class="main"><header class="top"><div class="ws"><button class="wsbtn" id="wsbtn">${logo(w)}<div><b>${esc(w.nome)}</b><small>Cliente da Bernhoeft · ${esc(w.setor)}</small></div>${ic('chev')}</button>
+  ${S.menu?`<div class="wsmenu"><div class="navlabel" style="padding:6px 10px">Clientes da Bernhoeft</div>${S.clientes.map(c=>`<button class="wsopt ${c.id===S.ws?'on':''}" data-ws="${c.id}">${logo(c)}<div><b>${esc(c.nome)}</b><small>${esc(c.setor)}</small></div></button>`).join('')}</div>`:''}</div>
+  <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar dentro dos documentos" aria-label="Buscar dentro dos documentos"></label>
+  <span class="badge" style="background:${claude?'var(--nevoa)':'var(--ambar-fundo)'};color:${claude?'var(--tinta)':'var(--ambar-texto)'}">${claude?'IA: Claude':'IA: leitura local'}</span>
+  <span style="display:flex;align-items:center;gap:10px;padding:0 6px"><span class="wslogo" style="background:var(--nevoa);color:var(--tinta)">${esc((S.usuario?.nome||'?').slice(0,2).toUpperCase())}</span><span><b style="display:block;font-size:14px">${esc(S.usuario?.nome||'')}</b><small style="font-size:12px;color:var(--suave)">${NOMEPERF[S.usuario?.perfil]||''}</small></span></span></header>
+  <section class="panel">${inner}</section></div></div>`;
+}
+
+const V={};
+V.inicio=async()=>{
+  const r=await api(`/api/ws/${S.ws}/resumo`);const a=r.ativo;
+  return [`<div class="head"><div><h1>Bom dia</h1><p>Veja o que aconteceu com os documentos do cliente ${esc(W().nome)}.</p></div><div class="actions"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a></div></div>
+  <div class="grid g3">
+  ${r.pendencias?`<div class="c task hl"><div class="eb">${ic('pendencias')}Precisa de você</div><div class="big num">${r.pendencias} ${r.pendencias>1?'confirmações':'confirmação'}</div><p>Casos em que a confiança ficou abaixo do limite. A IA preferiu perguntar a errar.</p><a class="btn white" href="#pendencias" style="justify-self:start">Resolver agora ${ic('arrow')}</a></div>`
+   :`<div class="c task hl"><div class="eb">${ic('check')}Nada pendente</div><div class="big">Tudo em dia</div><p>Quando algo precisar da sua confirmação, aparece aqui.</p></div>`}
+  ${a?`<div class="c task"><div class="eb">${ic('clock')}Sendo organizado</div><div class="big num">${a.total} páginas</div><p>Envio #${a.id} · ${esc(a.nome)}</p><div class="bar"><span style="width:${a.total?Math.round(100*a.feitas/a.total):0}%"></span></div><p class="small num"><b>${a.feitas} de ${a.total}</b> páginas · ${stEnvio(a)}</p><a class="btn ghost sm" href="#envio-${a.id}" style="justify-self:start">Acompanhar</a></div>`
+   :`<div class="c task"><div class="eb">${ic('clock')}Sendo organizado</div><div class="big">Nada agora</div><p>Mande documentos e acompanhe aqui.</p><a class="btn ghost sm" href="#enviar" style="justify-self:start">Enviar</a></div>`}
+  <div class="c task"><div class="eb">${ic('documentos')}Prontos para usar</div><div class="big num">${r.prontos} documentos</div><p>${r.ultimo?`Do envio #${r.ultimo.id}, separados e classificados.`:'Ainda não há envios concluídos.'}</p>${r.ultimo?`<a class="btn ghost sm" href="#envio-${r.ultimo.id}" style="justify-self:start">Ver como organizamos</a>`:''}</div></div>
+  <div class="grid g-wide"><div class="c"><div class="ch"><h3>O que precisa de atenção</h3><a href="#documentos" class="small" style="font-weight:700">Ver tudo</a></div>
+  ${r.alertas.length?r.alertas.map(x=>`<div class="li"><span class="doci ${x.tipo==='falta'?'bad':'warn'}">${ic(x.tipo==='falta'?'alert':'clock')}</span><div class="t"><b>${esc(x.texto)}</b><span>${esc(x.sub)}</span></div>${x.tipo==='falta'?`<button class="btn light sm" data-toast="Pedido anotado para o fornecedor">Pedir ao fornecedor</button>`:`<a class="btn light sm" href="#pendencias">Confirmar</a>`}</div>`).join(''):'<p class="muted">Nada pendente nos documentos exigidos.</p>'}</div>
+  <div class="grid" style="align-content:start"><div class="c dark" style="display:grid;gap:14px"><h3>O que a Concilia já fez</h3><div class="value"><div><b class="num">${r.paginas}</b><span>páginas lidas</span></div><div><b class="num">${r.documentos}</b><span>documentos separados</span></div><div><b class="num">${r.pct_auto??'—'}${r.pct_auto!=null?'%':''}</b><span>sem precisar de ninguém</span></div></div></div>
+  <div class="c"><div class="ch"><h3>Envios recentes</h3></div>${r.envios.length?r.envios.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div></div>`, r.pendencias, !!a];
+};
+const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div class="t"><b>#${e.id} · ${esc(e.nome)}</b><span>${esc(e.criado_em)} · ${e.total} páginas${e.retomadas?` · retomado ${e.retomadas}x após falha`:''}</span></div>${stEnvio(e)}<a class="btn light sm" href="#envio-${e.id}">Ver</a></div>`;
+
+V.enviar=async()=>{
+  const es=await api(`/api/ws/${S.ws}/envios`);
+  return [`<div class="head"><div><h1>Enviar documentos</h1><p>Mande do jeito que estiver: tudo junto, fora de ordem, digitalizado ou foto de celular. A Concilia descobre onde cada documento começa e termina.</p></div>
+  <div class="actions"><button class="btn ghost" id="exemplo">${ic('zap')}${S.ws==='atlantica'?'Gerar lote sintético (contratos e notas)':'Carregar lote de exemplo'}</button></div></div>
+  <div class="c" style="display:grid;gap:14px"><label class="drop" id="drop"><span class="bigic">${ic('enviar')}</span><b style="font-size:18px">Arraste os arquivos para cá</b><span class="muted">ou <u style="color:var(--tinta);font-weight:700">escolha no computador</u></span><span class="small muted">PDF, foto (JPG/PNG), TIFF ou ZIP · vários de uma vez</span>
+  <input type="file" id="files" multiple accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.zip,.bmp,.webp" style="position:absolute;width:1px;height:1px;opacity:0"></label><p class="small muted" id="upmsg"></p></div>
+  <div class="c"><div class="ch"><h3>Seus envios</h3><span class="small muted">Se algo falhar no meio, a Concilia continua da última página salva.</span></div>${es.length?es.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda. Arraste arquivos acima ou use o lote de exemplo.</p>'}</div>`,null,es.some(e=>['fila','processando','falhou','recebendo'].includes(e.status))];
+};
+
+V.envio=async(id)=>{
+  const d=await api(`/api/envios/${id}`);const e=d.envio;const ativo=['fila','processando','falhou','recebendo'].includes(e.status);
+  const porDoc={};d.paginas.forEach(p=>{(porDoc[p.doc_id||('p'+p.n)]=porDoc[p.doc_id||('p'+p.n)]||[]).push(p)});
+  const docs=d.docs.length?d.docs.map(doc=>({doc,pags:d.paginas.filter(p=>p.n>=doc.pag_ini&&p.n<=doc.pag_fim)})):[];
+  const soltas=d.docs.length?[]:d.paginas.filter(p=>p.status==='feita');
+  const th=p=>`<img class="thumb ${p.inicio?'start':''}" loading="lazy" src="/api/paginas/${p.id}/imagem?largura=160&v=${e.feitas}" alt="Página ${p.n}" data-zoom="${p.id}">`;
+  const grp=x=>`<div class="grp ${x.doc.status==='revisao'?'doubt':''}" ${x.doc.status==='confirmado'?`data-doc="${x.doc.id}"`:''}><div class="pages">${x.pags.map(th).join('')}</div><div class="bk" style="background:${x.doc.status==='revisao'?'var(--ambar)':cc(x.doc.conf)}"></div><div class="gl"><b>${esc(x.doc.tipo)}</b><span class="muted num">pág. ${x.doc.pag_ini}${x.doc.pag_fim>x.doc.pag_ini?'–'+x.doc.pag_fim:''} · ${cw(x.doc.conf)} ${x.doc.conf}%${x.doc.pessoa?' · '+esc(x.doc.pessoa):''}</span>${x.doc.status==='revisao'?`<br><a href="#pendencias" style="color:var(--ambar-texto);font-weight:700">Precisa de você</a>`:''}</div></div>`;
+  const sinais=[...new Set(d.paginas.flatMap(p=>p.sinais))].slice(0,8);
+  return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#enviar" style="font-weight:700;text-decoration:none">← Envios</a></p><h1>Envio #${e.id}</h1><p>${esc(e.nome)} · ${e.total} páginas${d.docs.length?` viraram ${d.docs.length} documentos`:''} · leitura ${e.motor==='claude'?'pelo Claude (imagem + texto)':'local (OCR + regras)'}</p></div>
+  <div class="actions">${stEnvio(e)}${e.status==='processando'||e.status==='fila'?`<button class="btn light sm" data-acao="pausar">${ic('pause')}Pausar</button><button class="btn light sm" data-acao="simular-falha">${ic('zap')}Simular queda</button>`:''}${e.status==='pausado'||e.status==='falhou'?`<button class="btn sm" data-acao="retomar">${ic('play')}Retomar</button>`:''}</div></div>
+  ${ativo||e.status==='pausado'?`<div class="c"><div class="bar"><span style="width:${e.total?Math.round(100*e.feitas/e.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${e.feitas} de ${e.total} páginas lidas e salvas. ${e.status==='falhou'?'Retomando sozinho em instantes…':''}</p></div>`:''}
+  <div class="c"><div class="ch"><div><h3>Onde cada documento começa e termina</h3><p class="small muted">A borda escura marca a primeira página de cada documento. Clique numa página para ampliar.</p></div>
+  <div class="legend"><span><i style="background:var(--confere)"></i>Confiança alta</span><span><i style="background:var(--media)"></i>Média</span><span><i style="background:var(--ambar)"></i>Vai para você confirmar</span></div></div>
+  ${docs.length?`<div class="strip">${docs.map(grp).join('')}</div>`:soltas.length?`<div class="strip">${soltas.map(p=>`<div class="grp"><div class="pages">${th(p)}</div><div class="gl"><b>${esc(p.tipo)}</b><span class="muted">pág. ${p.n} · ${p.conf}%</span></div></div>`).join('')}</div>`:'<p class="muted">As páginas aparecem aqui conforme são lidas.</p>'}</div>
+  <div class="grid g2"><div class="c"><h3 style="margin-bottom:10px">Como a IA decidiu</h3>${sinais.length?`<ul style="margin:0;padding-left:18px;display:grid;gap:6px" class="small">${sinais.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'<p class="muted">Aparece quando as páginas forem lidas.</p>'}</div>
+  <div class="c"><h3 style="margin-bottom:10px">Histórico do envio</h3>${d.eventos.map(v=>`<div class="ev"><time>${esc(v.quando.slice(11,19))}</time><span>${esc(v.texto)}</span></div>`).join('')}</div></div>`,null,ativo];
+};
+
+V.pendencias=async()=>{
+  const r=await api(`/api/ws/${S.ws}/pendencias`);const L=r.pendencias;
+  if(!L.length)return[`<div class="head"><div><h1>Pendências</h1></div></div><div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>Tudo certo por agora</h2><p class="muted">Quando a confiança da IA ficar abaixo de ${r.limiar}%, o documento aparece aqui para você decidir.</p><a class="btn" href="#documentos">Ver documentos</a></div>`,0];
+  if(S.q>=L.length)S.q=0;const d=L[S.q];
+  const imgs=[...d.vizinhas.filter(v=>v.n<d.pag_ini),...d.paginas,...d.vizinhas.filter(v=>v.n>d.pag_fim)];
+  const fora=v=>v.n<d.pag_ini||v.n>d.pag_fim;
+  let titulo,resp;
+  if(d.duvida==='fronteira'&&d.paginas.length>1){
+    titulo=`Estas ${d.paginas.length} páginas são um ${esc(d.tipo)} só ou mais de um documento?`;
+    resp=[[`É um documento só`,{acao:'confirmar'}],...d.paginas.slice(1).map(p=>[`Começa outro na página ${p.n}`,{acao:'dividir',pagina:p.n}])];
+  }else{
+    titulo=d.tipo==='Não identificado'?'Que documento é este?':`Este documento é mesmo ${esc(d.tipo)}?`;
+    const c=d.candidatos.map(x=>x[0]).filter(x=>x!=='Não identificado');if(!c.includes(d.tipo)&&d.tipo!=='Não identificado')c.unshift(d.tipo);
+    resp=c.slice(0,3).map((t,i)=>[i===0&&t===d.tipo?`Sim, é ${t}`:`É ${t}`,{acao:'confirmar',tipo:t}]);
+  }
+  const temAnterior=d.vizinhas.some(v=>v.n<d.pag_ini);
+  return [`<div class="head"><div><h1>Pendências</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar, e sua resposta vira exemplo para as próximas.</p></div></div>
+  <div class="qwrap"><div class="qcard"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small muted num">Pergunta ${S.q+1} de ${L.length} · envio #${d.envio_id}</span>${conf(d.conf)}</div>
+  <div style="display:grid;gap:6px"><h2>${titulo}</h2><p class="small muted">${esc(d.pessoa||'Pessoa não identificada')}${d.empresa?' · '+esc(d.empresa):''} · páginas ${d.pag_ini}–${d.pag_fim}</p></div>
+  <div class="qpages">${imgs.map(p=>`<div class="qp ${fora(p)?'viz':''}"><img src="/api/paginas/${p.id}/imagem?largura=420" alt="Página ${p.n}" data-zoom="${p.id}"><small>pág. ${p.n}${fora(p)?' (outro documento)':''}</small></div>`).join('')}</div>
+  ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode decidir as pendências.</div>`:''}
+  <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec='${JSON.stringify(x[1])}'><span>${x[0]}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
+  <div class="actions"><select class="inp" id="outrotipo" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+  ${temAnterior?`<button class="btn light sm" data-dec='{"acao":"juntar"}'>Juntar com o anterior</button>`:''}<button class="btn light sm" data-dec='{"acao":"reprocessar"}'>${ic('refresh')}Ler de novo</button><button class="btn light sm" data-dec='{"acao":"pedir"}'>Pedir nova cópia</button></div>
+  <details class="why"><summary>Por que estou vendo isso?</summary><ul>${d.sinais.map(s=>`<li>${esc(s)}</li>`).join('')}<li>Ponto mais fraco: ${esc(d.motivo)}</li></ul></details></div>
+  <div class="c" style="display:grid;gap:8px;align-content:start"><h3>Fila de revisão</h3>${L.map((x,i)=>`<div class="li" style="cursor:pointer;${i===S.q?'opacity:.5':''}" data-q="${i}"><span class="doci warn">${ic('pendencias')}</span><div class="t"><b>${esc(x.tipo)}</b><span>${cw(x.conf)} ${x.conf}% · ${esc(x.pessoa||'sem nome')}</span></div></div>`).join('')}</div></div>`,L.length];
+};
+
+V.documentos=async()=>{
+  const [m,docs]=await Promise.all([api(`/api/ws/${S.ws}/matriz`),api(`/api/ws/${S.ws}/documentos`)]);
+  const cell=c=>c.status==='ok'?`<button class="cell ok" data-doc="${c.doc_id}">${ic('check')}Ok</button>`:c.status==='rev'?`<a class="cell rev" href="#pendencias" style="text-decoration:none">${ic('clock')}Confirmar</a>`:`<button class="cell falta" data-toast="Pedido de ${esc(c.tipo)} anotado para o fornecedor">${ic('x')}Falta</button>`;
+  let viewer='';
+  if(S.doc){try{const d=await api(`/api/docs/${S.doc}`);const txt=S.revelado&&S.revelado.id===d.id?esc(S.revelado.texto):prot(d.texto);
+   viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>${esc(d.tipo)} · ${esc(d.pessoa||'sem nome')}</h3><p class="small muted">Envio #${d.envio_id} · páginas ${d.pag_ini}–${d.pag_fim}${d.decisao?' · '+esc(d.decisao):''}</p></div>
+   <div class="actions"><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}Baixar PDF pesquisável</a><button class="btn light sm" data-fechar>${ic('x')}Fechar</button></div></div>
+   <div class="viewer"><div class="pgs">${d.paginas.map(p=>`<img src="/api/paginas/${p.id}/imagem?largura=600${S.revelado&&S.revelado.id===d.id?'&revelar=1':''}" alt="Página ${p.n}" data-zoom="${p.id}">`).join('')}</div>
+   <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Pessoa</span><b>${esc(d.pessoa||'—')}</b><span>CPF</span><b>${prot(d.cpf||'—')}</b><span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
+   <div><p class="small muted" style="margin-bottom:6px">Texto reconhecido (pesquisável)</p><div class="ocr">${txt}</div></div>
+   ${d.protegidos&&!(S.revelado&&S.revelado.id===d.id)?`<form id="revelar" class="actions" data-id="${d.id}"><span class="small muted">${ic('shield')} ${d.protegidos} dado(s) protegido(s).</span><input class="inp" id="motivo" placeholder="Motivo para ver (fica registrado)" style="flex:1;min-width:200px"><button class="btn light sm">Ver dados</button></form><p class="err" id="reverr"></p>`:''}</div></div></div>`;}catch(e){S.doc=null}}
+  return [`<div class="head"><div><h1>Documentos</h1><p>Organizados por empresa e colaborador. Veja o que está ok, o que espera confirmação e o que falta entre os documentos exigidos deste cliente.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=situacao">${ic('download')}Baixar situação (Excel)</a></div></div>
+  ${viewer}
+  ${m.grupos.length?m.grupos.map(g=>`<div class="c"><div class="ch"><div><h3>${esc(g.empresa)}</h3><p class="small muted">${g.linhas.length} colaborador(es)</p></div><div class="legend"><span class="cell ok">${ic('check')}Ok</span><span class="cell rev">${ic('clock')}Confirmar</span><span class="cell falta">${ic('x')}Falta</span></div></div>
+   <div class="tablewrap"><table class="matrix"><thead><tr><th>Colaborador</th>${m.exigidos.map(t=>`<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${g.linhas.map(l=>`<tr><td><b>${esc(l.pessoa)}</b></td>${l.celulas.map(c=>`<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`).join('')
+   :`<div class="c empty"><h3>Nenhum documento ainda</h3><p class="muted">Envie um lote e os documentos aparecem aqui organizados.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}
+  ${docs.length?`<div class="c"><div class="ch"><h3>Todos os documentos</h3><span class="small muted">${docs.length} no total</span></div><div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Pessoa / empresa</th><th>Envio</th><th>Páginas</th><th>Confiança</th><th>Situação</th><th></th></tr></thead><tbody>
+   ${docs.map(d=>`<tr><td><b>${esc(d.tipo)}</b></td><td>${esc(d.pessoa||d.empresa||'—')}</td><td class="num">#${d.envio_id}</td><td class="num">${d.pag_ini}–${d.pag_fim}</td><td>${conf(d.conf)}</td><td>${d.status==='confirmado'?chip('ok',d.decisao?'Confirmado por você':'Confirmado'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia')}</td><td><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`:''}`];
+};
+
+V.busca=async()=>[`<div class="head"><div><h1>Busca</h1><p>Procura dentro do texto de todos os documentos lidos, inclusive digitalizados e fotos. Pode escrever sem acento.</p></div></div>
+  <form class="c" id="fbusca" style="display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px">${ic('busca')}<input id="q" class="inp" style="border:0;font-size:17px" value="${esc(S.busq||'')}" placeholder="Ex.: hemograma, porteiro, 10/2026, Marcos" aria-label="O que você procura?"><button class="btn">Buscar</button></form><div id="results" class="grid"></div>`];
+async function buscar(){const q=document.getElementById('q').value.trim();S.busq=q;const box=document.getElementById('results');if(!q){box.innerHTML='';return}
+  const r=await api(`/api/ws/${S.ws}/busca?q=${encodeURIComponent(q)}`);
+  box.innerHTML=r.length?`<p class="small muted">${r.length} documento(s) encontrado(s)</p>`+r.map(d=>`<div class="res"><span class="doci">${ic('file')}</span><div class="t"><b>${esc(d.tipo)}</b><span class="small muted">${esc(d.pessoa||d.empresa||'')} · envio #${d.envio_id} · pág. ${d.pag_ini}–${d.pag_fim}</span><p>${prot(d.trecho).replace(/\[\[/g,'<mark>').replace(/\]\]/g,'</mark>')}</p></div><div class="actions"><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}PDF</a></div></div>`).join(''):`<div class="c empty"><h3>Nada encontrado com “${esc(q)}”</h3><p class="muted">Tente um nome, um tipo de documento ou uma data.</p></div>`;}
+
+V.relatorios=async()=>[`<div class="head"><div><h1>Relatórios</h1><p>Planilhas prontas (abrem no Excel), geradas na hora com os dados reais deste cliente.</p></div></div>
+  <div class="grid g2">${[['situacao','Situação por colaborador','O que está ok, o que falta e o que espera confirmação.'],['documentos','Todos os documentos','Tipo, pessoa, páginas, confiança e decisões humanas.'],['acessos','Acesso a dados protegidos','Quem pediu para ver dados protegidos, quando e por quê.']].map(r=>`<div class="c" style="display:grid;gap:14px"><div style="display:flex;gap:14px"><span class="doci">${ic('relatorios')}</span><div><h3>${r[1]}</h3><p class="small muted">${r[2]}</p></div></div><a class="btn sm" style="justify-self:start" href="/api/ws/${S.ws}/relatorio.csv?tipo=${r[0]}">${ic('download')}Baixar planilha</a></div>`).join('')}</div>`];
+
+V.configuracoes=async()=>{
+  const r=await api(`/api/ws/${S.ws}/config`);const c=r.config;
+  const tg=(k,l,d)=>`<div class="row"><div class="t"><b>${l}</b><span>${d}</span></div><label class="sw"><input type="checkbox" data-cfg="${k}" ${c[k]==='1'?'checked':''} aria-label="${l}"><span></span></label></div>`;
+  return [`<div class="head"><div><h1>Configurações</h1><p>Valem para o cliente ${esc(W().nome)}.${pode('admin')?'':' Só o administrador pode alterar.'}</p></div></div><div class="grid g2" ${pode('admin')?'':'style="pointer-events:none;opacity:.6"'}>
+  <div class="c"><h3 style="margin-bottom:6px">Inteligência artificial</h3>
+   <div class="row"><div class="t"><b>Status</b><span>${r.claude_configurado?`Chave encontrada. Modelo: ${esc(r.modelo)}`:'Sem chave. Para ligar, crie o arquivo .env na pasta do projeto com ANTHROPIC_API_KEY=sua-chave e reinicie.'}</span></div>${r.claude_configurado?chip('ok','Pronto'):chip('rev','Leitura local')}</div>
+   ${tg('usar_claude','Usar o Claude quando houver chave','Lê imagem e texto juntos. Sem chave, usa OCR e regras locais.')}
+   <div class="row" style="display:grid;gap:6px"><div class="t"><b>Mandar para revisão humana abaixo de <span id="vlim">${c.limiar}</span>%</b><span>Acima disso, o documento é aceito sem ninguém olhar. Vale para os próximos envios.</span></div><input type="range" min="50" max="95" step="1" value="${c.limiar}" id="limiar" style="width:100%;accent-color:var(--confere)"></div></div>
+  <div class="c"><div class="ch"><h3>Dados protegidos</h3>${ic('shield')}</div><p class="small muted">Escondidos na tela, na busca, nas imagens e nos PDFs. Ver o original exige um motivo, que fica registrado (${r.acessos} acesso(s) até agora).</p>
+   ${tg('cpf','CPF e RG','Números de documento pessoal')}${tg('banco','Dados bancários','Agência e conta')}${tg('saude','Informações de saúde','CID e diagnósticos')}${tg('endereco','Endereço','Rua e número')}${tg('contato','Telefone e e-mail','Contato pessoal')}</div>
+  <div class="c" style="display:grid;gap:12px;align-content:start"><h3>Tipos de documento deste cliente</h3><p class="small muted">Os escuros são exigidos de cada colaborador.</p><div class="tagset">${r.tipos.map(t=>`<span class="${t.exigido?'ex':''}">${esc(t.nome)}</span>`).join('')}</div></div>
+  <form class="c" id="novotipo" style="display:grid;gap:10px;align-content:start"><h3>Ensinar um novo tipo</h3><input class="inp" name="nome" placeholder="Nome, ex.: Certificado NR-10"><input class="inp" name="titulos" placeholder="Títulos que aparecem no topo, separados por vírgula"><input class="inp" name="palavras" placeholder="Palavras típicas, separadas por vírgula">
+   <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="exigido"> Exigido de cada colaborador</label><p class="err" id="tipoerr"></p><button class="btn" style="justify-self:start">${ic('plus')}Adicionar tipo</button></form></div>`];
+};
+
+V.acerto=async()=>{
+  const L=await api(`/api/ws/${S.ws}/avaliacoes`);const vivo=L.some(x=>!x.resultado&&!['recusado'].includes(x.envio.status));
+  const big=(v,l,s)=>`<div class="c task"><div class="eb">${l}</div><div class="big num">${v}%</div><p>${s}</p></div>`;
+  const ult=L.find(x=>x.resultado);const r=ult&&ult.resultado;
+  return [`<div class="head"><div><h1>Acerto da IA</h1><p>Um lote sintético é gerado junto com o gabarito, que diz onde começa cada documento e qual é o tipo certo. A Concilia processa o lote sem ver o gabarito, e aqui comparamos o resultado.</p></div>
+  <div class="actions">${pode('admin')?`<button class="btn" id="avaliar">${ic('zap')}Gerar lote com gabarito e medir</button>`:'<span class="small muted">Só o administrador pode iniciar uma avaliação.</span>'}</div></div>
+  ${S.ws!=='atlantica'?`<div class="c" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="doci warn">${ic('alert')}</span><p style="flex:1;min-width:220px">O gerador cria contratos, notas fiscais e aditivos. Para medir com os tipos certos, use o cliente <b>Atlântica Facilities</b>.</p><button class="btn light sm" data-ws="atlantica">Ir para Atlântica Facilities</button></div>`:''}
+  ${r?`<div class="grid g3">${big(r.fronteira_f1,'Separação de documentos (F1)',`Acertou o início de ${r.fronteira_cobertura}% dos documentos; ${r.fronteira_precisao}% dos inícios marcados estavam certos.`)}
+   ${big(r.tipo_correto,'Documento inteiro certo',`Páginas e tipo corretos em ${r.tipo_correto}% dos ${r.documentos_gabarito} documentos.`)}
+   ${big(r.acerto_automaticos,'Acerto do que foi aprovado sozinho',`${r.automaticos} documentos aprovados sem revisão. ${r.enviados_revisao} foram para a fila humana (${r.pct_revisao}%).`)}</div>
+   <div class="c"><div class="ch"><h3>Onde a IA errou no último lote (envio #${ult.envio.id})</h3><span class="small muted num">${r.paginas} páginas · ${r.documentos_gabarito} documentos no gabarito · ${r.documentos_previstos} previstos · páginas com tipo certo: ${r.paginas_tipo_correto}%</span></div>
+   ${r.erros.length?`<div class="tablewrap"><table><thead><tr><th>Documento</th><th>Páginas</th><th>Certo</th><th>A IA disse</th></tr></thead><tbody>${r.erros.map(e=>`<tr><td>${esc(e.documento)}</td><td class="num">${esc(e.paginas)}</td><td>${esc(e.esperado)}</td><td>${esc(e.previsto)}</td></tr>`).join('')}</tbody></table></div>${r.total_erros>r.erros.length?`<p class="small muted">E mais ${r.total_erros-r.erros.length}.</p>`:''}`:'<p class="muted">Nenhum erro: todos os documentos foram separados e classificados corretamente.</p>'}</div>`
+  :`<div class="c empty"><span class="doci" style="width:56px;height:56px">${ic('acerto')}</span><h3>${L.length?'Medindo… o resultado aparece quando o lote terminar':'Nenhuma avaliação ainda'}</h3><p class="muted">O lote de teste tem contratos de 9 páginas, notas e aditivos misturados, e uma parte é digitalizada para testar o OCR.</p></div>`}
+  ${L.length?`<div class="c"><div class="ch"><h3>Histórico de avaliações</h3></div><div class="tablewrap"><table><thead><tr><th>Envio</th><th>Quando</th><th>Situação</th><th>Separação (F1)</th><th>Documento certo</th><th>Fila humana</th></tr></thead><tbody>
+   ${L.map(x=>`<tr><td><a href="#envio-${x.envio.id}">#${x.envio.id}</a></td><td>${esc(x.envio.criado_em)}</td><td>${stEnvio(x.envio)}</td><td class="num">${x.resultado?x.resultado.fronteira_f1+'%':'—'}</td><td class="num">${x.resultado?x.resultado.tipo_correto+'%':'—'}</td><td class="num">${x.resultado?x.resultado.pct_revisao+'%':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}`,null,vivo];
+};
+
+V.entrar=async()=>[`<div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;background:#fff;border-radius:28px;box-shadow:0 20px 60px rgba(47,107,255,.14);padding:14px;min-height:calc(100vh - 32px)" class="login">
+  <div style="border-radius:20px;padding:34px;display:flex;flex-direction:column;justify-content:space-between;color:#fff;background:radial-gradient(70% 55% at 25% 78%,#0A1A6B 0%,transparent 72%),radial-gradient(55% 60% at 80% 15%,#8FB4FF 0%,transparent 70%),linear-gradient(165deg,#9CC3FF 0%,#2F6BFF 50%,#1D47B8 100%);min-height:300px">
+   <div style="display:flex;align-items:center;gap:10px">${MARK(42)}<b style="font-size:22px">concilia AI</b></div>
+   <div style="display:grid;gap:14px"><h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;line-height:1.15">Seus documentos organizados, sem trabalho manual.</h2><p style="opacity:.9">Acesso da equipe Bernhoeft.</p></div></div>
+  <div style="display:flex;align-items:center;justify-content:center;padding:32px 20px"><form id="login" style="width:100%;max-width:360px;display:grid;gap:14px" novalidate>${MARK(30)}<h1 style="font-size:32px;font-weight:800">Entrar</h1>
+   <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Usuário<input class="inp" name="usuario" autocomplete="username" placeholder="admin, revisor ou operador"></label>
+   <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Senha<input class="inp" name="senha" type="password" autocomplete="current-password"></label>
+   <p class="err" id="loginerr"></p><button class="btn" style="padding:13px">Entrar</button>
+   <p class="small muted">Contas de demonstração: <b>admin</b>, <b>revisor</b> e <b>operador</b>. As senhas estão no LEIA-ME.</p></form></div></div>
+  <style>@media(max-width:900px){.login{grid-template-columns:1fr!important}}</style>`];
+
+V['como-funciona']=async()=>{
+  const R=[['min','Detecção de início e fim de cada documento','Cada página recebe a decisão “começa um novo” ou “continua”, por título, numeração, pessoa e tipo.','enviar'],
+  ['min','Agrupamento de páginas','Páginas seguidas do mesmo documento viram um documento só.','enviar'],
+  ['min','Classificação por tipo documental','Tipos configuráveis por cliente, e novos tipos podem ser ensinados.','documentos'],
+  ['min','OCR pesquisável','Texto de PDFs e imagens vira busca e PDF pesquisável para baixar.','busca'],
+  ['min','Confiança e fila de revisão humana','Cada página e documento tem confiança. Abaixo do limite, vai para Pendências.','pendencias'],
+  ['dif','Modelos multimodais','Com a chave, o Claude lê a imagem e o texto da página juntos.','configuracoes'],
+  ['dif','Retomada após falha','Cada página é salva ao terminar. Em queda ou fechamento, continua da próxima.','enviar'],
+  ['dif','Anonimização de dados','CPF, conta, saúde, endereço e contato escondidos no texto e na imagem.','configuracoes'],
+  ['dif','Um workspace por cliente','Clientes da Bernhoeft separados, cada um com seus tipos e regras.','inicio'],
+  ['dif','Acerto medido com gabarito','Lote sintético com resposta certa mede separação e classificação.','acerto'],
+  ['dif','Login com perfis','Operador envia, revisor decide, administrador configura. Tudo registrado.','configuracoes']];
+  const row=r=>`<div class="req ${r[0]==='dif'?'dif':''}"><span class="ok">${ic('check')}</span><div><b>${r[1]}</b><span>${r[2]}</span></div><a class="btn light sm" href="#${r[3]}">Ver</a></div>`;
+  return [`<div class="head"><div><h1>Como funciona</h1><p>Onde cada parte do desafio Document AI Factory acontece de verdade no sistema.</p></div></div>
+  <div class="grid g2"><div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">Capacidades mínimas</h3>${R.filter(r=>r[0]==='min').map(row).join('')}</div>
+  <div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em">Diferenciais</h3>${R.filter(r=>r[0]==='dif').map(row).join('')}</div></div>`];
+};
+
+async function render(){
+  clearTimeout(S.timer);
+  let h=(location.hash||'#inicio').slice(1);let arg=null;
+  const m=h.match(/^envio-(\d+)$/);if(m){h='envio';arg=+m[1]}
+  if(!V[h])h='inicio';
+  if(h==='entrar'||!S.usuario){if(h!=='entrar')location.hash='#entrar';document.getElementById('root').innerHTML=(await V.entrar())[0];document.querySelector('#login input')?.focus();return}
+  try{
+    const [inner,pendCount,vivo]=await V[h](arg);
+    let pend=pendCount;if(pend==null){try{pend=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias.length}catch(e){pend=0}}
+    const foco=document.activeElement&&document.activeElement.id;
+    document.getElementById('root').innerHTML=shell(h,inner,pend);
+    if(foco&&document.getElementById(foco)&&foco!=='wsbtn')document.getElementById(foco).focus();
+    if(h==='busca'&&S.busq)buscar();
+    if(vivo)S.timer=setTimeout(render,1500);
+  }catch(e){document.getElementById('root').innerHTML=shell(h,`<div class="c empty"><h3>Não foi possível carregar</h3><p class="muted">${esc(e.message)}. Confira se o programa está aberto (iniciar.bat).</p></div>`,0);}
+}
+async function enviarArquivos(files){
+  if(!files.length)return;const fd=new FormData();[...files].forEach(f=>fd.append('arquivos',f));
+  const msg=document.getElementById('upmsg');if(msg)msg.textContent='Enviando…';
+  try{const e=await api(`/api/ws/${S.ws}/envios`,{method:'POST',body:fd});toast(`Recebido. ${e.total} páginas na fila.`);location.hash=`#envio-${e.id}`;}
+  catch(err){if(msg)msg.textContent=err.message;}
+}
+document.addEventListener('click',async ev=>{
+  if(S.menu&&!ev.target.closest('.ws')){S.menu=false;render();}
+  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
+  if(t.hasAttribute('data-sair')){ev.preventDefault();await post('/api/sair');S.usuario=null;location.hash='#entrar';render();return}
+  if(t.id==='avaliar'){t.disabled=true;t.textContent='Gerando lote com gabarito…';try{const e=await post(`/api/ws/${S.ws}/avaliacao`,{fornecedores:4});toast(`Lote de ${e.total} páginas na fila. O resultado aparece ao terminar.`);render();}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.classList.contains('zoom')){t.remove();return}
+  if(t.id==='wsbtn'){S.menu=!S.menu;render();return}
+  if(t.dataset.ws){S.ws=t.dataset.ws;S.menu=false;S.q=0;S.doc=null;S.revelado=null;try{localStorage.setItem('ws',S.ws)}catch(e){}toast(`Agora você está vendo o cliente ${W().nome}`);render();return}
+  if(t.dataset.zoom){const z=document.createElement('div');z.className='zoom';z.innerHTML=`<img src="/api/paginas/${t.dataset.zoom}/imagem" alt="Página ampliada">`;document.body.appendChild(z);return}
+  if(t.dataset.acao){const id=location.hash.split('-')[1];await post(`/api/envios/${id}/${t.dataset.acao}`);toast({pausar:'Pausado. Nada se perde.',retomar:'Retomando da próxima página.','simular-falha':'Queda simulada. Veja a retomada automática.'}[t.dataset.acao]);render();return}
+  if(t.dataset.dec){const L=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias;const d=L[S.q];if(!d)return;
+    t.disabled=true;try{const r=await post(`/api/docs/${d.id}/decisao`,JSON.parse(t.dataset.dec));toast(r.msg);}catch(e){toast(e.message)}render();return}
+  if(t.dataset.q){S.q=+t.dataset.q;render();return}
+  if(t.dataset.doc){S.doc=+t.dataset.doc;S.revelado=null;if(location.hash!=='#documentos')location.hash='#documentos';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
+  if(t.hasAttribute('data-fechar')){S.doc=null;S.revelado=null;render();return}
+  if(t.dataset.toast){toast(t.dataset.toast);return}
+  if(t.id==='exemplo'){t.disabled=true;try{const e=await post(`/api/ws/${S.ws}/exemplo`);toast(`Lote de exemplo com ${e.total} páginas na fila.`);location.hash=`#envio-${e.id}`;}catch(e){toast(e.message);t.disabled=false}}
+});
+document.addEventListener('change',async ev=>{
+  if(ev.target.id==='files')enviarArquivos(ev.target.files);
+  if(ev.target.dataset.cfg){await post(`/api/ws/${S.ws}/config`,{[ev.target.dataset.cfg]:ev.target.checked?1:0});toast(ev.target.checked?'Ativado':'Desativado');if(ev.target.dataset.cfg==='usar_claude'){S.cfgClaude=ev.target.checked?'1':'0';render();}}
+  if(ev.target.id==='limiar'){await post(`/api/ws/${S.ws}/config`,{limiar:ev.target.value});toast(`Limite de revisão: ${ev.target.value}%`)}
+  if(ev.target.id==='outrotipo'&&ev.target.value){const d=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias[S.q];const r=await post(`/api/docs/${d.id}/decisao`,{acao:'confirmar',tipo:ev.target.value});toast(r.msg);render();}
+});
+document.addEventListener('input',ev=>{if(ev.target.id==='limiar')document.getElementById('vlim').textContent=ev.target.value;});
+document.addEventListener('submit',async ev=>{ev.preventDefault();const f=ev.target;
+  if(f.id==='login'){const d=Object.fromEntries(new FormData(f));if(!d.usuario||!d.senha){document.getElementById('loginerr').textContent='Preencha usuário e senha.';return}
+    try{await post('/api/login',d);location.hash='#inicio';await iniciar();toast(`Olá, ${S.usuario.nome}`);}catch(e){document.getElementById('loginerr').textContent=e.message}return}
+  if(f.id==='fbusca')buscar();
+  if(f.id==='revelar'){const m=document.getElementById('motivo').value;try{const r=await post(`/api/docs/${f.dataset.id}/revelar`,{motivo:m});S.revelado={id:+f.dataset.id,texto:r.texto};toast('Acesso registrado.');render();}catch(e){document.getElementById('reverr').textContent=e.message}}
+  if(f.id==='novotipo'){const fd=Object.fromEntries(new FormData(f));fd.exigido=!!fd.exigido;try{await post(`/api/ws/${S.ws}/tipos`,fd);toast('Tipo adicionado. Vale para os próximos envios.');render();}catch(e){document.getElementById('tipoerr').textContent=e.message}}
+});
+document.addEventListener('keydown',ev=>{
+  if(ev.target.id==='topq'&&ev.key==='Enter'){S.busq=ev.target.value;location.hash='#busca';render();return}
+  if(ev.key==='Escape'){document.querySelector('.zoom')?.remove();if(S.menu){S.menu=false;render()}}
+  if(location.hash==='#pendencias'&&/^[1-4]$/.test(ev.key)&&!/INPUT|SELECT/.test(ev.target.tagName)){document.querySelectorAll('.answers .ans')[+ev.key-1]?.click()}
+});
+document.addEventListener('dragover',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d){ev.preventDefault();d.classList.add('over')}});
+document.addEventListener('dragleave',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d)d.classList.remove('over')});
+document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d){ev.preventDefault();enviarArquivos(ev.dataTransfer.files)}});
+window.addEventListener('hashchange',render);
+async function iniciar(){S.estado=await api('/api/estado');S.usuario=S.estado.usuario;S.clientes=S.estado.clientes;
+  if(!S.usuario){render();return}
+  let w=null;try{w=localStorage.getItem('ws')}catch(e){}S.ws=S.clientes.some(c=>c.id===w)?w:S.clientes[0].id;
+  try{S.cfgClaude=(await api(`/api/ws/${S.ws}/config`)).config.usar_claude}catch(e){}
+  if(location.hash==='#entrar'||!location.hash)location.hash='#inicio';render();}
+iniciar();
+</script>
+</body>
+</html>
