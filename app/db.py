@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS divergencias(
   mensagem TEXT, esperado TEXT, encontrado TEXT, status TEXT, decidido_por TEXT, decidido_em TEXT,
   comentario TEXT, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS trilha(id INTEGER PRIMARY KEY, ws TEXT, quando TEXT, usuario TEXT, texto TEXT);
+CREATE TABLE IF NOT EXISTS avisos(
+  id INTEGER PRIMARY KEY, ws TEXT, divergencia_id INT, nota_id INT, fornecedor_id INT, para TEXT,
+  assunto TEXT, corpo TEXT, usuario TEXT, quando TEXT);
 CREATE INDEX IF NOT EXISTS i_notas ON notas(ws, cnpj_prestador, numero);
 CREATE INDEX IF NOT EXISTS i_div ON divergencias(ws, status);
 """

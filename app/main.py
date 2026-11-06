@@ -380,7 +380,8 @@ def divergencias(ws: str, status: str = "aberta"):
     args = (ws,) if status == "todas" else (ws, status)
     L = db.q(f"""SELECT d.*, n.numero, n.nome_prestador, n.cnpj_prestador, n.valor, n.data_emissao, n.descricao,
                  n.origem, n.doc_id nota_doc_id, c.numero contrato_numero, c.objeto, c.valor_mensal, c.vigencia_inicio,
-                 c.vigencia_fim, c.doc_id contrato_doc_id
+                 c.vigencia_fim, c.doc_id contrato_doc_id,
+                 (SELECT MAX(quando) FROM avisos a WHERE a.divergencia_id=d.id) avisado_em
                  FROM divergencias d JOIN notas n ON n.id=d.nota_id LEFT JOIN contratos c ON c.id=d.contrato_id
                  WHERE d.ws=? {filtro}
                  ORDER BY CASE d.status WHEN 'aberta' THEN 0 ELSE 1 END,
@@ -408,6 +409,36 @@ def decidir_divergencia(request: Request, did: int, corpo: dict):
     r["msg"] = {"aprovada": "Aprovada. A nota segue para pagamento.", "rejeitada": "Rejeitada. Fica registrada para cobrar o fornecedor.",
                 "aberta": "Reaberta. Voltou para a fila."}[r["status"]]
     return r
+
+
+@app.post("/api/divergencias/{did}/aviso")
+def avisar_fornecedor(request: Request, did: int):
+    """Monta o aviso ao fornecedor com a divergência e registra que foi gerado (quem, quando, para quem)."""
+    u = auth.exigir(request, "revisor")
+    d = db.q("""SELECT d.*, n.numero, n.data_emissao, n.valor, n.nome_prestador, w.nome cliente,
+                f.nome forn_nome, f.email, f.responsavel
+                FROM divergencias d JOIN notas n ON n.id=d.nota_id JOIN workspaces w ON w.id=d.ws
+                LEFT JOIN fornecedores f ON f.id=d.fornecedor_id WHERE d.id=?""", (did,), um=True)
+    if not d:
+        raise HTTPException(404, "Divergência não encontrada")
+    titulo = conciliacao.REGRAS[d["regra"]][0]
+    nome = d["forn_nome"] or d["nome_prestador"] or "fornecedor"
+    assunto = f"Nota fiscal {d['numero']}: {titulo.lower()} ({d['cliente']})"
+    linhas = [f"Olá, {nome}.", "",
+              f"Na conferência da nota fiscal nº {d['numero']}, emitida em {fmt_data(d['data_emissao'])} no valor de {brl(d['valor'])}, "
+              f"encontramos o seguinte: {d['mensagem']}", "",
+              f"O contrato prevê: {d['esperado'] or '—'}", f"A nota apresenta: {d['encontrado'] or '—'}"]
+    if d["comentario"]:
+        linhas += ["", f"Observação da nossa equipe: {d['comentario']}"]
+    linhas += ["", "Pedimos que envie a nota corrigida ou a justificativa (por exemplo, o aditivo assinado) respondendo este e-mail.",
+               "", "Atenciosamente,", f"{u['nome']}, equipe Bernhoeft, em nome de {d['cliente']}"]
+    corpo = "\n".join(linhas)
+    db.x("INSERT INTO avisos(ws, divergencia_id, nota_id, fornecedor_id, para, assunto, corpo, usuario, quando) VALUES(?,?,?,?,?,?,?,?,?)",
+         (d["ws"], did, d["nota_id"], d["fornecedor_id"], d["email"], assunto, corpo, u["nome"], db.agora()))
+    db.trilha(d["ws"], u["nome"], f"gerou aviso ao fornecedor {nome} sobre a nota {d['numero']} ({titulo})")
+    return {"para": d["email"], "assunto": assunto, "corpo": corpo, "responsavel": d["responsavel"],
+            "msg": "Aviso pronto. Copie ou abra no seu e-mail para enviar." if d["email"]
+            else "Aviso pronto, mas o fornecedor não tem e-mail cadastrado. Cadastre em Fornecedores."}
 
 
 @app.get("/api/ws/{ws}/notas")
@@ -645,6 +676,10 @@ def relatorio(ws: str, tipo: str = "divergencias"):
         for f in fornecedores(ws):
             wr.writerow([f["nome"] or "", f["cnpj_fmt"], f["contratos"], f["notas"], brl(f["faturado"]), f["abertas"],
                          f["rejeitadas"], fmt_data(f["ultima"])])
+    elif tipo == "avisos":
+        wr.writerow(["Quando", "Quem gerou", "Para", "Assunto", "Mensagem"])
+        for a in db.q("SELECT * FROM avisos WHERE ws=? ORDER BY id", (ws,)):
+            wr.writerow([a["quando"], a["usuario"], a["para"] or "(sem e-mail)", a["assunto"], a["corpo"]])
     elif tipo == "trilha":
         wr.writerow(["Quando", "Quem", "O que fez"])
         for t in db.q("SELECT * FROM trilha WHERE ws=? ORDER BY id", (ws,)):

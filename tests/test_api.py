@@ -159,3 +159,18 @@ def test_cadastro_de_cliente_e_fornecedor(cliente):
     assert len(f) == 1 and f[0]["responsavel"] == "Carlos (contratos)" and f[0]["cadastro"] == "manual"
     # Outro cliente não vê esse fornecedor.
     assert all(x["cnpj"] != fiscal.so_digitos(CNPJ) or x["cadastro"] != "manual" for x in cliente.get("/api/ws/marazul/fornecedores").json())
+
+
+def test_aviso_ao_fornecedor(cliente):
+    entrar(cliente, "revisor")
+    divs = cliente.get("/api/ws/horizonte/divergencias", params={"status": "todas"}).json()["divergencias"]
+    d = next(x for x in divs if x["regra"] == "VALOR_DIVERGENTE")
+    r = cliente.post(f"/api/divergencias/{d['id']}/aviso")
+    assert r.status_code == 200, r.text
+    a = r.json()
+    assert "502" in a["assunto"] and "R$ 5.200,00" in a["corpo"] and "Cobrar devolução" in a["corpo"]
+    assert "Avisos" not in a["corpo"] and a["para"] is None  # fornecedor sem e-mail cadastrado
+    csv = cliente.get("/api/ws/horizonte/relatorio.csv", params={"tipo": "avisos"}).text
+    assert a["assunto"] in csv
+    d2 = next(x for x in cliente.get("/api/ws/horizonte/divergencias", params={"status": "todas"}).json()["divergencias"] if x["id"] == d["id"])
+    assert d2["avisado_em"]
