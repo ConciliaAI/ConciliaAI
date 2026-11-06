@@ -6,15 +6,19 @@ regras locais. Sem chave, ou se a chamada falhar, vale só o resultado local: o 
 """
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
+from typing import Callable
 
 from app.config import get_settings
 from app.intelligence import DOC_TYPES, _date, _money, extract_fields, normalized
 
 log = logging.getLogger(__name__)
 USO: list[dict] = []  # tokens de cada chamada, para medir custo
+MAX_IMAGENS = 6  # imagens por documento (cada uma custa ~1,5 mil tokens)
+IMAGEM_TETO = 0.7  # confiança máxima de página lida só pela imagem: abaixo de 0,75, vai para revisão
 
 # Campos que a conferência (intelligence.reconcile) usa, por tipo.
 CAMPOS = {
@@ -65,16 +69,30 @@ def ativo() -> bool:
     return bool(get_settings().llm_api_key.strip())
 
 
-def _chamar(paginas: list[dict], tipo_local: str) -> dict:
+def ocr_fraco(p: dict) -> bool:
+    """Página que o OCR quase não leu: vale mandar a imagem ao Claude."""
+    return len((p.get("text") or "").strip()) < 30 or float(p.get("confidence") or 0) < 0.6
+
+
+def _chamar(paginas: list[dict], tipo_local: str, imagens: dict[int, bytes] | None = None) -> dict:
     import anthropic
 
     s = get_settings()
+    imagens = imagens or {}
     texto = "\n".join(f'<pagina n="{p["number"]}">\n{(p.get("text") or "")[:6000]}\n</pagina>' for p in paginas[:12])
-    cliente = anthropic.Anthropic(api_key=s.llm_api_key.strip(), timeout=90, max_retries=2)
+    conteudo = []
+    for n, png in imagens.items():
+        conteudo.append({"type": "text", "text": f"Imagem da página {n} (o OCR leu pouco ou nada dela):"})
+        conteudo.append({"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                                     "data": base64.standard_b64encode(png).decode()}})
+    aviso = ("\n\nPara as páginas com imagem, leia a imagem; o excerpt deve copiar o que está escrito nela."
+             if imagens else "")
+    conteudo.append({"type": "text", "text": PROMPT.format(local=tipo_local, paginas=texto) + aviso})
+    cliente = anthropic.Anthropic(api_key=s.llm_api_key.strip(), timeout=120, max_retries=2)
     pedido = dict(
         model=s.llm_model, max_tokens=4000,
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
-        messages=[{"role": "user", "content": PROMPT.format(local=tipo_local, paginas=texto)}],
+        messages=[{"role": "user", "content": conteudo}],
     )
     if s.llm_model.startswith("claude-haiku"):
         resp = cliente.messages.create(**pedido)  # Haiku não tem fallback no servidor
@@ -110,12 +128,16 @@ def _compacto(texto: str) -> str:
     return re.sub(r"\s+", " ", normalized(texto)).strip()
 
 
-def _campos(dados: dict, kind: str, paginas: list[dict]) -> dict:
+def _campos(dados: dict, kind: str, paginas: list[dict], lidas_por_imagem: set[int] = frozenset()) -> dict:
     por_pagina = {int(p["number"]): p for p in paginas}
 
     def evidencia(bruto: dict, valor):
         p = por_pagina.get(int(bruto.get("page") or 0)) or paginas[0]
         trecho = (bruto.get("excerpt") or "").strip()[:240]
+        if p["number"] in lidas_por_imagem:
+            # Sem texto para conferir o trecho: valor útil, mas a revisão humana confirma.
+            return {"value": valor, "page": p["number"], "excerpt": trecho, "confidence": IMAGEM_TETO,
+                    "source": "claude_imagem"}
         conf = float(p.get("confidence") or 0)
         # Trecho que não está no texto da página: o valor pode ter sido inventado; baixa a confiança.
         if trecho and _compacto(trecho) not in _compacto(p.get("text") or ""):
@@ -138,27 +160,41 @@ def _campos(dados: dict, kind: str, paginas: list[dict]) -> dict:
     return out
 
 
-def analisar(paginas: list[dict], kind: str, confidence: float, reasons: list[str]) -> tuple[str, float, list[str], dict]:
-    """Tipo, confiança, motivos e campos de um documento já separado. Sempre devolve algo."""
+def analisar(paginas: list[dict], kind: str, confidence: float, reasons: list[str],
+             imagem: Callable[[int], bytes] | None = None) -> tuple[str, float, list[str], dict]:
+    """Tipo, confiança, motivos e campos de um documento já separado. Sempre devolve algo.
+
+    imagem(n) devolve o PNG da página n; só é chamada para páginas que o OCR leu mal.
+    """
     locais = extract_fields(paginas, kind)
     if not ativo() or not paginas:
         return kind, confidence, reasons, locais
+    imagens: dict[int, bytes] = {}
+    if imagem:
+        for p in [p for p in paginas if ocr_fraco(p)][:MAX_IMAGENS]:
+            try:
+                imagens[int(p["number"])] = imagem(int(p["number"]))
+            except Exception as e:  # arquivo indisponível: segue só com o texto
+                log.warning("Imagem da página %s indisponível: %s", p["number"], e)
     try:
-        dados = _chamar(paginas, kind)
+        dados = _chamar(paginas, kind, imagens)
     except Exception as e:  # rede, limite de uso, chave inválida, resposta estranha
         log.warning("Claude indisponível, usada a leitura local: %s", e)
         return kind, confidence, reasons + ["Claude indisponível; usada a leitura local"], locais
 
     novo = dados["kind"] if dados["kind"] in DOC_TYPES else kind
-    ocr = min(float(p.get("confidence") or 0) for p in paginas)
+    # Página lida pela imagem conta como OCR razoável, mas nunca passa do teto: vai para revisão.
+    ocr = min(IMAGEM_TETO if int(p["number"]) in imagens else float(p.get("confidence") or 0) for p in paginas)
     conf = min(max(0.0, min(1.0, float(dados["confidence"]))), max(0.05, ocr))
     motivos = ["Claude: " + r for r in dados.get("reasons", [])[:3]]
+    if imagens:
+        motivos.append(f"Claude leu a imagem de {len(imagens)} página(s) com OCR fraco")
     if novo != kind:
         # Regras e Claude discordam: quem decide é a revisão humana.
         conf = min(conf, 0.6)
         motivos.append(f"Regras locais diziam {kind}; Claude diz {novo}")
         locais = extract_fields(paginas, novo)
-    campos = _campos(dados, novo, paginas)
+    campos = _campos(dados, novo, paginas, set(imagens))
     # Regra local com rótulo exato tem prioridade; o Claude completa o que ela não achou.
     campos.update(locais)
     return novo, round(conf, 3), list(dict.fromkeys(reasons + motivos)), campos

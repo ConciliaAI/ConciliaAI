@@ -3,6 +3,8 @@
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from app import llm
+from app.document_processing import render_page_png
+from app.storage import download_bytes
 from app.intelligence import segment, reconcile
 from app.models import DocumentGroup, Finding, Page, SourceFile, ReviewAction
 
@@ -13,6 +15,19 @@ def pages_for_group(db: Session, group: DocumentGroup):
     return [{"number": pg.page_number, "text": pg.ocr_text, "confidence": pg.ocr_confidence or 0}
             for pg in db.scalars(select(Page).where(Page.source_file_id == group.source_file_id,
                 Page.page_number >= group.start_page, Page.page_number <= group.end_page).order_by(Page.page_number))]
+
+
+def _imagens_do_arquivo(f: SourceFile):
+    """PNG de uma página do arquivo original. Baixa o arquivo só na primeira vez que precisar."""
+    ext = "." + f.filename.rsplit(".", 1)[-1].lower()
+    cache: dict[str, bytes] = {}
+
+    def imagem(n: int) -> bytes:
+        if "raw" not in cache:
+            cache["raw"] = download_bytes(f.object_key)
+        return render_page_png(cache["raw"], ext, n)
+
+    return imagem
 
 
 def build_groups(db: Session, batch_id: int):
@@ -31,9 +46,10 @@ def build_groups(db: Session, batch_id: int):
         if any(p.status != "ok" for p in pages):
             raise ValueError("O OCR de algumas páginas falhou; corrija antes de segmentar")
         payload = [{"number": p.page_number, "text": p.ocr_text, "confidence": p.ocr_confidence} for p in pages]
+        imagem = _imagens_do_arquivo(f)
         for g in segment(payload):
             gp = [p for p in payload if g.start <= p["number"] <= g.end]
-            kind, conf, reasons, fields = llm.analisar(gp, g.kind, g.confidence, g.reasons)
+            kind, conf, reasons, fields = llm.analisar(gp, g.kind, g.confidence, g.reasons, imagem)
             db.add(DocumentGroup(source_file_id=f.id, start_page=g.start, end_page=g.end,
                                  document_type=kind, confidence=conf, reasons=reasons, fields=fields,
                                  review_status="pendente" if conf < REVIEW_THRESHOLD or kind == "outros" else "auto_classificado"))

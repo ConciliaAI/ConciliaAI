@@ -23,10 +23,15 @@ def resposta(kind="contrato", confidence=0.9, **campos):
     return {"kind": kind, "confidence": confidence, "reasons": ["Título de contrato"], "fields": fields}
 
 
+enviadas: dict = {}
+
+
 def ligar(monkeypatch, dados=None, erro=None):
     monkeypatch.setattr(get_settings(), "llm_api_key", "teste")
+    enviadas.clear()
 
-    def falso(paginas, tipo_local):
+    def falso(paginas, tipo_local, imagens=None):
+        enviadas.update(imagens or {})
         if erro:
             raise erro
         return dados
@@ -74,3 +79,19 @@ def test_falha_do_claude_nao_trava_o_lote(monkeypatch):
     kind, conf, reasons, _ = llm.analisar([page(1, CONTRATO_LIVRE)], "contrato", 0.86, [])
     assert (kind, conf) == ("contrato", 0.86)
     assert "Claude indisponível; usada a leitura local" in reasons
+
+
+def test_imagem_so_para_pagina_que_o_ocr_nao_leu(monkeypatch):
+    ligar(monkeypatch, resposta(value={"value": "8000.00", "page": 2, "excerpt": "R$ 8.000,00"}))
+    pedidas = []
+
+    def imagem(n):
+        pedidas.append(n)
+        return b"png"
+
+    paginas = [page(1, CONTRATO_LIVRE), page(2, "", confidence=0.0)]
+    kind, conf, reasons, fields = llm.analisar(paginas, "contrato", 0.86, [], imagem)
+    assert pedidas == [2] and list(enviadas) == [2]
+    assert conf <= llm.IMAGEM_TETO  # lido só pela imagem: vai para revisão humana
+    assert fields["value"]["source"] == "claude_imagem"
+    assert any("imagem de 1 página" in r for r in reasons)

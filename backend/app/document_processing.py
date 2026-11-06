@@ -66,6 +66,25 @@ def _image_ocr(img: Image.Image) -> OCRResult:
                      if confidences else 0.0, "tesseract", words)
 
 
+def render_page_png(raw: bytes, ext: str, page_number: int, max_side: int = 1568) -> bytes:
+    """Imagem PNG da página, no tamanho que o Claude aproveita sem gastar tokens à toa."""
+    idx = page_number - 1
+    if ext == ".pdf":
+        with fitz.open(stream=raw, filetype="pdf") as doc:
+            pix = doc[idx].get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            img = Image.open(BytesIO(pix.tobytes("png")))
+    else:
+        img = Image.open(BytesIO(raw))
+        img.seek(idx)
+        img = ImageOps.exif_transpose(img.copy())
+    with img:
+        img = img.convert("RGB")
+        img.thumbnail((max_side, max_side))
+        out = BytesIO()
+        img.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
 def extract_page(raw: bytes, ext: str, page_number: int) -> OCRResult:
     idx = page_number - 1
     if ext == ".pdf":
