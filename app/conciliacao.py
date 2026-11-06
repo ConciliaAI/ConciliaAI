@@ -266,7 +266,7 @@ def conciliar(ws: str) -> dict:
                 and nota["cnpj_prestador"] in texto_duvida):
             achados = [a for a in achados if a[0] != "SEM_CONTRATO"]
             esperando = True
-            obs = "Contrato ainda não confirmado: há um documento deste fornecedor em Dúvidas da leitura. A nota é conferida depois da confirmação."
+            obs = "Contrato ainda não confirmado: há um documento deste fornecedor na Revisão humana. A nota é conferida depois da confirmação."
         existentes = {d["regra"]: d for d in db.q("SELECT * FROM divergencias WHERE nota_id=?", (nota["id"],))}
         vistas = set()
         for regra, msg, esperado, encontrado in achados:
