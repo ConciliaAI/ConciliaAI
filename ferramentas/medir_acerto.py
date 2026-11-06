@@ -27,7 +27,7 @@ for _ in range(30):
     except Exception:
         time.sleep(1)
 chamar("/api/login", {"usuario": "admin", "senha": "admin123"})
-fornecedores = int(sys.argv[1]) if len(sys.argv) > 1 else 4
+fornecedores = int(sys.argv[1]) if len(sys.argv) > 1 else 8
 e = chamar("/api/ws/atlantica/avaliacao", {"fornecedores": fornecedores})
 print(f"Envio #{e['id']}: {e['total']} páginas")
 t0 = time.time()
@@ -42,4 +42,11 @@ for k in ("documentos_gabarito", "documentos_previstos", "fronteira_precisao", "
           "segmentacao_exata", "tipo_correto", "paginas_tipo_correto", "pct_revisao", "acerto_automaticos"):
     print(f"  {k}: {r[k]}")
 for erro in r["erros"]:
+    print("  erro:", erro)
+k = r["conciliacao"]
+print("Conferência das notas:")
+for chave in ("notas_gabarito", "notas_lidas", "divergencias_esperadas", "detectadas", "falsos_alarmes",
+              "cobertura", "precisao", "regra_certa"):
+    print(f"  {chave}: {k[chave]}")
+for erro in k["erros"]:
     print("  erro:", erro)

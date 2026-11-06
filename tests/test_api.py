@@ -1,20 +1,31 @@
-"""Fluxo completo pela API: login, perfis, envio, separação, busca, revisão e proteções."""
+"""Fluxo completo pela API: login, perfis, envio de PDF + XML, separação, conciliação, revisão e proteções."""
 import time
 
 import pymupdf as fitz
 import pytest
 from fastapi.testclient import TestClient
 
+from app import fiscal
 from app.main import app
+
+CNPJ = "87.000.001/1001-78"
+TOMADOR = "87.000.999/1999-99"
 
 
 def lote_pdf() -> bytes:
     d = fitz.open()
     paginas = [
-        ("FICHA DE REGISTRO DE EMPREGADO", ["Nome do colaborador: Marcos Silva", "CPF: 321.654.987-00", "Cargo: Porteiro", "Página 1 de 2"]),
-        (None, ["Dependentes: não possui", "Assinatura do empregado", "Página 2 de 2"]),
-        ("ATESTADO DE SAÚDE OCUPACIONAL - ASO", ["Nome do colaborador: Marcos Silva", "Exame admissional", "Resultado: APTO", "Observação: CID Z00.0"]),
-        ("RECIBO DE PAGAMENTO DE SALÁRIO", ["Nome do colaborador: Ana Rocha", "Competência: 10/2026", "Salário base R$ 1.850,00", "Líquido a receber"]),
+        ("CONTRATO DE PRESTACAO DE SERVICOS", ["Instrumento: CTR-900", "Contratada: Limpeza Brilho ME",
+                                               f"CNPJ contratada: {CNPJ}", f"CNPJ contratante: {TOMADOR}",
+                                               "Objeto: Limpeza e conservacao predial", "Valor mensal: R$ 4.000,00",
+                                               "Vigencia: 01/01/2026 a 31/12/2026", "Pagina 1 de 2"]),
+        (None, ["Clausula 5: reajuste depende de termo aditivo", "Representante legal: CPF 321.654.987-00",
+                "Assinaturas das partes", "Pagina 2 de 2"]),
+        ("NOTA FISCAL DE SERVICOS ELETRONICA - NFS-e", ["Numero: 501", "Prestador: Limpeza Brilho ME",
+                                                       f"CNPJ prestador: {CNPJ}", f"CNPJ tomador: {TOMADOR}",
+                                                       "Data emissao: 05/09/2026", "Competencia: 09/2026",
+                                                       "Descricao: Limpeza e conservacao predial",
+                                                       "Valor do servico: R$ 4.000,00"]),
     ]
     for titulo, linhas in paginas:
         pg = d.new_page()
@@ -26,6 +37,12 @@ def lote_pdf() -> bytes:
             pg.insert_text((60, y), ln, fontsize=11)
             y += 20
     return d.tobytes()
+
+
+def nota_xml(numero, cnpj, valor, data="2026-10-05", descricao="Limpeza e conservacao predial"):
+    inv = {"numero": numero, "data_emissao": data, "competencia": data[:7], "prestador_cnpj": cnpj,
+           "tomador_cnpj": TOMADOR, "descricao_servico": descricao, "valor_servico": valor}
+    return fiscal.nfse_nacional_xml(inv, "Limpeza Brilho ME")
 
 
 @pytest.fixture(scope="module")
@@ -59,29 +76,57 @@ def test_sem_login_bloqueia(cliente):
 def test_fluxo_completo(cliente):
     entrar(cliente, "operador")
     lote = lote_pdf()
-    r = cliente.post("/api/ws/horizonte/envios", files=[("arquivos", ("lote.pdf", lote, "application/pdf"))])
+    arquivos = [("arquivos", ("lote.pdf", lote, "application/pdf")),
+                ("arquivos", ("nfse-502.xml", nota_xml("502", CNPJ, "5200.00"), "application/xml")),
+                ("arquivos", ("nfse-777.xml", nota_xml("777", "87.000.700/1700-34", "900.00"), "application/xml"))]
+    r = cliente.post("/api/ws/horizonte/envios", files=arquivos)
     assert r.status_code == 200, r.text
+    assert r.json()["notas_xml"] == 2
     e = esperar(cliente, r.json()["id"])
     docs = e["docs"]
     assert [(d["tipo"], d["pag_ini"], d["pag_fim"]) for d in docs] == [
-        ("Ficha de registro", 1, 2), ("ASO", 3, 3), ("Holerite", 4, 4)]
-    assert all("321.654.987-00" not in (d["cpf"] or "") for d in docs)
+        ("Contrato de prestação de serviços", 1, 2), ("Nota fiscal de serviço", 3, 3)]
+    contrato = next(d for d in docs if d["tipo"].startswith("Contrato"))
+    assert contrato["dados"]["campos"]["valor_mensal"] == 4000.0
 
-    busca = cliente.get("/api/ws/horizonte/busca", params={"q": "porteiro"}).json()
-    assert busca and busca[0]["tipo"] == "Ficha de registro"
+    # Conciliação: a nota do PDF bate; a do XML cobra a mais; a terceira não tem contrato.
+    notas = {n["numero"]: n for n in cliente.get("/api/ws/horizonte/notas").json()}
+    assert notas["501"]["status"] == "conciliada" and notas["501"]["origem"] == "pdf"
+    assert notas["502"]["status"] == "divergente" and notas["502"]["contrato_numero"] == "CTR-900"
+    assert notas["777"]["status"] == "divergente"
+    divs = cliente.get("/api/ws/horizonte/divergencias").json()["divergencias"]
+    assert sorted(d["regra"] for d in divs) == ["SEM_CONTRATO", "VALOR_DIVERGENTE"]
 
-    aso = next(d for d in docs if d["tipo"] == "ASO")
-    texto = cliente.get(f"/api/docs/{aso['id']}").json()["texto"]
-    assert "Z00.0" not in texto
+    # Dado pessoal escondido no texto do contrato.
+    texto = cliente.get(f"/api/docs/{contrato['id']}").json()["texto"]
+    assert "321.654.987-00" not in texto
+    assert cliente.get("/api/ws/horizonte/busca", params={"q": "conservacao"}).json()
 
     # Arquivo repetido não é processado de novo.
     r2 = cliente.post("/api/ws/horizonte/envios", files=[("arquivos", ("copia.pdf", lote, "application/pdf"))])
     assert r2.json()["status"] == "recusado"
 
-    # Operador não decide pendências; revisor decide.
-    assert cliente.post(f"/api/docs/{aso['id']}/decisao", json={"acao": "confirmar"}).status_code == 403
+    # Operador não decide; revisor decide; rejeitar exige motivo.
+    valor = next(d for d in divs if d["regra"] == "VALOR_DIVERGENTE")
+    sem = next(d for d in divs if d["regra"] == "SEM_CONTRATO")
+    assert cliente.post(f"/api/divergencias/{valor['id']}/decisao", json={"acao": "aprovar"}).status_code == 403
     entrar(cliente, "revisor")
-    assert cliente.post(f"/api/docs/{aso['id']}/decisao", json={"acao": "confirmar"}).status_code == 200
+    assert cliente.post(f"/api/divergencias/{valor['id']}/decisao", json={"acao": "rejeitar"}).status_code == 400
+    r = cliente.post(f"/api/divergencias/{valor['id']}/decisao", json={"acao": "rejeitar", "comentario": "Cobrar devolução de R$ 1.200"})
+    assert r.status_code == 200, r.text
+    assert cliente.post(f"/api/divergencias/{sem['id']}/decisao", json={"acao": "aprovar", "comentario": "Contrato em assinatura"}).status_code == 200
+    notas = {n["numero"]: n for n in cliente.get("/api/ws/horizonte/notas").json()}
+    assert notas["502"]["status"] == "rejeitada" and notas["777"]["status"] == "aprovada"
+    csv = cliente.get("/api/ws/horizonte/relatorio.csv", params={"tipo": "divergencias"}).text
+    assert "Valor acima do contratado" in csv and "Cobrar devolução" in csv
+    assert "rejeitou" in cliente.get("/api/ws/horizonte/relatorio.csv", params={"tipo": "trilha"}).text
+
+    # A mesma nota enviada de novo não vira duplicada.
+    entrar(cliente, "operador")
+    r3 = cliente.post("/api/ws/horizonte/envios", files=[("arquivos", ("outra-copia.xml", nota_xml("502", CNPJ, "5200.00").replace(b"Garanhuns", b"Garanhuns "), "application/xml"))])
+    assert r3.json()["status"] == "concluido"
+    assert len([n for n in cliente.get("/api/ws/horizonte/notas").json() if n["numero"] == "502"]) == 1
+
     # Só admin muda configurações.
     assert cliente.post("/api/ws/horizonte/config", json={"limiar": 80}).status_code == 403
     entrar(cliente, "admin")

@@ -9,10 +9,12 @@ import pymupdf as fitz
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import analise, anonimizar, auth, avaliacao, config, db, pipeline, seed
+from . import analise, anonimizar, auth, avaliacao, conciliacao, config, db, fiscal, pipeline, seed
+from .fiscal import brl, fmt_cnpj, fmt_data
 
 trabalhador = pipeline.Trabalhador()
-MAX_BYTES = 40 * 1024 * 1024  # por arquivo, como na versão Docker
+MAX_MB = config.MAX_MB  # por arquivo (CONCILIA_MAX_MB no .env); lotes digitalizados costumam ter dezenas de MB
+MAX_BYTES = MAX_MB * 1024 * 1024
 PUBLICAS = {"/api/login", "/api/estado", "/api/sair"}
 
 
@@ -85,6 +87,8 @@ def _doc_publico(d, cats, com_paginas=False):
     out["cpf"] = anonimizar.mascarar_texto(d["cpf"] or "", cats) if d["cpf"] else None
     out["sinais"] = _j(d["sinais"], [])
     out["candidatos"] = _j(d["candidatos"], [])
+    out["dados"] = _j(d.get("dados"), None)
+    out["aviso"] = d.get("aviso")
     if com_paginas:
         out["paginas"] = db.q("SELECT id, n, tipo, conf, inicio FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ? ORDER BY n",
                               (d["envio_id"], d["pag_ini"], d["pag_fim"]))
@@ -94,7 +98,8 @@ def _doc_publico(d, cats, com_paginas=False):
 # ------------------------------------------------------------------ telas
 @app.get("/")
 def tela():
-    return FileResponse(config.WEB / "index.html")
+    # Sem cache: depois de atualizar o sistema, o navegador sempre pega as telas novas.
+    return FileResponse(config.WEB / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/estado")
@@ -112,27 +117,34 @@ def estado(request: Request):
 @app.get("/api/ws/{ws}/resumo")
 def resumo(ws: str):
     _ws(ws)
-    pags = db.q("SELECT COALESCE(SUM(feitas),0) s FROM envios WHERE ws=?", (ws,), um=True)["s"]
-    total = db.q("SELECT COUNT(*) c FROM docs WHERE ws=?", (ws,), um=True)["c"]
-    auto = db.q("SELECT COUNT(*) c FROM docs WHERE ws=? AND decisao IS NULL AND status='confirmado'", (ws,), um=True)["c"]
-    pend = db.q("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='revisao'", (ws,), um=True)["c"]
+    def conta(sql, args=()):
+        return db.q(sql, (ws, *args), um=True)["c"]
+    notas = conta("SELECT COUNT(*) c FROM notas WHERE ws=?")
+    por_status = {r["status"]: r["c"] for r in db.q("SELECT status, COUNT(*) c FROM notas WHERE ws=? GROUP BY status", (ws,))}
+    valor_total = db.q("SELECT COALESCE(SUM(valor),0) v FROM notas WHERE ws=?", (ws,), um=True)["v"]
+    em_risco = db.q("SELECT COALESCE(SUM(valor),0) v FROM notas WHERE ws=? AND status IN ('divergente','rejeitada')", (ws,), um=True)["v"]
+    abertas = db.q("""SELECT d.*, n.numero, n.nome_prestador, n.cnpj_prestador, n.valor FROM divergencias d
+                      JOIN notas n ON n.id=d.nota_id WHERE d.ws=? AND d.status='aberta'
+                      ORDER BY CASE d.severidade WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 ELSE 2 END, d.id LIMIT 6""", (ws,))
+    for d in abertas:
+        d["titulo"] = conciliacao.REGRAS[d["regra"]][0]
+    pend = conta("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='revisao'")
     ativo = db.q("SELECT * FROM envios WHERE ws=? AND status IN ('fila','processando','pausado','falhou') ORDER BY id DESC LIMIT 1", (ws,), um=True)
-    ultimo = db.q("SELECT * FROM envios WHERE ws=? AND status='concluido' ORDER BY id DESC LIMIT 1", (ws,), um=True)
-    prontos = db.q("SELECT COUNT(*) c FROM docs WHERE envio_id=? AND status='confirmado'", (ultimo["id"],), um=True)["c"] if ultimo else 0
-    m = matriz(ws)
-    alertas = []
-    for g in m["grupos"]:
-        for linha in g["linhas"]:
-            for c in linha["celulas"]:
-                if c["status"] == "falta":
-                    alertas.append({"tipo": "falta", "texto": f"{linha['pessoa']} está sem {c['tipo']}", "sub": g["empresa"]})
-    for d in db.q("SELECT * FROM docs WHERE ws=? AND status='revisao' ORDER BY id LIMIT 3", (ws,)):
-        alertas.append({"tipo": "revisao", "texto": f"{d['tipo']} de {d['pessoa'] or 'pessoa não identificada'} espera sua confirmação",
-                        "sub": f"Envio #{d['envio_id']} · páginas {d['pag_ini']}–{d['pag_fim']}"})
-    return {"paginas": pags, "documentos": total, "automaticos": auto, "pendencias": pend,
-            "pct_auto": round(100 * auto / total) if total else None, "horas": round(total * 2.5 / 60, 1),
-            "ativo": ativo, "ultimo": ultimo, "prontos": prontos, "alertas": alertas[:6],
+    return {"notas": notas, "conciliadas": por_status.get("conciliada", 0) + por_status.get("aprovada", 0),
+            "divergentes": por_status.get("divergente", 0), "rejeitadas": por_status.get("rejeitada", 0),
+            "div_abertas": conta("SELECT COUNT(*) c FROM divergencias WHERE ws=? AND status='aberta'"),
+            "valor_total": valor_total, "valor_risco": em_risco,
+            "contratos": conta("SELECT COUNT(*) c FROM contratos WHERE ws=?"),
+            "fornecedores": conta("SELECT COUNT(*) c FROM fornecedores WHERE ws=?"),
+            "pendencias": pend, "ativo": ativo, "alertas": abertas,
             "envios": db.q("SELECT * FROM envios WHERE ws=? ORDER BY id DESC LIMIT 5", (ws,))}
+
+
+@app.get("/api/ws/{ws}/contagens")
+def contagens(ws: str):
+    """Números do menu lateral."""
+    return {"pendencias": db.q("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='revisao'", (ws,), um=True)["c"],
+            "divergencias": db.q("SELECT COUNT(*) c FROM divergencias WHERE ws=? AND status='aberta'", (ws,), um=True)["c"]}
 
 
 # ------------------------------------------------------------------ envios
@@ -144,34 +156,40 @@ async def enviar(request: Request, ws: str, arquivos: list[UploadFile] = File(..
     for a in arquivos:
         conteudo = await a.read(MAX_BYTES + 1)
         if len(conteudo) > MAX_BYTES:
-            raise HTTPException(413, f"“{a.filename}” passa de 40 MB. Divida o arquivo e envie de novo.")
+            raise HTTPException(413, f"“{a.filename}” passa de {MAX_MB} MB. Divida o arquivo e envie de novo.")
         dados.append((a.filename or "arquivo", conteudo))
     eid = pipeline.criar_envio(ws, dados, origem or f"Enviado por {u['nome']}", usuario=u["usuario"])
     trabalhador.acordar.set()
     return db.q("SELECT * FROM envios WHERE id=?", (eid,), um=True)
 
 
-@app.post("/api/ws/{ws}/exemplo")
-def enviar_exemplo(request: Request, ws: str):
-    """Envia um lote de exemplo (para demonstração)."""
-    _ws(ws)
-    u = auth.exigir(request, "operador")
-    if ws == "atlantica":
-        pasta = avaliacao.gerar_lote(fornecedores=4, notas=3)
-        lote = pasta / "lotes" / "lote_misturado.pdf"
-        eid = pipeline.criar_envio(ws, [(lote.name, lote.read_bytes())], "Lote sintético com gabarito",
-                                   usuario=u["usuario"], permitir_repetido=True)
-        db.x("UPDATE envios SET gabarito=? WHERE id=?", (str(pasta / "ground_truth.json"), eid))
-        trabalhador.acordar.set()
-        return db.q("SELECT * FROM envios WHERE id=?", (eid,), um=True)
-    pasta = config.BASE / "exemplos"
-    nomes = ["lote-construtora.pdf"] if ws == "valealto" else ["lote-misturado-horizonte.pdf", "foto-aso-celular.jpg"]
-    arquivos = [(n, (pasta / n).read_bytes()) for n in nomes if (pasta / n).exists()]
-    if not arquivos:
-        raise HTTPException(404, "Lote de exemplo não encontrado. Rode ferramentas\\gerar_exemplo.py.")
-    eid = pipeline.criar_envio(ws, arquivos, "Lote de exemplo", usuario=u["usuario"], permitir_repetido=True)
+def _lote_sintetico(ws: str, u: dict, origem: str, fornecedores: int = 4, digitalizar: bool = True):
+    """Gera contratos, aditivos e notas fictícios (com gabarito) e envia: o PDF misturado + o XML de cada nota."""
+    pasta = avaliacao.gerar_lote(fornecedores=fornecedores, notas=3, digitalizar=digitalizar)
+    gab = json.loads((pasta / "ground_truth.json").read_text(encoding="utf-8"))
+    nomes = {s["cnpj"]: s["razao_social"] for s in gab["suppliers"]}
+    lote = pasta / "lotes" / "lote_misturado.pdf"
+    if digitalizar:  # o lote inteiro vira imagem (TIFF), como sai do scanner: tudo passa por OCR
+        lote = avaliacao.digitalizar(lote, pasta / "lotes" / "lote_digitalizado.tif")
+    arquivos = [(lote.name, lote.read_bytes())]
+    for inv in gab["invoices"]:
+        nome = nomes.get(inv["prestador_cnpj"], "Prestador sem contrato ME")
+        arquivos.append((f"NFSe-{inv['numero']}-{inv['invoice_id']}.xml", fiscal.nfse_nacional_xml(inv, nome)))
+    eid = pipeline.criar_envio(ws, arquivos, origem, usuario=u["usuario"], permitir_repetido=True)
+    db.x("UPDATE envios SET gabarito=?, nome=? WHERE id=?",
+         (str(pasta / "ground_truth.json"), f"Lote fictício: {len(gab['invoices'])} XML de NFS-e + {'TIFF digitalizado' if digitalizar else 'PDF'} "
+          f"de {gab['batch_total_pages']} páginas ({lote.stat().st_size / 1e6:.0f} MB)", eid))
     trabalhador.acordar.set()
     return db.q("SELECT * FROM envios WHERE id=?", (eid,), um=True)
+
+
+@app.post("/api/ws/{ws}/exemplo")
+def enviar_exemplo(request: Request, ws: str):
+    """Envia um lote fictício de contratos, aditivos e notas (para demonstração)."""
+    _ws(ws)
+    u = auth.exigir(request, "operador")
+    # 7 fornecedores: o mínimo para o lote ter todos os cenários de divergência do gerador.
+    return _lote_sintetico(ws, u, "Lote de exemplo com gabarito", 7)
 
 
 @app.post("/api/ws/{ws}/avaliacao")
@@ -180,14 +198,8 @@ def nova_avaliacao(request: Request, ws: str, corpo: dict | None = None):
     _ws(ws)
     u = auth.exigir(request, "admin")
     corpo = corpo or {}
-    fornecedores = max(3, min(20, int(corpo.get("fornecedores", 4))))
-    pasta = avaliacao.gerar_lote(fornecedores=fornecedores, notas=3, digitalizar=bool(corpo.get("digitalizar", True)))
-    lote = pasta / "lotes" / "lote_misturado.pdf"
-    eid = pipeline.criar_envio(ws, [(lote.name, lote.read_bytes())], "Avaliação com gabarito",
-                               usuario=u["usuario"], permitir_repetido=True)
-    db.x("UPDATE envios SET gabarito=? WHERE id=?", (str(pasta / "ground_truth.json"), eid))
-    trabalhador.acordar.set()
-    return db.q("SELECT * FROM envios WHERE id=?", (eid,), um=True)
+    fornecedores = max(7, min(20, int(corpo.get("fornecedores", 8))))
+    return _lote_sintetico(ws, u, "Avaliação com gabarito", fornecedores, bool(corpo.get("digitalizar", True)))
 
 
 @app.get("/api/ws/{ws}/avaliacoes")
@@ -213,7 +225,8 @@ def envio(eid: int):
     for p in pags:
         p["sinais"] = _j(p["sinais"], [])
     docs = [_doc_publico(d, cats) for d in db.q("SELECT * FROM docs WHERE envio_id=? ORDER BY pag_ini", (eid,))]
-    return {"envio": e, "paginas": pags, "docs": docs,
+    notas = db.q("SELECT id, numero, nome_prestador, cnpj_prestador, valor, status, origem FROM notas WHERE envio_id=? ORDER BY id", (eid,))
+    return {"envio": e, "paginas": pags, "docs": docs, "notas": notas,
             "eventos": db.q("SELECT * FROM eventos WHERE envio_id=? ORDER BY id", (eid,))}
 
 
@@ -254,7 +267,7 @@ def imagem(pid: int, largura: int = 0, revelar: int = 0):
     return Response(buf.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
-# ------------------------------------------------------------------ pendências
+# ------------------------------------------------------------------ pendências (dúvidas da leitura)
 @app.get("/api/ws/{ws}/pendencias")
 def pendencias(ws: str):
     cats = _cats(ws)
@@ -272,8 +285,14 @@ def pendencias(ws: str):
 @app.post("/api/docs/{did}/decisao")
 def decisao(request: Request, did: int, corpo: dict):
     u = auth.exigir(request, "revisor")
+    ws = _doc(did)["ws"]
     resultado = _decidir(did, corpo)
-    db.x("UPDATE docs SET decidido_por=? WHERE id=?", (u["nome"], did))
+    if db.q("SELECT 1 FROM docs WHERE id=?", (did,)):
+        db.x("UPDATE docs SET decidido_por=? WHERE id=?", (u["nome"], did))
+    # Documento confirmado: lê os campos e refaz o cruzamento com as notas.
+    for d in db.q("SELECT id FROM docs WHERE ws=? AND status='confirmado' AND dados IS NULL", (ws,)):
+        conciliacao.extrair_doc(d["id"])
+    conciliacao.conciliar(ws)
     return resultado
 
 
@@ -283,7 +302,7 @@ def _decidir(did: int, corpo: dict):
     agora = db.agora()
     if acao == "confirmar":
         tipo = corpo.get("tipo") or d["tipo"]
-        db.x("UPDATE docs SET tipo=?, status='confirmado', decisao=?, decidido_em=? WHERE id=?",
+        db.x("UPDATE docs SET tipo=?, status='confirmado', decisao=?, decidido_em=?, dados=NULL WHERE id=?",
              (tipo, f"Confirmado como {tipo}", agora, did))
         pipeline.aprender(d["ws"], tipo, did)
         return {"ok": True, "msg": f"Confirmado como {tipo}."}
@@ -293,7 +312,7 @@ def _decidir(did: int, corpo: dict):
             raise HTTPException(400, "Escolha uma página do meio do documento para começar o novo.")
         p = db.q("SELECT * FROM paginas WHERE envio_id=? AND n=?", (d["envio_id"], n), um=True)
         db.x("UPDATE paginas SET inicio=1 WHERE id=?", (p["id"],))
-        db.x("UPDATE docs SET pag_fim=?, status='confirmado', decisao=?, decidido_em=? WHERE id=?",
+        db.x("UPDATE docs SET pag_fim=?, status='confirmado', decisao=?, decidido_em=?, dados=NULL WHERE id=?",
              (n - 1, f"Dividido na página {n}", agora, did))
         tipo_novo = corpo.get("tipo") or p["tipo"] or d["tipo"]
         novo = db.x("""INSERT INTO docs(envio_id, ws, tipo, conf, pag_ini, pag_fim, pessoa, cpf, empresa, status, duvida,
@@ -310,7 +329,7 @@ def _decidir(did: int, corpo: dict):
         if not ant:
             raise HTTPException(400, "Não há documento anterior para juntar.")
         db.x("UPDATE paginas SET inicio=0 WHERE envio_id=? AND n=?", (d["envio_id"], d["pag_ini"]))
-        db.x("UPDATE docs SET pag_fim=?, status='confirmado', decisao=?, decidido_em=? WHERE id=?",
+        db.x("UPDATE docs SET pag_fim=?, status='confirmado', decisao=?, decidido_em=?, dados=NULL WHERE id=?",
              (d["pag_fim"], f"Juntado com as páginas {d['pag_ini']}–{d['pag_fim']}", agora, ant["id"]))
         db.x("DELETE FROM busca WHERE doc_id=?", (did,))
         db.x("DELETE FROM docs WHERE id=?", (did,))
@@ -337,7 +356,7 @@ def _decidir(did: int, corpo: dict):
             primeira = primeira or r
         conf = min(confs)
         status = "revisao" if conf < int(cfg["limiar"]) else "confirmado"
-        db.x("UPDATE docs SET tipo=?, conf=?, status=?, sinais=?, candidatos=?, decisao=? WHERE id=?",
+        db.x("UPDATE docs SET tipo=?, conf=?, status=?, sinais=?, candidatos=?, decisao=?, dados=NULL WHERE id=?",
              (primeira["tipo"], conf, status, json.dumps(primeira["sinais"], ensure_ascii=False),
               json.dumps(primeira["candidatos"], ensure_ascii=False), "Reprocessado", did))
         msg = "Reprocessado. Continua precisando de você." if status == "revisao" else f"Reprocessado: {primeira['tipo']}, confiança {conf}%."
@@ -345,53 +364,126 @@ def _decidir(did: int, corpo: dict):
     raise HTTPException(400, "Ação desconhecida")
 
 
+# ------------------------------------------------------------------ conciliação
+def _nota_publica(n):
+    out = dict(n)
+    out.pop("xml", None)
+    out["cnpj_fmt"] = fmt_cnpj(n["cnpj_prestador"])
+    return out
+
+
+@app.get("/api/ws/{ws}/divergencias")
+def divergencias(ws: str, status: str = "aberta"):
+    _ws(ws)
+    filtro = "" if status == "todas" else "AND d.status=?"
+    args = (ws,) if status == "todas" else (ws, status)
+    L = db.q(f"""SELECT d.*, n.numero, n.nome_prestador, n.cnpj_prestador, n.valor, n.data_emissao, n.descricao,
+                 n.origem, n.doc_id nota_doc_id, c.numero contrato_numero, c.objeto, c.valor_mensal, c.vigencia_inicio,
+                 c.vigencia_fim, c.doc_id contrato_doc_id
+                 FROM divergencias d JOIN notas n ON n.id=d.nota_id LEFT JOIN contratos c ON c.id=d.contrato_id
+                 WHERE d.ws=? {filtro}
+                 ORDER BY CASE d.status WHEN 'aberta' THEN 0 ELSE 1 END,
+                          CASE d.severidade WHEN 'critica' THEN 0 WHEN 'alta' THEN 1 ELSE 2 END, d.id""", args)
+    for d in L:
+        d["titulo"] = conciliacao.REGRAS[d["regra"]][0]
+        d["cnpj_fmt"] = fmt_cnpj(d["cnpj_prestador"])
+    contagem = {r["status"]: r["c"] for r in db.q("SELECT status, COUNT(*) c FROM divergencias WHERE ws=? GROUP BY status", (ws,))}
+    return {"divergencias": L, "contagem": contagem}
+
+
+@app.post("/api/divergencias/{did}/decisao")
+def decidir_divergencia(request: Request, did: int, corpo: dict):
+    u = auth.exigir(request, "revisor")
+    acao = corpo.get("acao")
+    comentario = (corpo.get("comentario") or "").strip()
+    if acao == "rejeitar" and len(comentario) < 3:
+        raise HTTPException(400, "Escreva o motivo da rejeição. Ele vai para o relatório do fornecedor.")
+    try:
+        r = conciliacao.decidir(did, acao, comentario, u["nome"])
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    r["msg"] = {"aprovada": "Aprovada. A nota segue para pagamento.", "rejeitada": "Rejeitada. Fica registrada para cobrar o fornecedor.",
+                "aberta": "Reaberta. Voltou para a fila."}[r["status"]]
+    return r
+
+
+@app.get("/api/ws/{ws}/notas")
+def notas(ws: str):
+    _ws(ws)
+    L = db.q("""SELECT n.*, c.numero contrato_numero,
+               (SELECT COUNT(*) FROM divergencias d WHERE d.nota_id=n.id AND d.status='aberta') abertas
+               FROM notas n LEFT JOIN contratos c ON c.id=n.contrato_id WHERE n.ws=?
+               ORDER BY n.data_emissao DESC, n.id DESC""", (ws,))
+    return [_nota_publica(n) for n in L]
+
+
+@app.get("/api/notas/{nid}")
+def nota(nid: int):
+    n = db.q("SELECT * FROM notas WHERE id=?", (nid,), um=True)
+    if not n:
+        raise HTTPException(404, "Nota não encontrada")
+    out = _nota_publica(n)
+    out["tem_xml"] = bool(n["xml"])
+    out["contrato"] = db.q("SELECT * FROM contratos WHERE id=?", (n["contrato_id"],), um=True) if n["contrato_id"] else None
+    out["aditivos"] = []
+    if out["contrato"]:
+        out["contrato"]["cnpj_fmt"] = fmt_cnpj(out["contrato"]["cnpj_prestador"])
+        out["aditivos"] = conciliacao._aditivos_do_contrato(out["contrato"], db.q("SELECT * FROM aditivos WHERE ws=?", (n["ws"],)))
+    out["divergencias"] = db.q("SELECT * FROM divergencias WHERE nota_id=? ORDER BY id", (nid,))
+    for d in out["divergencias"]:
+        d["titulo"] = conciliacao.REGRAS[d["regra"]][0]
+    return out
+
+
+@app.get("/api/notas/{nid}/xml")
+def nota_xml(nid: int):
+    n = db.q("SELECT numero, xml FROM notas WHERE id=?", (nid,), um=True)
+    if not n or not n["xml"]:
+        raise HTTPException(404, "Esta nota não veio por XML")
+    return Response(n["xml"], media_type="application/xml",
+                    headers={"Content-Disposition": f'attachment; filename="NFSe-{n["numero"]}.xml"'})
+
+
+@app.get("/api/ws/{ws}/contratos")
+def contratos(ws: str):
+    _ws(ws)
+    aditivos = db.q("SELECT * FROM aditivos WHERE ws=?", (ws,))
+    L = db.q("""SELECT c.*, (SELECT COUNT(*) FROM notas n WHERE n.contrato_id=c.id) notas,
+               (SELECT COALESCE(SUM(valor),0) FROM notas n WHERE n.contrato_id=c.id) faturado,
+               (SELECT COUNT(*) FROM divergencias d WHERE d.contrato_id=c.id AND d.status='aberta') abertas
+               FROM contratos c WHERE c.ws=? ORDER BY c.nome_prestador, c.numero""", (ws,))
+    for c in L:
+        c["cnpj_fmt"] = fmt_cnpj(c["cnpj_prestador"])
+        c["aditivos"] = conciliacao._aditivos_do_contrato(c, aditivos)
+    soltos = [a for a in aditivos if not any(a in c["aditivos"] for c in L)]
+    return {"contratos": L, "aditivos_sem_contrato": soltos}
+
+
+@app.get("/api/ws/{ws}/fornecedores")
+def fornecedores(ws: str):
+    _ws(ws)
+    L = db.q("""SELECT f.*, (SELECT COUNT(*) FROM contratos c WHERE c.fornecedor_id=f.id) contratos,
+               (SELECT COUNT(*) FROM notas n WHERE n.fornecedor_id=f.id) notas,
+               (SELECT COALESCE(SUM(valor),0) FROM notas n WHERE n.fornecedor_id=f.id) faturado,
+               (SELECT COUNT(*) FROM divergencias d WHERE d.fornecedor_id=f.id AND d.status='aberta') abertas,
+               (SELECT COUNT(*) FROM divergencias d WHERE d.fornecedor_id=f.id AND d.status='rejeitada') rejeitadas,
+               (SELECT MAX(data_emissao) FROM notas n WHERE n.fornecedor_id=f.id) ultima
+               FROM fornecedores f WHERE f.ws=? ORDER BY abertas DESC, f.nome""", (ws,))
+    for f in L:
+        f["cnpj_fmt"] = fmt_cnpj(f["cnpj"])
+    return L
+
+
+@app.post("/api/ws/{ws}/reconciliar")
+def reconciliar(request: Request, ws: str):
+    _ws(ws)
+    auth.exigir(request, "revisor")
+    return conciliacao.conciliar(ws)
+
+
 # ------------------------------------------------------------------ documentos
-def _e_pessoa(nome):
-    return bool(nome) and not analise.RE_EMPRESA_NOME.search(nome)
-
-
-@app.get("/api/ws/{ws}/matriz")
-def matriz(ws: str):
-    exigidos = [t["nome"] for t in db.tipos_ws(ws) if t["exigido"]]
-    docs = db.q("SELECT * FROM docs WHERE ws=? AND status != 'aguardando' ORDER BY id", (ws,))
-    # Grafias da mesma empresa (texto do PDF x OCR) viram uma só; mostra a grafia com acento, se houver.
-    grafias = {}
-    for d in docs:
-        if d["empresa"]:
-            k = analise.chave_nome(d["empresa"])
-            atual = grafias.get(k)
-            if not atual or (analise.norm(atual) == atual.lower() and analise.norm(d["empresa"]) != d["empresa"].lower()):
-                grafias[k] = d["empresa"]
-    pessoas = {}
-    # Primeiro cria as linhas a partir dos documentos exigidos por pessoa; depois encaixa os outros.
-    ordenados = [d for d in docs if d["tipo"] in exigidos] + [d for d in docs if d["tipo"] not in exigidos]
-    for d in ordenados:
-        if not _e_pessoa(d["pessoa"]):
-            continue
-        k = analise.chave_nome(d["pessoa"])
-        if k not in pessoas and d["tipo"] not in exigidos:
-            continue
-        info = pessoas.setdefault(k, {"pessoa": d["pessoa"], "empresa": None, "docs": {}})
-        if d["empresa"] and not info["empresa"]:
-            info["empresa"] = grafias.get(analise.chave_nome(d["empresa"]), d["empresa"])
-        atual = info["docs"].get(d["tipo"])
-        if not atual or (atual["status"] != "confirmado" and d["status"] == "confirmado"):
-            info["docs"][d["tipo"]] = d
-    grupos = {}
-    for info in pessoas.values():
-        celulas = []
-        for t in exigidos:
-            d = info["docs"].get(t)
-            st = "falta" if not d else ("ok" if d["status"] == "confirmado" else "rev")
-            celulas.append({"tipo": t, "status": st, "doc_id": d["id"] if d else None})
-        grupos.setdefault(info["empresa"] or "Empresa não identificada", []).append(
-            {"pessoa": info["pessoa"], "celulas": celulas})
-    empresa_docs = [_doc_publico(d, _cats(ws)) for d in docs if not _e_pessoa(d["pessoa"])]
-    return {"exigidos": exigidos,
-            "grupos": [{"empresa": k, "linhas": sorted(v, key=lambda l: l["pessoa"])} for k, v in sorted(grupos.items())],
-            "sem_pessoa": empresa_docs}
-
-
 @app.get("/api/ws/{ws}/documentos")
 def documentos(ws: str):
     cats = _cats(ws)
@@ -446,7 +538,7 @@ def pdf_pesquisavel(did: int):
             except Exception:
                 pass
     dados = saida.tobytes()
-    nome = re.sub(r"[^\w-]+", "-", f"{d['tipo']}-{d['pessoa'] or 'doc'}-{did}").strip("-")
+    nome = re.sub(r"[^\w-]+", "-", f"{d['tipo']}-{d['empresa'] or 'doc'}-{did}").strip("-")
     return Response(dados, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="{nome}.pdf"'})
 
@@ -477,25 +569,41 @@ def busca(ws: str, q: str = ""):
 
 # ------------------------------------------------------------------ relatórios
 @app.get("/api/ws/{ws}/relatorio.csv")
-def relatorio(ws: str, tipo: str = "documentos"):
+def relatorio(ws: str, tipo: str = "divergencias"):
     w = _ws(ws)
     buf = io.StringIO()
     wr = csv.writer(buf, delimiter=";")
-    if tipo == "situacao":
-        m = matriz(ws)
-        wr.writerow(["Empresa", "Colaborador"] + m["exigidos"])
-        nomes = {"ok": "Ok", "rev": "Confirmar", "falta": "Falta"}
-        for g in m["grupos"]:
-            for l in g["linhas"]:
-                wr.writerow([g["empresa"], l["pessoa"]] + [nomes[c["status"]] for c in l["celulas"]])
+    if tipo == "divergencias":
+        wr.writerow(["Nota", "Prestador", "CNPJ", "Emissão", "Valor da nota", "Contrato", "Regra", "Gravidade",
+                     "O que aconteceu", "Esperado", "Encontrado", "Situação", "Decidido por", "Quando", "Comentário"])
+        for d in divergencias(ws, "todas")["divergencias"]:
+            wr.writerow([d["numero"], d["nome_prestador"] or "", d["cnpj_fmt"], fmt_data(d["data_emissao"]), brl(d["valor"]),
+                         d["contrato_numero"] or "", d["titulo"], d["severidade"], d["mensagem"], d["esperado"] or "",
+                         d["encontrado"] or "", d["status"], d["decidido_por"] or "", d["decidido_em"] or "", d["comentario"] or ""])
+    elif tipo == "notas":
+        wr.writerow(["Número", "Prestador", "CNPJ", "Emissão", "Competência", "Serviço", "Valor", "Contrato",
+                     "Situação", "Divergências abertas", "Origem", "Observação"])
+        for n in notas(ws):
+            wr.writerow([n["numero"], n["nome_prestador"] or "", n["cnpj_fmt"], fmt_data(n["data_emissao"]), n["competencia"] or "",
+                         n["descricao"] or "", brl(n["valor"]), n["contrato_numero"] or "", n["status"], n["abertas"],
+                         "XML" if n["origem"] == "xml" else "PDF", n["observacao"] or ""])
+    elif tipo == "fornecedores":
+        wr.writerow(["Fornecedor", "CNPJ", "Contratos", "Notas", "Total faturado", "Divergências abertas", "Rejeitadas", "Última nota"])
+        for f in fornecedores(ws):
+            wr.writerow([f["nome"] or "", f["cnpj_fmt"], f["contratos"], f["notas"], brl(f["faturado"]), f["abertas"],
+                         f["rejeitadas"], fmt_data(f["ultima"])])
+    elif tipo == "trilha":
+        wr.writerow(["Quando", "Quem", "O que fez"])
+        for t in db.q("SELECT * FROM trilha WHERE ws=? ORDER BY id", (ws,)):
+            wr.writerow([t["quando"], t["usuario"], t["texto"]])
     elif tipo == "acessos":
         wr.writerow(["Quando", "Quem", "Documento", "Motivo"])
         for a in db.q("SELECT * FROM acessos WHERE ws=? ORDER BY id", (ws,)):
             wr.writerow([a["quando"], a.get("usuario") or "", a["doc_id"], a["motivo"]])
     else:
-        wr.writerow(["Documento", "Envio", "Tipo", "Colaborador", "Empresa", "Páginas", "Confiança", "Situação", "Decisão humana"])
+        wr.writerow(["Documento", "Envio", "Tipo", "Empresa", "Páginas", "Confiança", "Situação", "Decisão humana"])
         for d in db.q("SELECT * FROM docs WHERE ws=? ORDER BY id", (ws,)):
-            wr.writerow([d["id"], d["envio_id"], d["tipo"], d["pessoa"] or "", d["empresa"] or "",
+            wr.writerow([d["id"], d["envio_id"], d["tipo"], d["empresa"] or "",
                          f"{d['pag_ini']}-{d['pag_fim']}", d["conf"], d["status"], d["decisao"] or ""])
     nome = f"concilia-{w['id']}-{tipo}.csv"
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
@@ -520,6 +628,10 @@ def salvar_config(request: Request, ws: str, corpo: dict):
             db.set_config(ws, k, "1" if v in (True, 1, "1") else "0")
         elif k == "limiar":
             db.set_config(ws, k, max(40, min(99, int(v))))
+        elif k == "tolerancia":
+            db.set_config(ws, k, max(0.0, min(20.0, float(v))))
+    if "tolerancia" in corpo:
+        conciliacao.conciliar(ws)
     return db.get_config(ws)
 
 
@@ -537,5 +649,5 @@ def novo_tipo(request: Request, ws: str, corpo: dict):
     if not titulos and not palavras:
         raise HTTPException(400, "Informe pelo menos um título ou palavra típica do documento.")
     db.x("INSERT INTO tipos(ws, nome, titulos, palavras, exigido) VALUES(?,?,?,?,?)",
-         (ws, nome, json.dumps(titulos), json.dumps(palavras), 1 if corpo.get("exigido") else 0))
+         (ws, nome, json.dumps(titulos), json.dumps(palavras), 0))
     return {"ok": True}

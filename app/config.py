@@ -32,6 +32,9 @@ def carregar_env():
 carregar_env()
 
 MODELO = os.environ.get("CONCILIA_MODELO", "claude-opus-5-5")
+# Limites por arquivo enviado. Um lote digitalizado de 100+ páginas em TIFF passa fácil de 50 MB.
+MAX_MB = int(os.environ.get("CONCILIA_MAX_MB", "300"))
+MAX_PAGINAS = int(os.environ.get("CONCILIA_MAX_PAGINAS", "2000"))
 
 
 def claude_configurado() -> bool:

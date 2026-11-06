@@ -2,6 +2,8 @@
 import pymupdf as fitz
 from PIL import Image, ImageOps
 
+# Scans em alta resolução (ex.: A3 a 600 dpi) passam do limite padrão do Pillow (~89 MP) e seriam recusados.
+Image.MAX_IMAGE_PIXELS = 400_000_000
 _motor = None
 
 

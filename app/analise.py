@@ -185,14 +185,14 @@ def analisar_claude(png: str, texto: str, tipos: list[dict], anterior: dict | No
     nomes = [t["nome"] for t in tipos]
     ant = ("nenhuma: esta é a primeira página do envio" if not anterior else
            f"tipo “{anterior.get('tipo')}”, pessoa “{anterior.get('pessoa') or '-'}”, CPF “{anterior.get('cpf') or '-'}”")
-    prompt = f"""Você analisa uma página de um lote de documentos digitalizados de gestão de terceiros (documentos trabalhistas de colaboradores terceirizados). O lote vem misturado: vários documentos em sequência, fora de ordem, às vezes fotografados.
+    prompt = f"""Você analisa uma página de um lote de documentos de fornecedores terceirizados: notas fiscais de serviço (NFS-e/DANFSe), contratos de prestação de serviços, aditivos, medições e comprovantes. O lote vem misturado: vários documentos em sequência, fora de ordem, às vezes digitalizados ou fotografados.
 
 Olhe a imagem e o texto lido pelo OCR (que pode ter erros) e decida:
 1. tipo: qual destes tipos é esta página: {", ".join(nomes)}. Use "Não identificado" se nenhum servir.
-2. inicia_documento: true se esta página começa um documento novo; false se continua o documento da página anterior. Use o visual (cabeçalho, logotipo, carimbos, assinaturas, layout), a numeração ("1 de 2") e mudanças de pessoa ou CPF.
+2. inicia_documento: true se esta página começa um documento novo; false se continua o documento da página anterior. Use o visual (cabeçalho, logotipo, carimbos, assinaturas, layout), a numeração ("1 de 2") e mudanças de fornecedor, CNPJ ou número do documento.
 3. confianca: de 0 a 100, calibrada. Fique abaixo de 75 sempre que houver dúvida real sobre o tipo ou sobre onde o documento começa.
 4. alternativas: até 2 outros tipos plausíveis.
-5. pessoa, cpf, empresa: como aparecem na página; texto vazio se não houver.
+5. pessoa, cpf, empresa: pessoa física e CPF citados (se houver) e a empresa prestadora/contratada; texto vazio se não houver.
 6. sinais: 1 a 3 frases curtas em português explicando o que você observou (ex.: "Imagem: carimbo diferente da página anterior").
 7. dados_sensiveis: trechos copiados exatamente como estão no texto do OCR com CPF/RG, dados bancários, dados de saúde (CID, diagnóstico), endereço ou contato pessoal.
 

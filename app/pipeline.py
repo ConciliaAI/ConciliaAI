@@ -6,14 +6,28 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import analise, db, ocr
+from . import analise, conciliacao, config, db, fiscal, ocr
 from .config import ENVIOS, PAGINAS
 
 EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
 
 
+def importar_xml(eid: int, ws: str, caminho: Path, nome: str) -> bool:
+    """Lê uma NFS-e em XML e grava a nota na hora (o XML não passa por OCR)."""
+    conteudo = caminho.read_bytes()
+    try:
+        nota = fiscal.ler_nfse_xml(conteudo)
+    except ValueError as erro:
+        db.evento(eid, f"XML ignorado: {nome} ({erro})")
+        return False
+    _, nova = conciliacao.salvar_nota(ws, nota, "xml", eid, xml=conteudo.decode("utf-8", "replace"))
+    if not nova:
+        db.evento(eid, f"Nota {nota['numero']} ({nome}) já estava cadastrada: dados atualizados.")
+    return True
+
+
 # ------------------------------------------------------------------ envio novo
-MAX_PAGINAS = 500  # por arquivo, como na versão Docker
+MAX_PAGINAS = config.MAX_PAGINAS  # por arquivo (CONCILIA_MAX_PAGINAS no .env)
 
 
 def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario: str | None = None,
@@ -23,7 +37,7 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
                (ws, nome, origem, db.agora(), usuario))
     pasta = ENVIOS / str(eid)
     pasta.mkdir(parents=True, exist_ok=True)
-    salvos = []
+    salvos, xmls = [], []
     for i, (nome_arq, conteudo) in enumerate(arquivos):
         digest = hashlib.sha256(conteudo).hexdigest()
         anterior = db.q("SELECT envio_id FROM arquivos WHERE ws=? AND sha256=?", (ws, digest), um=True)
@@ -37,14 +51,20 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
         if seguro.lower().endswith(".zip"):
             with zipfile.ZipFile(caminho) as z:
                 for j, info in enumerate(sorted(z.infolist(), key=lambda k: k.filename)):
-                    if info.is_dir() or not info.filename.lower().endswith(EXTS):
+                    if info.is_dir() or not info.filename.lower().endswith(EXTS + (".xml",)):
                         continue
                     nome_z = "".join(c if c.isalnum() or c in "._-" else "_" for c in Path(info.filename).name)
                     destino = pasta / f"{i:03d}_{j:03d}_{nome_z}"
                     destino.write_bytes(z.read(info))
-                    salvos.append(destino)
+                    (xmls if nome_z.lower().endswith(".xml") else salvos).append(destino)
+        elif seguro.lower().endswith(".xml"):
+            xmls.append(caminho)
         elif seguro.lower().endswith(EXTS):
             salvos.append(caminho)
+    n_xml = sum(importar_xml(eid, ws, x, x.name[4:]) for x in xmls)
+    if n_xml:
+        db.x("UPDATE envios SET notas_xml=? WHERE id=?", (n_xml, eid))
+        db.evento(eid, f"{n_xml} nota(s) fiscal(is) lida(s) direto do XML, sem OCR.")
     n = 0
     for arq in salvos:
         try:
@@ -62,13 +82,20 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
             n += 1
             db.x("INSERT INTO paginas(envio_id, n, arquivo, indice, origem_tipo) VALUES(?,?,?,?,?)",
                  (eid, n, str(arq), idx, origem_t))
-    if n == 0:
+    if n == 0 and n_xml:
+        db.x("UPDATE envios SET status='concluido', terminado_em=? WHERE id=?", (db.agora(), eid))
+        conciliacao.conciliar(ws)
+    elif n == 0:
         ultimo = db.q("SELECT texto FROM eventos WHERE envio_id=? ORDER BY id DESC LIMIT 1", (eid,), um=True)
         db.x("UPDATE envios SET status='recusado', erro=? WHERE id=?",
-             (ultimo["texto"] if ultimo else "Nenhum arquivo legível (use PDF, imagem ou ZIP).", eid))
+             (ultimo["texto"] if ultimo else "Nenhum arquivo legível (use XML da NFS-e, PDF, imagem ou ZIP).", eid))
     else:
         db.x("UPDATE envios SET status='fila', total=? WHERE id=?", (n, eid))
         db.evento(eid, f"Recebido: {n} páginas em {len(salvos)} arquivo(s)")
+        if n_xml:
+            # Os contratos deste envio ainda vão ser lidos: as notas ficam "Aguardando" e são conferidas
+            # no fim do envio, para não aparecer "sem contrato" por alguns minutos.
+            db.evento(eid, "As notas serão conferidas quando as páginas deste envio terminarem de ser lidas.")
     return eid
 
 
@@ -144,10 +171,13 @@ class Trabalhador(threading.Thread):
             db.x("UPDATE envios SET feitas=(SELECT COUNT(*) FROM paginas WHERE envio_id=? AND status='feita') WHERE id=?",
                  (eid, eid))
         agrupar(eid)
+        conciliacao.extrair_envio(eid)
+        r = conciliacao.conciliar(ws)
         db.x("UPDATE envios SET status='concluido', terminado_em=? WHERE id=?", (db.agora(), eid))
         n_docs = db.q("SELECT COUNT(*) c FROM docs WHERE envio_id=?", (eid,), um=True)["c"]
         n_rev = db.q("SELECT COUNT(*) c FROM docs WHERE envio_id=? AND status='revisao'", (eid,), um=True)["c"]
-        db.evento(eid, f"Concluído: {n_docs} documentos separados, {n_rev} para confirmar.")
+        db.evento(eid, f"Concluído: {n_docs} documentos separados, {n_rev} para confirmar. "
+                       f"Conciliação: {r['com_divergencia']} de {r['notas']} nota(s) com divergência.")
 
 
 def retomar_envio(eid, motivo="Retomado"):

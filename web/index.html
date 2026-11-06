@@ -178,18 +178,27 @@ let tt;function toast(m){const t=document.getElementById('toast');t.textContent=
 const W=()=>S.clientes.find(c=>c.id===S.ws)||S.clientes[0];
 const logo=c=>`<span class="wslogo" style="background:${c.cor};${c.cor==='#F5B700'?'color:#3D2C00':''}">${c.sigla}</span>`;
 
-const NAV=[['inicio','Início'],['enviar','Enviar documentos'],['pendencias','Pendências'],['documentos','Documentos'],['busca','Busca'],['relatorios','Relatórios'],['acerto','Acerto da IA']];
+const NAV=[['inicio','Início'],['divergencias','Divergências'],['notas','Notas fiscais'],['contratos','Contratos'],['fornecedores','Fornecedores'],['enviar','Enviar documentos'],['pendencias','Dúvidas da leitura'],['documentos','Documentos'],['busca','Busca'],['relatorios','Relatórios'],['acerto','Acerto da IA']];
 P.acerto='M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z';
 P.sair='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9';
-function shell(rota,inner,pend){
-  const w=W();const claude=S.estado.claude_configurado&&S.cfgClaude!=='0';
+P.divergencias=P.alert;P.notas='M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4';P.contratos=P.file;
+P.fornecedores='M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1';
+const brl=v=>v==null?'—':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dt=s=>s?s.slice(0,10).split('-').reverse().join('/'):'—';
+const SEV={critica:['err','Crítica'],alta:['rev','Alta'],media:['neu','Média']};
+const sev=s=>chip(...(SEV[s]||['neu',s]));
+const STN={conciliada:['ok','Conferida'],divergente:['rev','Com divergência'],aprovada:['ok','Aprovada com ressalva'],rejeitada:['err','Rejeitada'],pendente:['neu','Aguardando']};
+const stNota=s=>chip(...(STN[s]||['neu',s]));
+const STD={aberta:['rev','Aberta'],aprovada:['ok','Aprovada'],rejeitada:['err','Rejeitada']};
+function shell(rota,inner,cont){
+  const w=W();const claude=S.estado.claude_configurado&&S.cfgClaude!=='0';const n={pendencias:cont.pendencias,divergencias:cont.divergencias};
   return `<div class="app"><aside class="side"><div class="brand">${MARK(34)}<b>concilia</b><span>AI</span></div><nav class="nav" style="display:contents">
-  ${NAV.map(([k,t])=>`<a href="#${k}" class="${rota===k||(rota==='envio'&&k==='enviar')?'on':''}">${ic(k)}${t}${k==='pendencias'&&pend?`<span class="count num">${pend}</span>`:''}</a>`).join('')}
+  ${NAV.map(([k,t])=>`<a href="#${k}" class="${rota===k||(rota==='envio'&&k==='enviar')?'on':''}">${ic(k)}${t}${n[k]?`<span class="count num">${n[k]}</span>`:''}</a>`).join('')}
   <div class="navlabel">Conta</div><a href="#configuracoes" class="${rota==='configuracoes'?'on':''}">${ic('configuracoes')}Configurações</a><a href="#como-funciona" class="${rota==='como-funciona'?'on':''}">${ic('como')}Como funciona</a><a href="#entrar" data-sair>${ic('sair')}Sair</a></nav>
-  <div class="motor"><b>${claude?'Claude conectado':'Leitura local'}</b><p>${claude?`Cada página é lida pelo ${esc(S.estado.modelo)} (imagem + texto).`:'Funcionando sem internet com OCR e regras. Coloque a chave do Claude no arquivo .env para ligar a IA.'}</p></div></aside>
+  <div class="motor"><b>${claude?'Claude conectado':'Leitura local'}</b><p>${claude?`O ${esc(S.estado.modelo)} lê cada página (imagem + texto) e extrai os campos dos contratos.`:'Funcionando sem internet com OCR e regras. Coloque a chave do Claude no arquivo .env para ligar a IA.'}</p></div></aside>
   <div class="main"><header class="top"><div class="ws"><button class="wsbtn" id="wsbtn">${logo(w)}<div><b>${esc(w.nome)}</b><small>Cliente da Bernhoeft · ${esc(w.setor)}</small></div>${ic('chev')}</button>
   ${S.menu?`<div class="wsmenu"><div class="navlabel" style="padding:6px 10px">Clientes da Bernhoeft</div>${S.clientes.map(c=>`<button class="wsopt ${c.id===S.ws?'on':''}" data-ws="${c.id}">${logo(c)}<div><b>${esc(c.nome)}</b><small>${esc(c.setor)}</small></div></button>`).join('')}</div>`:''}</div>
-  <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar dentro dos documentos" aria-label="Buscar dentro dos documentos"></label>
+  <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar em contratos e notas" aria-label="Buscar em contratos e notas"></label>
   <span class="badge" style="background:${claude?'var(--nevoa)':'var(--ambar-fundo)'};color:${claude?'var(--tinta)':'var(--ambar-texto)'}">${claude?'IA: Claude':'IA: leitura local'}</span>
   <span style="display:flex;align-items:center;gap:10px;padding:0 6px"><span class="wslogo" style="background:var(--nevoa);color:var(--tinta)">${esc((S.usuario?.nome||'?').slice(0,2).toUpperCase())}</span><span><b style="display:block;font-size:14px">${esc(S.usuario?.nome||'')}</b><small style="font-size:12px;color:var(--suave)">${NOMEPERF[S.usuario?.perfil]||''}</small></span></span></header>
   <section class="panel">${inner}</section></div></div>`;
@@ -198,26 +207,31 @@ function shell(rota,inner,pend){
 const V={};
 V.inicio=async()=>{
   const r=await api(`/api/ws/${S.ws}/resumo`);const a=r.ativo;
-  return [`<div class="head"><div><h1>Bom dia</h1><p>Veja o que aconteceu com os documentos do cliente ${esc(W().nome)}.</p></div><div class="actions"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a></div></div>
+  const pct=r.notas?Math.round(100*r.conciliadas/r.notas):null;
+  const ativoCard=a?`<div class="c"><div class="ch"><h3>Lendo documentos agora</h3>${stEnvio(a)}</div><div class="bar"><span style="width:${a.total?Math.round(100*a.feitas/a.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">Envio #${a.id} · ${a.feitas} de ${a.total} páginas. As divergências são refeitas quando os contratos terminarem de ser lidos.</p><a class="btn ghost sm" href="#envio-${a.id}" style="margin-top:10px">Acompanhar</a></div>`:'';
+  if(!r.notas&&!a)return [`<div class="head"><div><h1>Conferência de notas fiscais</h1><p>Cliente ${esc(W().nome)}. Nenhuma nota ainda.</p></div></div>
+  <div class="c empty"><span class="bigic">${ic('notas')}</span><h2>Comece pelas notas fiscais</h2><p class="muted" style="max-width:56ch">Envie o XML das NFS-e (ou o PDF), junto com os contratos e aditivos dos fornecedores. A Concilia confere cada nota contra o contrato e mostra só o que não bate.</p>
+  <div class="actions" style="justify-content:center"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a>${pode('operador')?`<button class="btn ghost" id="exemplo">${ic('zap')}Carregar lote de exemplo</button>`:''}</div></div>`,{pendencias:r.pendencias,divergencias:0},false];
+  return [`<div class="head"><div><h1>Conferência de notas fiscais</h1><p>Cliente ${esc(W().nome)}: ${r.notas} nota(s) de ${r.fornecedores} fornecedor(es), conferidas contra ${r.contratos} contrato(s).</p></div><div class="actions"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a></div></div>
   <div class="grid g3">
-  ${r.pendencias?`<div class="c task hl"><div class="eb">${ic('pendencias')}Precisa de você</div><div class="big num">${r.pendencias} ${r.pendencias>1?'confirmações':'confirmação'}</div><p>Casos em que a confiança ficou abaixo do limite. A IA preferiu perguntar a errar.</p><a class="btn white" href="#pendencias" style="justify-self:start">Resolver agora ${ic('arrow')}</a></div>`
-   :`<div class="c task hl"><div class="eb">${ic('check')}Nada pendente</div><div class="big">Tudo em dia</div><p>Quando algo precisar da sua confirmação, aparece aqui.</p></div>`}
-  ${a?`<div class="c task"><div class="eb">${ic('clock')}Sendo organizado</div><div class="big num">${a.total} páginas</div><p>Envio #${a.id} · ${esc(a.nome)}</p><div class="bar"><span style="width:${a.total?Math.round(100*a.feitas/a.total):0}%"></span></div><p class="small num"><b>${a.feitas} de ${a.total}</b> páginas · ${stEnvio(a)}</p><a class="btn ghost sm" href="#envio-${a.id}" style="justify-self:start">Acompanhar</a></div>`
-   :`<div class="c task"><div class="eb">${ic('clock')}Sendo organizado</div><div class="big">Nada agora</div><p>Mande documentos e acompanhe aqui.</p><a class="btn ghost sm" href="#enviar" style="justify-self:start">Enviar</a></div>`}
-  <div class="c task"><div class="eb">${ic('documentos')}Prontos para usar</div><div class="big num">${r.prontos} documentos</div><p>${r.ultimo?`Do envio #${r.ultimo.id}, separados e classificados.`:'Ainda não há envios concluídos.'}</p>${r.ultimo?`<a class="btn ghost sm" href="#envio-${r.ultimo.id}" style="justify-self:start">Ver como organizamos</a>`:''}</div></div>
-  <div class="grid g-wide"><div class="c"><div class="ch"><h3>O que precisa de atenção</h3><a href="#documentos" class="small" style="font-weight:700">Ver tudo</a></div>
-  ${r.alertas.length?r.alertas.map(x=>`<div class="li"><span class="doci ${x.tipo==='falta'?'bad':'warn'}">${ic(x.tipo==='falta'?'alert':'clock')}</span><div class="t"><b>${esc(x.texto)}</b><span>${esc(x.sub)}</span></div>${x.tipo==='falta'?`<button class="btn light sm" data-toast="Pedido anotado para o fornecedor">Pedir ao fornecedor</button>`:`<a class="btn light sm" href="#pendencias">Confirmar</a>`}</div>`).join(''):'<p class="muted">Nada pendente nos documentos exigidos.</p>'}</div>
-  <div class="grid" style="align-content:start"><div class="c dark" style="display:grid;gap:14px"><h3>O que a Concilia já fez</h3><div class="value"><div><b class="num">${r.paginas}</b><span>páginas lidas</span></div><div><b class="num">${r.documentos}</b><span>documentos separados</span></div><div><b class="num">${r.pct_auto??'—'}${r.pct_auto!=null?'%':''}</b><span>sem precisar de ninguém</span></div></div></div>
-  <div class="c"><div class="ch"><h3>Envios recentes</h3></div>${r.envios.length?r.envios.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div></div>`, r.pendencias, !!a];
+  ${r.div_abertas?`<div class="c task hl"><div class="eb">${ic('alert')}Precisa de você</div><div class="big num">${r.div_abertas} ${r.div_abertas>1?'divergências':'divergência'}</div><p>Notas que não batem com o contrato. Aprove com justificativa ou rejeite para cobrar o fornecedor.</p><a class="btn white" href="#divergencias" style="justify-self:start">Revisar agora ${ic('arrow')}</a></div>`
+   :`<div class="c task hl"><div class="eb">${ic('check')}Nada pendente</div><div class="big">Tudo conferido</div><p>Todas as notas batem com os contratos ou já foram decididas.</p></div>`}
+  <div class="c task"><div class="eb">${ic('notas')}Notas conferidas</div><div class="big num">${r.conciliadas} de ${r.notas}</div><p>${pct}% das notas bateram com o contrato ou foram aprovadas. Total faturado: <b class="num">${brl(r.valor_total)}</b>.</p><a class="btn ghost sm" href="#notas" style="justify-self:start">Ver notas</a></div>
+  <div class="c task"><div class="eb">${ic('shield')}Valor em conferência</div><div class="big num">${brl(r.valor_risco)}</div><p>Soma das notas com divergência aberta ou rejeitadas. Não pague antes de decidir.</p>${r.pendencias?`<a class="btn ghost sm" href="#pendencias" style="justify-self:start">${r.pendencias} dúvida(s) de leitura</a>`:''}</div></div>
+  <div class="grid g-wide"><div class="c"><div class="ch"><h3>Divergências mais graves</h3><a href="#divergencias" class="small" style="font-weight:700">Ver todas</a></div>
+  ${r.alertas.length?r.alertas.map(x=>`<div class="li"><span class="doci ${x.severidade==='critica'?'bad':'warn'}">${ic('alert')}</span><div class="t"><b>${esc(x.titulo)} · nota ${esc(x.numero)}</b><span>${esc(x.nome_prestador||x.cnpj_prestador)} · ${brl(x.valor)}</span><span style="display:block">${esc(x.mensagem)}</span></div>${sev(x.severidade)}<a class="btn light sm" href="#divergencias">Revisar</a></div>`).join(''):'<p class="muted">Nenhuma divergência aberta.</p>'}</div>
+  <div class="grid" style="align-content:start">${ativoCard}<div class="c dark" style="display:grid;gap:14px"><h3>O que a Concilia já fez</h3><div class="value"><div><b class="num">${r.notas}</b><span>notas conferidas</span></div><div><b class="num">${r.contratos}</b><span>contratos lidos</span></div><div><b class="num">${pct??'—'}${pct!=null?'%':''}</b><span>batem ou já decididas</span></div></div></div>
+  <div class="c"><div class="ch"><h3>Envios recentes</h3></div>${r.envios.length?r.envios.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div></div>`, {pendencias:r.pendencias,divergencias:r.div_abertas}, !!a];
 };
-const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div class="t"><b>#${e.id} · ${esc(e.nome)}</b><span>${esc(e.criado_em)} · ${e.total} páginas${e.retomadas?` · retomado ${e.retomadas}x após falha`:''}</span></div>${stEnvio(e)}<a class="btn light sm" href="#envio-${e.id}">Ver</a></div>`;
+const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div class="t"><b>#${e.id} · ${esc(e.nome)}</b><span>${esc(e.criado_em)}${e.notas_xml?` · ${e.notas_xml} XML de nota`:''}${e.total?` · ${e.total} páginas`:''}${e.retomadas?` · retomado ${e.retomadas}x após falha`:''}</span></div>${stEnvio(e)}<a class="btn light sm" href="#envio-${e.id}">Ver</a></div>`;
 
 V.enviar=async()=>{
   const es=await api(`/api/ws/${S.ws}/envios`);
-  return [`<div class="head"><div><h1>Enviar documentos</h1><p>Mande do jeito que estiver: tudo junto, fora de ordem, digitalizado ou foto de celular. A Concilia descobre onde cada documento começa e termina.</p></div>
-  <div class="actions"><button class="btn ghost" id="exemplo">${ic('zap')}${S.ws==='atlantica'?'Gerar lote sintético (contratos e notas)':'Carregar lote de exemplo'}</button></div></div>
-  <div class="c" style="display:grid;gap:14px"><label class="drop" id="drop"><span class="bigic">${ic('enviar')}</span><b style="font-size:18px">Arraste os arquivos para cá</b><span class="muted">ou <u style="color:var(--tinta);font-weight:700">escolha no computador</u></span><span class="small muted">PDF, foto (JPG/PNG), TIFF ou ZIP · vários de uma vez</span>
-  <input type="file" id="files" multiple accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.zip,.bmp,.webp" style="position:absolute;width:1px;height:1px;opacity:0"></label><p class="small muted" id="upmsg"></p></div>
+  return [`<div class="head"><div><h1>Enviar documentos</h1><p>Mande as notas fiscais (XML da NFS-e ou PDF) junto com os contratos e aditivos, do jeito que estiverem: tudo junto, fora de ordem, digitalizado ou foto. O XML é lido na hora; os PDFs são separados e lidos página a página.</p></div>
+  <div class="actions"><button class="btn ghost" id="exemplo">${ic('zap')}Carregar lote de exemplo</button></div></div>
+  <div class="c" style="display:grid;gap:14px"><label class="drop" id="drop"><span class="bigic">${ic('enviar')}</span><b style="font-size:18px">Arraste os arquivos para cá</b><span class="muted">ou <u style="color:var(--tinta);font-weight:700">escolha no computador</u></span><span class="small muted">XML da NFS-e, PDF, foto (JPG/PNG), TIFF ou ZIP · vários de uma vez</span>
+  <input type="file" id="files" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.zip,.bmp,.webp" style="position:absolute;width:1px;height:1px;opacity:0"></label><p class="small muted" id="upmsg"></p>
+  <p class="small muted">O lote de exemplo é fictício: 7 fornecedores, contratos de 9 páginas, aditivos e 21 notas no leiaute nacional da NFS-e, com 6 problemas escondidos para a Concilia encontrar.</p></div>
   <div class="c"><div class="ch"><h3>Seus envios</h3><span class="small muted">Se algo falhar no meio, a Concilia continua da última página salva.</span></div>${es.length?es.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda. Arraste arquivos acima ou use o lote de exemplo.</p>'}</div>`,null,es.some(e=>['fila','processando','falhou','recebendo'].includes(e.status))];
 };
 
@@ -227,21 +241,24 @@ V.envio=async(id)=>{
   const docs=d.docs.length?d.docs.map(doc=>({doc,pags:d.paginas.filter(p=>p.n>=doc.pag_ini&&p.n<=doc.pag_fim)})):[];
   const soltas=d.docs.length?[]:d.paginas.filter(p=>p.status==='feita');
   const th=p=>`<img class="thumb ${p.inicio?'start':''}" loading="lazy" src="/api/paginas/${p.id}/imagem?largura=160&v=${e.feitas}" alt="Página ${p.n}" data-zoom="${p.id}">`;
-  const grp=x=>`<div class="grp ${x.doc.status==='revisao'?'doubt':''}" ${x.doc.status==='confirmado'?`data-doc="${x.doc.id}"`:''}><div class="pages">${x.pags.map(th).join('')}</div><div class="bk" style="background:${x.doc.status==='revisao'?'var(--ambar)':cc(x.doc.conf)}"></div><div class="gl"><b>${esc(x.doc.tipo)}</b><span class="muted num">pág. ${x.doc.pag_ini}${x.doc.pag_fim>x.doc.pag_ini?'–'+x.doc.pag_fim:''} · ${cw(x.doc.conf)} ${x.doc.conf}%${x.doc.pessoa?' · '+esc(x.doc.pessoa):''}</span>${x.doc.status==='revisao'?`<br><a href="#pendencias" style="color:var(--ambar-texto);font-weight:700">Precisa de você</a>`:''}</div></div>`;
+  const grp=x=>`<div class="grp ${x.doc.status==='revisao'?'doubt':''}" ${x.doc.status==='confirmado'?`data-doc="${x.doc.id}"`:''}><div class="pages">${x.pags.map(th).join('')}</div><div class="bk" style="background:${x.doc.status==='revisao'?'var(--ambar)':cc(x.doc.conf)}"></div><div class="gl"><b>${esc(x.doc.tipo)}</b><span class="muted num">pág. ${x.doc.pag_ini}${x.doc.pag_fim>x.doc.pag_ini?'–'+x.doc.pag_fim:''} · ${cw(x.doc.conf)} ${x.doc.conf}%${x.doc.empresa?' · '+esc(x.doc.empresa):''}</span>${x.doc.status==='revisao'?`<br><a href="#pendencias" style="color:var(--ambar-texto);font-weight:700">Precisa de você</a>`:''}</div></div>`;
   const sinais=[...new Set(d.paginas.flatMap(p=>p.sinais))].slice(0,8);
-  return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#enviar" style="font-weight:700;text-decoration:none">← Envios</a></p><h1>Envio #${e.id}</h1><p>${esc(e.nome)} · ${e.total} páginas${d.docs.length?` viraram ${d.docs.length} documentos`:''} · leitura ${e.motor==='claude'?'pelo Claude (imagem + texto)':'local (OCR + regras)'}</p></div>
+  const notasCard=d.notas.length?`<div class="c"><div class="ch"><div><h3>Notas fiscais deste envio</h3><p class="small muted">${d.notas.filter(n=>n.origem==='xml').length} lida(s) direto do XML, sem OCR. Conferidas contra os contratos do cliente.</p></div><a class="btn light sm" href="#notas">Ver todas as notas</a></div>
+   <div class="tablewrap"><table><thead><tr><th>Nota</th><th>Prestador</th><th>Valor</th><th>Origem</th><th>Situação</th></tr></thead><tbody>${d.notas.map(n=>`<tr><td class="num"><b>${esc(n.numero)}</b></td><td>${esc(n.nome_prestador||n.cnpj_prestador)}</td><td class="num">${brl(n.valor)}</td><td>${n.origem==='xml'?'XML':'PDF'}</td><td>${stNota(n.status)}</td></tr>`).join('')}</tbody></table></div></div>`:'';
+  return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#enviar" style="font-weight:700;text-decoration:none">← Envios</a></p><h1>Envio #${e.id}</h1><p>${esc(e.nome)}${e.notas_xml?` · ${e.notas_xml} nota(s) em XML`:''}${e.total?` · ${e.total} páginas${d.docs.length?` viraram ${d.docs.length} documentos`:''} · leitura ${e.motor==='claude'?'pelo Claude (imagem + texto)':'local (OCR + regras)'}`:''}</p></div>
   <div class="actions">${stEnvio(e)}${e.status==='processando'||e.status==='fila'?`<button class="btn light sm" data-acao="pausar">${ic('pause')}Pausar</button><button class="btn light sm" data-acao="simular-falha">${ic('zap')}Simular queda</button>`:''}${e.status==='pausado'||e.status==='falhou'?`<button class="btn sm" data-acao="retomar">${ic('play')}Retomar</button>`:''}</div></div>
   ${ativo||e.status==='pausado'?`<div class="c"><div class="bar"><span style="width:${e.total?Math.round(100*e.feitas/e.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${e.feitas} de ${e.total} páginas lidas e salvas. ${e.status==='falhou'?'Retomando sozinho em instantes…':''}</p></div>`:''}
   <div class="c"><div class="ch"><div><h3>Onde cada documento começa e termina</h3><p class="small muted">A borda escura marca a primeira página de cada documento. Clique numa página para ampliar.</p></div>
   <div class="legend"><span><i style="background:var(--confere)"></i>Confiança alta</span><span><i style="background:var(--media)"></i>Média</span><span><i style="background:var(--ambar)"></i>Vai para você confirmar</span></div></div>
-  ${docs.length?`<div class="strip">${docs.map(grp).join('')}</div>`:soltas.length?`<div class="strip">${soltas.map(p=>`<div class="grp"><div class="pages">${th(p)}</div><div class="gl"><b>${esc(p.tipo)}</b><span class="muted">pág. ${p.n} · ${p.conf}%</span></div></div>`).join('')}</div>`:'<p class="muted">As páginas aparecem aqui conforme são lidas.</p>'}</div>
+  ${docs.length?`<div class="strip">${docs.map(grp).join('')}</div>`:soltas.length?`<div class="strip">${soltas.map(p=>`<div class="grp"><div class="pages">${th(p)}</div><div class="gl"><b>${esc(p.tipo)}</b><span class="muted">pág. ${p.n} · ${p.conf}%</span></div></div>`).join('')}</div>`:`<p class="muted">${e.total?'As páginas aparecem aqui conforme são lidas.':'Este envio só tinha XML: nenhuma página para separar.'}</p>`}</div>
+  ${notasCard}
   <div class="grid g2"><div class="c"><h3 style="margin-bottom:10px">Como a IA decidiu</h3>${sinais.length?`<ul style="margin:0;padding-left:18px;display:grid;gap:6px" class="small">${sinais.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'<p class="muted">Aparece quando as páginas forem lidas.</p>'}</div>
   <div class="c"><h3 style="margin-bottom:10px">Histórico do envio</h3>${d.eventos.map(v=>`<div class="ev"><time>${esc(v.quando.slice(11,19))}</time><span>${esc(v.texto)}</span></div>`).join('')}</div></div>`,null,ativo];
 };
 
 V.pendencias=async()=>{
   const r=await api(`/api/ws/${S.ws}/pendencias`);const L=r.pendencias;
-  if(!L.length)return[`<div class="head"><div><h1>Pendências</h1></div></div><div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>Tudo certo por agora</h2><p class="muted">Quando a confiança da IA ficar abaixo de ${r.limiar}%, o documento aparece aqui para você decidir.</p><a class="btn" href="#documentos">Ver documentos</a></div>`,0];
+  if(!L.length)return[`<div class="head"><div><h1>Dúvidas da leitura</h1></div></div><div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>Tudo certo por agora</h2><p class="muted">Quando a IA não tiver certeza (abaixo de ${r.limiar}%) de que tipo é um documento ou onde ele termina, ele aparece aqui para você decidir antes de entrar na conferência.</p><a class="btn" href="#divergencias">Ver divergências</a></div>`,0];
   if(S.q>=L.length)S.q=0;const d=L[S.q];
   const imgs=[...d.vizinhas.filter(v=>v.n<d.pag_ini),...d.paginas,...d.vizinhas.filter(v=>v.n>d.pag_fim)];
   const fora=v=>v.n<d.pag_ini||v.n>d.pag_fim;
@@ -255,46 +272,103 @@ V.pendencias=async()=>{
     resp=c.slice(0,3).map((t,i)=>[i===0&&t===d.tipo?`Sim, é ${t}`:`É ${t}`,{acao:'confirmar',tipo:t}]);
   }
   const temAnterior=d.vizinhas.some(v=>v.n<d.pag_ini);
-  return [`<div class="head"><div><h1>Pendências</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar, e sua resposta vira exemplo para as próximas.</p></div></div>
+  return [`<div class="head"><div><h1>Dúvidas da leitura</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar. Depois da sua resposta, o documento entra na conferência e sua resposta vira exemplo para as próximas.</p></div></div>
   <div class="qwrap"><div class="qcard"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small muted num">Pergunta ${S.q+1} de ${L.length} · envio #${d.envio_id}</span>${conf(d.conf)}</div>
-  <div style="display:grid;gap:6px"><h2>${titulo}</h2><p class="small muted">${esc(d.pessoa||'Pessoa não identificada')}${d.empresa?' · '+esc(d.empresa):''} · páginas ${d.pag_ini}–${d.pag_fim}</p></div>
+  <div style="display:grid;gap:6px"><h2>${titulo}</h2><p class="small muted">${esc(d.empresa||'Empresa não identificada')} · páginas ${d.pag_ini}–${d.pag_fim}</p></div>
   <div class="qpages">${imgs.map(p=>`<div class="qp ${fora(p)?'viz':''}"><img src="/api/paginas/${p.id}/imagem?largura=420" alt="Página ${p.n}" data-zoom="${p.id}"><small>pág. ${p.n}${fora(p)?' (outro documento)':''}</small></div>`).join('')}</div>
-  ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode decidir as pendências.</div>`:''}
+  ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode responder as dúvidas.</div>`:''}
   <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec='${JSON.stringify(x[1])}'><span>${x[0]}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
   <div class="actions"><select class="inp" id="outrotipo" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
   ${temAnterior?`<button class="btn light sm" data-dec='{"acao":"juntar"}'>Juntar com o anterior</button>`:''}<button class="btn light sm" data-dec='{"acao":"reprocessar"}'>${ic('refresh')}Ler de novo</button><button class="btn light sm" data-dec='{"acao":"pedir"}'>Pedir nova cópia</button></div>
   <details class="why"><summary>Por que estou vendo isso?</summary><ul>${d.sinais.map(s=>`<li>${esc(s)}</li>`).join('')}<li>Ponto mais fraco: ${esc(d.motivo)}</li></ul></details></div>
-  <div class="c" style="display:grid;gap:8px;align-content:start"><h3>Fila de revisão</h3>${L.map((x,i)=>`<div class="li" style="cursor:pointer;${i===S.q?'opacity:.5':''}" data-q="${i}"><span class="doci warn">${ic('pendencias')}</span><div class="t"><b>${esc(x.tipo)}</b><span>${cw(x.conf)} ${x.conf}% · ${esc(x.pessoa||'sem nome')}</span></div></div>`).join('')}</div></div>`,L.length];
+  <div class="c" style="display:grid;gap:8px;align-content:start"><h3>Fila de revisão</h3>${L.map((x,i)=>`<div class="li" style="cursor:pointer;${i===S.q?'opacity:.5':''}" data-q="${i}"><span class="doci warn">${ic('pendencias')}</span><div class="t"><b>${esc(x.tipo)}</b><span>${cw(x.conf)} ${x.conf}% · ${esc(x.empresa||'empresa não identificada')}</span></div></div>`).join('')}</div></div>`,L.length];
 };
 
 V.documentos=async()=>{
-  const [m,docs]=await Promise.all([api(`/api/ws/${S.ws}/matriz`),api(`/api/ws/${S.ws}/documentos`)]);
-  const cell=c=>c.status==='ok'?`<button class="cell ok" data-doc="${c.doc_id}">${ic('check')}Ok</button>`:c.status==='rev'?`<a class="cell rev" href="#pendencias" style="text-decoration:none">${ic('clock')}Confirmar</a>`:`<button class="cell falta" data-toast="Pedido de ${esc(c.tipo)} anotado para o fornecedor">${ic('x')}Falta</button>`;
+  const docs=await api(`/api/ws/${S.ws}/documentos`);
+  const NOMES={numero:'Número',nome_prestador:'Prestador / contratada',cnpj_prestador:'CNPJ do prestador',cnpj_tomador:'CNPJ do tomador',objeto:'Objeto',valor_mensal:'Valor mensal',valor_total:'Valor total',vigencia_inicio:'Início da vigência',vigencia_fim:'Fim da vigência',contrato_ref:'Contrato de referência',valor_adicional:'Acréscimo mensal',data_emissao:'Emissão',competencia:'Competência',descricao:'Serviço',valor:'Valor'};
+  const campo=(k,v)=>k.startsWith('valor')?brl(v):(k.startsWith('vigencia')||k==='data_emissao')?dt(v):esc(v);
   let viewer='';
   if(S.doc){try{const d=await api(`/api/docs/${S.doc}`);const txt=S.revelado&&S.revelado.id===d.id?esc(S.revelado.texto):prot(d.texto);
-   viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>${esc(d.tipo)} · ${esc(d.pessoa||'sem nome')}</h3><p class="small muted">Envio #${d.envio_id} · páginas ${d.pag_ini}–${d.pag_fim}${d.decisao?' · '+esc(d.decisao):''}</p></div>
+   const C=d.dados&&d.dados.campos;
+   viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>${esc(d.tipo)}${d.empresa?' · '+esc(d.empresa):''}</h3><p class="small muted">Envio #${d.envio_id} · páginas ${d.pag_ini}–${d.pag_fim}${d.decisao?' · '+esc(d.decisao):''}</p></div>
    <div class="actions"><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}Baixar PDF pesquisável</a><button class="btn light sm" data-fechar>${ic('x')}Fechar</button></div></div>
    <div class="viewer"><div class="pgs">${d.paginas.map(p=>`<img src="/api/paginas/${p.id}/imagem?largura=600${S.revelado&&S.revelado.id===d.id?'&revelar=1':''}" alt="Página ${p.n}" data-zoom="${p.id}">`).join('')}</div>
-   <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Pessoa</span><b>${esc(d.pessoa||'—')}</b><span>CPF</span><b>${prot(d.cpf||'—')}</b><span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
+   <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
+   ${C?`<div><p class="small muted" style="margin-bottom:6px">Campos lidos para a conferência (${d.dados.motor==='claude'?'pelo Claude':'leitura local'})</p><div class="kv">${Object.entries(C).map(([k,v])=>`<span>${NOMES[k]||k}</span><b class="num">${campo(k,v)}</b>`).join('')}</div></div>`:''}
+   ${d.aviso?`<p class="small" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:10px 12px;border-radius:10px">${esc(d.aviso)}</p>`:''}
    <div><p class="small muted" style="margin-bottom:6px">Texto reconhecido (pesquisável)</p><div class="ocr">${txt}</div></div>
    ${d.protegidos&&!(S.revelado&&S.revelado.id===d.id)?`<form id="revelar" class="actions" data-id="${d.id}"><span class="small muted">${ic('shield')} ${d.protegidos} dado(s) protegido(s).</span><input class="inp" id="motivo" placeholder="Motivo para ver (fica registrado)" style="flex:1;min-width:200px"><button class="btn light sm">Ver dados</button></form><p class="err" id="reverr"></p>`:''}</div></div></div>`;}catch(e){S.doc=null}}
-  return [`<div class="head"><div><h1>Documentos</h1><p>Organizados por empresa e colaborador. Veja o que está ok, o que espera confirmação e o que falta entre os documentos exigidos deste cliente.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=situacao">${ic('download')}Baixar situação (Excel)</a></div></div>
+  return [`<div class="head"><div><h1>Documentos</h1><p>Cada documento que veio em PDF ou imagem, separado e classificado, com o texto pesquisável e os campos lidos para a conferência.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=documentos">${ic('download')}Baixar lista (Excel)</a></div></div>
   ${viewer}
-  ${m.grupos.length?m.grupos.map(g=>`<div class="c"><div class="ch"><div><h3>${esc(g.empresa)}</h3><p class="small muted">${g.linhas.length} colaborador(es)</p></div><div class="legend"><span class="cell ok">${ic('check')}Ok</span><span class="cell rev">${ic('clock')}Confirmar</span><span class="cell falta">${ic('x')}Falta</span></div></div>
-   <div class="tablewrap"><table class="matrix"><thead><tr><th>Colaborador</th>${m.exigidos.map(t=>`<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${g.linhas.map(l=>`<tr><td><b>${esc(l.pessoa)}</b></td>${l.celulas.map(c=>`<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`).join('')
-   :`<div class="c empty"><h3>Nenhum documento ainda</h3><p class="muted">Envie um lote e os documentos aparecem aqui organizados.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}
-  ${docs.length?`<div class="c"><div class="ch"><h3>Todos os documentos</h3><span class="small muted">${docs.length} no total</span></div><div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Pessoa / empresa</th><th>Envio</th><th>Páginas</th><th>Confiança</th><th>Situação</th><th></th></tr></thead><tbody>
-   ${docs.map(d=>`<tr><td><b>${esc(d.tipo)}</b></td><td>${esc(d.pessoa||d.empresa||'—')}</td><td class="num">#${d.envio_id}</td><td class="num">${d.pag_ini}–${d.pag_fim}</td><td>${conf(d.conf)}</td><td>${d.status==='confirmado'?chip('ok',d.decisao?'Confirmado por você':'Confirmado'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia')}</td><td><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`:''}`];
+  ${docs.length?`<div class="c"><div class="ch"><h3>Todos os documentos</h3><span class="small muted">${docs.length} no total</span></div><div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Empresa</th><th>Envio</th><th>Páginas</th><th>Confiança</th><th>Situação</th><th></th></tr></thead><tbody>
+   ${docs.map(d=>`<tr><td><b>${esc(d.tipo)}</b>${d.aviso?`<br><span class="small" style="color:var(--ambar-texto)">${esc(d.aviso)}</span>`:''}</td><td>${esc(d.empresa||'—')}</td><td class="num">#${d.envio_id}</td><td class="num">${d.pag_ini}–${d.pag_fim}</td><td>${conf(d.conf)}</td><td>${d.status==='confirmado'?chip('ok',d.decisao?'Confirmado por você':'Confirmado'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia')}</td><td><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`:`<div class="c empty"><h3>Nenhum documento ainda</h3><p class="muted">Contratos, aditivos e notas em PDF aparecem aqui depois de separados. Notas em XML vão direto para Notas fiscais.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
+};
+
+// ---------------------------------------------------------------- conciliação
+const FILTROS=[['aberta','Abertas'],['aprovada','Aprovadas'],['rejeitada','Rejeitadas'],['todas','Todas']];
+V.divergencias=async()=>{
+  const f=S.fdiv||'aberta';const r=await api(`/api/ws/${S.ws}/divergencias?status=${f}`);const L=r.divergencias;const n=r.contagem;
+  const total=Object.values(n).reduce((a,b)=>a+b,0);
+  const card=d=>{const st=STD[d.status]||['neu',d.status];
+    return `<div class="c" style="display:grid;gap:14px" id="div-${d.id}"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+     <span class="doci ${d.severidade==='critica'?'bad':'warn'}">${ic('alert')}</span><div style="flex:1;min-width:240px;display:grid;gap:4px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><h3>${esc(d.titulo)}</h3>${sev(d.severidade)}${chip(st[0],st[1])}</div>
+     <p class="small muted">Nota <b class="num">${esc(d.numero)}</b> · ${esc(d.nome_prestador||'')} · CNPJ ${esc(d.cnpj_fmt)} · emitida em ${dt(d.data_emissao)} · ${brl(d.valor)}</p><p>${esc(d.mensagem)}</p></div></div>
+     <div class="grid g2"><div style="background:var(--papel);border-radius:14px;padding:14px"><p class="small muted" style="margin-bottom:4px">O contrato diz</p><b>${esc(d.esperado||'—')}</b>${d.contrato_numero?`<p class="small muted" style="margin-top:6px">Contrato ${esc(d.contrato_numero)} · ${esc(d.objeto||'')} · ${brl(d.valor_mensal)}/mês · ${dt(d.vigencia_inicio)} a ${dt(d.vigencia_fim)}</p>`:''}</div>
+      <div style="background:var(--ambar-fundo);border-radius:14px;padding:14px"><p class="small" style="margin-bottom:4px;color:var(--ambar-texto)">A nota diz</p><b>${esc(d.encontrado||'—')}</b><p class="small muted" style="margin-top:6px">${d.origem==='xml'?'Lido do XML da NFS-e':'Lido do PDF da nota'}</p></div></div>
+     ${d.status==='aberta'?(pode('revisor')?`<div class="actions"><input class="inp" id="com-${d.id}" placeholder="Comentário (obrigatório para rejeitar)" style="flex:1;min-width:220px"><button class="btn sm" data-div="${d.id}" data-acao-div="aprovar">${ic('check')}Aprovar</button><button class="btn light sm" data-div="${d.id}" data-acao-div="rejeitar" style="color:var(--erro)">${ic('x')}Rejeitar</button><button class="btn light sm" data-nota="${d.nota_id}">${ic('eye')}Ver nota</button></div><p class="err" id="err-${d.id}"></p>`
+       :`<p class="small muted">Só revisor ou administrador decide divergências.</p>`)
+      :`<div class="actions"><p class="small muted" style="flex:1">${st[1]} por ${esc(d.decidido_por||'—')} em ${esc((d.decidido_em||'').slice(0,16))}${d.comentario?`: “${esc(d.comentario)}”`:''}</p>${pode('revisor')?`<button class="btn light sm" data-div="${d.id}" data-acao-div="reabrir">Reabrir</button>`:''}<button class="btn light sm" data-nota="${d.nota_id}">${ic('eye')}Ver nota</button></div>`}</div>`;};
+  return [`<div class="head"><div><h1>Divergências</h1><p>Cada nota é conferida contra o contrato do fornecedor por regras fixas. Aqui aparece só o que não bateu, com o valor esperado e o encontrado. Você aprova (com justificativa) ou rejeita para cobrar o fornecedor.</p></div>
+  <div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=divergencias">${ic('download')}Baixar relatório (Excel)</a></div></div>
+  <div class="actions">${FILTROS.map(([k,t])=>`<button class="btn sm ${f===k?'':'light'}" data-fdiv="${k}">${t} <span class="num">${k==='todas'?total:(n[k]||0)}</span></button>`).join('')}</div>
+  ${L.length?L.map(card).join(''):`<div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>${f==='aberta'?'Nenhuma divergência aberta':'Nada aqui'}</h2><p class="muted">${total?'As notas conferidas estão em Notas fiscais.':'Envie notas e contratos para começar a conferência.'}</p><a class="btn" href="${total?'#notas':'#enviar'}">${total?'Ver notas':'Enviar documentos'}</a></div>`}`];
+};
+
+V.notas=async()=>{
+  const L=await api(`/api/ws/${S.ws}/notas`);let viewer='';
+  if(S.nota){try{const n=await api(`/api/notas/${S.nota}`);const c=n.contrato;
+   viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>Nota ${esc(n.numero)} · ${esc(n.nome_prestador||n.cnpj_fmt)}</h3><p class="small muted">${n.origem==='xml'?`${esc(n.formato||'XML')}${n.chave?' · chave '+esc(n.chave):''}`:'Lida do PDF da nota'}</p></div>
+   <div class="actions">${stNota(n.status)}${n.tem_xml?`<a class="btn light sm" href="/api/notas/${n.id}/xml">${ic('download')}XML</a>`:''}${n.doc_id?`<button class="btn light sm" data-doc="${n.doc_id}">${ic('eye')}PDF</button>`:''}<button class="btn light sm" data-fechar>${ic('x')}Fechar</button></div></div>
+   <div class="grid g2"><div><p class="small muted" style="margin-bottom:6px">Nota fiscal</p><div class="kv"><span>Prestador</span><b>${esc(n.nome_prestador||'—')}</b><span>CNPJ</span><b class="num">${esc(n.cnpj_fmt)}</b><span>Emissão</span><b>${dt(n.data_emissao)}</b><span>Competência</span><b>${esc(n.competencia||'—')}</b><span>Serviço</span><b>${esc(n.descricao||'—')}</b><span>Código</span><b>${esc(n.codigo_servico||'—')}</b><span>Valor</span><b class="num">${brl(n.valor)}</b></div></div>
+   <div><p class="small muted" style="margin-bottom:6px">Contrato usado na conferência</p>${c?`<div class="kv"><span>Contrato</span><b>${esc(c.numero||'—')}</b><span>Objeto</span><b>${esc(c.objeto||'—')}</b><span>Valor mensal</span><b class="num">${brl(c.valor_mensal)}</b><span>Vigência</span><b>${dt(c.vigencia_inicio)} a ${dt(c.vigencia_fim)}</b>${n.aditivos.map(a=>`<span>Aditivo ${esc(a.numero||'')}</span><b class="num">+${brl(a.valor_adicional)} · ${dt(a.vigencia_inicio)} a ${dt(a.vigencia_fim)}</b>`).join('')}</div>${c.doc_id?`<button class="btn light sm" data-doc="${c.doc_id}" style="margin-top:10px">${ic('eye')}Abrir contrato</button>`:''}`:'<p class="muted">Nenhum contrato encontrado para este CNPJ.</p>'}</div></div>
+   ${n.observacao?`<p class="small" style="background:var(--nevoa);color:var(--tinta);padding:10px 12px;border-radius:10px">${esc(n.observacao)}</p>`:''}
+   ${n.divergencias.length?`<div><p class="small muted" style="margin-bottom:6px">Divergências</p>${n.divergencias.map(d=>`<div class="li"><span class="doci warn">${ic('alert')}</span><div class="t"><b>${esc(d.titulo)}</b><span>${esc(d.mensagem)}</span>${d.comentario?`<span style="display:block">Decisão: “${esc(d.comentario)}” (${esc(d.decidido_por||'')})</span>`:''}</div>${chip(...(STD[d.status]||['neu',d.status]))}</div>`).join('')}</div>`:'<p class="small muted">Nenhuma divergência: a nota bate com o contrato.</p>'}</div>`;}catch(e){S.nota=null}}
+  const cont={};L.forEach(n=>cont[n.status]=(cont[n.status]||0)+1);
+  return [`<div class="head"><div><h1>Notas fiscais</h1><p>Todas as notas de serviço recebidas deste cliente e o resultado da conferência com o contrato.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=notas">${ic('download')}Baixar notas (Excel)</a></div></div>
+  ${viewer}
+  ${L.length?`<div class="c"><div class="ch"><h3>${L.length} nota(s)</h3><div class="legend">${Object.entries(cont).map(([k,v])=>`${stNota(k)} <span class="num">${v}</span>`).join(' ')}</div></div><div class="tablewrap"><table><thead><tr><th>Nota</th><th>Prestador</th><th>Emissão</th><th>Valor</th><th>Contrato</th><th>Origem</th><th>Situação</th><th></th></tr></thead><tbody>
+   ${L.map(n=>`<tr><td class="num"><b>${esc(n.numero)}</b></td><td>${esc(n.nome_prestador||'—')}<br><span class="small muted num">${esc(n.cnpj_fmt)}</span></td><td class="num">${dt(n.data_emissao)}</td><td class="num"><b>${brl(n.valor)}</b></td><td>${esc(n.contrato_numero||'—')}</td><td>${n.origem==='xml'?'XML':'PDF'}</td><td>${stNota(n.status)}${n.observacao?`<br><span class="small muted">${n.status==='pendente'?'contrato em dúvida da leitura':'coberto por aditivo'}</span>`:''}</td><td><button class="btn light sm" data-nota="${n.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="c empty"><span class="bigic">${ic('notas')}</span><h3>Nenhuma nota ainda</h3><p class="muted">Envie o XML das NFS-e (ou o PDF) e elas aparecem aqui, já conferidas.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
+};
+
+V.contratos=async()=>{
+  const r=await api(`/api/ws/${S.ws}/contratos`);const L=r.contratos;
+  return [`<div class="head"><div><h1>Contratos</h1><p>A referência da conferência: objeto, valor mensal, vigência e aditivos, lidos dos PDFs. Cada nota é comparada com o contrato do seu fornecedor.</p></div></div>
+  ${L.length?`<div class="c"><div class="tablewrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Objeto</th><th>Valor mensal</th><th>Vigência</th><th>Aditivos</th><th>Notas</th><th>Faturado</th><th></th></tr></thead><tbody>
+   ${L.map(c=>`<tr><td><b>${esc(c.numero||'—')}</b></td><td>${esc(c.nome_prestador||'—')}<br><span class="small muted num">${esc(c.cnpj_fmt)}</span></td><td>${esc(c.objeto||'—')}</td><td class="num">${brl(c.valor_mensal)}</td><td class="num">${dt(c.vigencia_inicio)} a ${dt(c.vigencia_fim)}</td>
+   <td>${c.aditivos.length?c.aditivos.map(a=>`<span class="small" style="display:block">${esc(a.numero||'Aditivo')} +${brl(a.valor_adicional)}<br><span class="muted num">${dt(a.vigencia_inicio)} a ${dt(a.vigencia_fim)}</span></span>`).join(''):'<span class="muted">—</span>'}</td>
+   <td class="num">${c.notas}${c.abertas?` ${chip('rev',c.abertas+' aberta(s)')}`:''}</td><td class="num">${brl(c.faturado)}</td><td>${c.doc_id?`<button class="btn light sm" data-doc="${c.doc_id}">${ic('eye')}PDF</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="c empty"><span class="bigic">${ic('contratos')}</span><h3>Nenhum contrato ainda</h3><p class="muted">Envie os contratos em PDF (pode ser digitalizado). Sem contrato, toda nota do fornecedor vira divergência “Fornecedor sem contrato”.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}
+  ${r.aditivos_sem_contrato.length?`<div class="c"><h3>Aditivos sem contrato encontrado</h3><p class="small muted">Lidos, mas o contrato de referência não está cadastrado.</p>${r.aditivos_sem_contrato.map(a=>`<div class="li"><div class="t"><b>${esc(a.numero||'Aditivo')}</b><span>Contrato ${esc(a.contrato_ref||'?')} · +${brl(a.valor_adicional)}</span></div></div>`).join('')}</div>`:''}`];
+};
+
+V.fornecedores=async()=>{
+  const L=await api(`/api/ws/${S.ws}/fornecedores`);
+  return [`<div class="head"><div><h1>Fornecedores</h1><p>As micro e pequenas empresas terceirizadas deste cliente, com o que faturaram e quantas notas tiveram problema.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=fornecedores">${ic('download')}Baixar (Excel)</a></div></div>
+  ${L.length?`<div class="c"><div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>CNPJ</th><th>Contratos</th><th>Notas</th><th>Faturado</th><th>Abertas</th><th>Rejeitadas</th><th>Última nota</th></tr></thead><tbody>
+   ${L.map(f=>`<tr><td><b>${esc(f.nome||'—')}</b></td><td class="num">${esc(f.cnpj_fmt)}</td><td class="num">${f.contratos||chip('err','Sem contrato')}</td><td class="num">${f.notas}</td><td class="num">${brl(f.faturado)}</td><td>${f.abertas?chip('rev',f.abertas):'<span class="muted">0</span>'}</td><td>${f.rejeitadas?chip('err',f.rejeitadas):'<span class="muted">0</span>'}</td><td class="num">${dt(f.ultima)}</td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="c empty"><span class="bigic">${ic('fornecedores')}</span><h3>Nenhum fornecedor ainda</h3><p class="muted">Os fornecedores são cadastrados sozinhos pelo CNPJ das notas e dos contratos.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
 };
 
 V.busca=async()=>[`<div class="head"><div><h1>Busca</h1><p>Procura dentro do texto de todos os documentos lidos, inclusive digitalizados e fotos. Pode escrever sem acento.</p></div></div>
-  <form class="c" id="fbusca" style="display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px">${ic('busca')}<input id="q" class="inp" style="border:0;font-size:17px" value="${esc(S.busq||'')}" placeholder="Ex.: hemograma, porteiro, 10/2026, Marcos" aria-label="O que você procura?"><button class="btn">Buscar</button></form><div id="results" class="grid"></div>`];
+  <form class="c" id="fbusca" style="display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px">${ic('busca')}<input id="q" class="inp" style="border:0;font-size:17px" value="${esc(S.busq||'')}" placeholder="Ex.: limpeza, CTR-001, vigência, 4.350" aria-label="O que você procura?"><button class="btn">Buscar</button></form><div id="results" class="grid"></div>`];
 async function buscar(){const q=document.getElementById('q').value.trim();S.busq=q;const box=document.getElementById('results');if(!q){box.innerHTML='';return}
   const r=await api(`/api/ws/${S.ws}/busca?q=${encodeURIComponent(q)}`);
-  box.innerHTML=r.length?`<p class="small muted">${r.length} documento(s) encontrado(s)</p>`+r.map(d=>`<div class="res"><span class="doci">${ic('file')}</span><div class="t"><b>${esc(d.tipo)}</b><span class="small muted">${esc(d.pessoa||d.empresa||'')} · envio #${d.envio_id} · pág. ${d.pag_ini}–${d.pag_fim}</span><p>${prot(d.trecho).replace(/\[\[/g,'<mark>').replace(/\]\]/g,'</mark>')}</p></div><div class="actions"><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}PDF</a></div></div>`).join(''):`<div class="c empty"><h3>Nada encontrado com “${esc(q)}”</h3><p class="muted">Tente um nome, um tipo de documento ou uma data.</p></div>`;}
+  box.innerHTML=r.length?`<p class="small muted">${r.length} documento(s) encontrado(s)</p>`+r.map(d=>`<div class="res"><span class="doci">${ic('file')}</span><div class="t"><b>${esc(d.tipo)}</b><span class="small muted">${esc(d.empresa||'')} · envio #${d.envio_id} · pág. ${d.pag_ini}–${d.pag_fim}</span><p>${prot(d.trecho).replace(/\[\[/g,'<mark>').replace(/\]\]/g,'</mark>')}</p></div><div class="actions"><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}PDF</a></div></div>`).join(''):`<div class="c empty"><h3>Nada encontrado com “${esc(q)}”</h3><p class="muted">Tente um fornecedor, um número de contrato, um serviço ou uma data.</p></div>`;}
 
 V.relatorios=async()=>[`<div class="head"><div><h1>Relatórios</h1><p>Planilhas prontas (abrem no Excel), geradas na hora com os dados reais deste cliente.</p></div></div>
-  <div class="grid g2">${[['situacao','Situação por colaborador','O que está ok, o que falta e o que espera confirmação.'],['documentos','Todos os documentos','Tipo, pessoa, páginas, confiança e decisões humanas.'],['acessos','Acesso a dados protegidos','Quem pediu para ver dados protegidos, quando e por quê.']].map(r=>`<div class="c" style="display:grid;gap:14px"><div style="display:flex;gap:14px"><span class="doci">${ic('relatorios')}</span><div><h3>${r[1]}</h3><p class="small muted">${r[2]}</p></div></div><a class="btn sm" style="justify-self:start" href="/api/ws/${S.ws}/relatorio.csv?tipo=${r[0]}">${ic('download')}Baixar planilha</a></div>`).join('')}</div>`];
+  <div class="grid g2">${[['divergencias','Divergências','Cada problema encontrado: regra, valor esperado e encontrado, decisão e comentário.'],['notas','Notas fiscais','Todas as notas, o contrato usado na conferência e a situação de cada uma.'],['fornecedores','Fornecedores','Faturado por fornecedor, divergências abertas e rejeitadas.'],['trilha','Decisões da equipe','Quem aprovou, rejeitou ou reabriu cada divergência, quando e por quê.'],['documentos','Documentos lidos','Tipo, páginas, confiança e decisões sobre a leitura.'],['acessos','Acesso a dados protegidos','Quem pediu para ver dados protegidos, quando e por quê.']].map(r=>`<div class="c" style="display:grid;gap:14px"><div style="display:flex;gap:14px"><span class="doci">${ic('relatorios')}</span><div><h3>${r[1]}</h3><p class="small muted">${r[2]}</p></div></div><a class="btn sm" style="justify-self:start" href="/api/ws/${S.ws}/relatorio.csv?tipo=${r[0]}">${ic('download')}Baixar planilha</a></div>`).join('')}</div>`];
 
 V.configuracoes=async()=>{
   const r=await api(`/api/ws/${S.ws}/config`);const c=r.config;
@@ -303,35 +377,43 @@ V.configuracoes=async()=>{
   <div class="c"><h3 style="margin-bottom:6px">Inteligência artificial</h3>
    <div class="row"><div class="t"><b>Status</b><span>${r.claude_configurado?`Chave encontrada. Modelo: ${esc(r.modelo)}`:'Sem chave. Para ligar, crie o arquivo .env na pasta do projeto com ANTHROPIC_API_KEY=sua-chave e reinicie.'}</span></div>${r.claude_configurado?chip('ok','Pronto'):chip('rev','Leitura local')}</div>
    ${tg('usar_claude','Usar o Claude quando houver chave','Lê imagem e texto juntos. Sem chave, usa OCR e regras locais.')}
-   <div class="row" style="display:grid;gap:6px"><div class="t"><b>Mandar para revisão humana abaixo de <span id="vlim">${c.limiar}</span>%</b><span>Acima disso, o documento é aceito sem ninguém olhar. Vale para os próximos envios.</span></div><input type="range" min="50" max="95" step="1" value="${c.limiar}" id="limiar" style="width:100%;accent-color:var(--confere)"></div></div>
+   <div class="row" style="display:grid;gap:6px"><div class="t"><b>Perguntar quando a confiança da leitura ficar abaixo de <span id="vlim">${c.limiar}</span>%</b><span>Acima disso, o documento entra na conferência sem ninguém olhar. Vale para os próximos envios.</span></div><input type="range" min="50" max="95" step="1" value="${c.limiar}" id="limiar" style="width:100%;accent-color:var(--confere)"></div></div>
+  <div class="c"><h3 style="margin-bottom:6px">Regras de conferência</h3>
+   <div class="row" style="display:grid;gap:6px"><div class="t"><b>Tolerância de valor: <span id="vtol">${c.tolerancia}</span>%</b><span>Diferença aceita acima do valor mensal do contrato (somado aos aditivos vigentes) antes de virar divergência. Refaz a conferência na hora.</span></div><input type="range" min="0" max="10" step="0.5" value="${c.tolerancia}" id="tolerancia" style="width:100%;accent-color:var(--confere)"></div>
+   <ul class="small muted" style="margin:8px 0 0;padding-left:18px;display:grid;gap:4px"><li><b>Fornecedor sem contrato</b> (crítica): nenhum contrato para o CNPJ do prestador.</li><li><b>Valor acima do contratado</b> (alta): considera aditivos vigentes na data da nota.</li><li><b>Fora da vigência</b> (alta): nota emitida antes ou depois do contrato.</li><li><b>Nota duplicada</b> (alta): mesmo número do mesmo prestador.</li><li><b>Serviço diferente</b> (média): descrição sem relação com o objeto do contrato.</li><li><b>Outro tomador</b> (média): nota emitida para outro CNPJ.</li></ul></div>
   <div class="c"><div class="ch"><h3>Dados protegidos</h3>${ic('shield')}</div><p class="small muted">Escondidos na tela, na busca, nas imagens e nos PDFs. Ver o original exige um motivo, que fica registrado (${r.acessos} acesso(s) até agora).</p>
    ${tg('cpf','CPF e RG','Números de documento pessoal')}${tg('banco','Dados bancários','Agência e conta')}${tg('saude','Informações de saúde','CID e diagnósticos')}${tg('endereco','Endereço','Rua e número')}${tg('contato','Telefone e e-mail','Contato pessoal')}</div>
-  <div class="c" style="display:grid;gap:12px;align-content:start"><h3>Tipos de documento deste cliente</h3><p class="small muted">Os escuros são exigidos de cada colaborador.</p><div class="tagset">${r.tipos.map(t=>`<span class="${t.exigido?'ex':''}">${esc(t.nome)}</span>`).join('')}</div></div>
-  <form class="c" id="novotipo" style="display:grid;gap:10px;align-content:start"><h3>Ensinar um novo tipo</h3><input class="inp" name="nome" placeholder="Nome, ex.: Certificado NR-10"><input class="inp" name="titulos" placeholder="Títulos que aparecem no topo, separados por vírgula"><input class="inp" name="palavras" placeholder="Palavras típicas, separadas por vírgula">
-   <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="exigido"> Exigido de cada colaborador</label><p class="err" id="tipoerr"></p><button class="btn" style="justify-self:start">${ic('plus')}Adicionar tipo</button></form></div>`];
+  <div class="c" style="display:grid;gap:12px;align-content:start"><h3>Tipos de documento deste cliente</h3><p class="small muted">A IA separa o lote nestes tipos. Contratos, aditivos e notas entram na conferência.</p><div class="tagset">${r.tipos.map(t=>`<span>${esc(t.nome)}</span>`).join('')}</div></div>
+  <form class="c" id="novotipo" style="display:grid;gap:10px;align-content:start"><h3>Ensinar um novo tipo</h3><input class="inp" name="nome" placeholder="Nome, ex.: Ordem de compra"><input class="inp" name="titulos" placeholder="Títulos que aparecem no topo, separados por vírgula"><input class="inp" name="palavras" placeholder="Palavras típicas, separadas por vírgula">
+   <p class="err" id="tipoerr"></p><button class="btn" style="justify-self:start">${ic('plus')}Adicionar tipo</button></form></div>`];
 };
 
 V.acerto=async()=>{
   const L=await api(`/api/ws/${S.ws}/avaliacoes`);const vivo=L.some(x=>!x.resultado&&!['recusado'].includes(x.envio.status));
   const big=(v,l,s)=>`<div class="c task"><div class="eb">${l}</div><div class="big num">${v}%</div><p>${s}</p></div>`;
   const ult=L.find(x=>x.resultado);const r=ult&&ult.resultado;
-  return [`<div class="head"><div><h1>Acerto da IA</h1><p>Um lote sintético é gerado junto com o gabarito, que diz onde começa cada documento e qual é o tipo certo. A Concilia processa o lote sem ver o gabarito, e aqui comparamos o resultado.</p></div>
+  const k=r&&r.conciliacao;
+  return [`<div class="head"><div><h1>Acerto da IA</h1><p>Um lote fictício é gerado junto com o gabarito: onde começa cada documento, qual é o tipo e quais notas têm problema. A Concilia processa o lote sem ver o gabarito, e aqui comparamos o resultado.</p></div>
   <div class="actions">${pode('admin')?`<button class="btn" id="avaliar">${ic('zap')}Gerar lote com gabarito e medir</button>`:'<span class="small muted">Só o administrador pode iniciar uma avaliação.</span>'}</div></div>
-  ${S.ws!=='atlantica'?`<div class="c" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="doci warn">${ic('alert')}</span><p style="flex:1;min-width:220px">O gerador cria contratos, notas fiscais e aditivos. Para medir com os tipos certos, use o cliente <b>Atlântica Facilities</b>.</p><button class="btn light sm" data-ws="atlantica">Ir para Atlântica Facilities</button></div>`:''}
+  ${k?`<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">Conferência das notas</h3><div class="grid g3">${big(k.cobertura,'Problemas encontrados',`${k.detectadas} de ${k.divergencias_esperadas} notas com problema foram apontadas; ${k.regra_certa}% delas com a regra certa.`)}
+   ${big(k.precisao,'Alarmes corretos',`${k.falsos_alarmes} alarme(s) falso(s). ${k.corretas_sem_alerta} notas certas passaram sem alerta.`)}
+   ${big(k.pct_lidas,'Notas lidas',`${k.notas_lidas} de ${k.notas_gabarito} notas do gabarito foram lidas e conferidas.`)}</div>
+   ${k.erros.length?`<div class="c"><h3 style="margin-bottom:10px">Onde a conferência errou</h3><div class="tablewrap"><table><thead><tr><th>Nota</th><th>Certo</th><th>A Concilia disse</th></tr></thead><tbody>${k.erros.map(e=>`<tr><td>${esc(e.nota)}</td><td>${esc(e.esperado)}</td><td>${esc(e.encontrado)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+   <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">Leitura do lote em PDF</h3>`:''}
   ${r?`<div class="grid g3">${big(r.fronteira_f1,'Separação de documentos (F1)',`Acertou o início de ${r.fronteira_cobertura}% dos documentos; ${r.fronteira_precisao}% dos inícios marcados estavam certos.`)}
    ${big(r.tipo_correto,'Documento inteiro certo',`Páginas e tipo corretos em ${r.tipo_correto}% dos ${r.documentos_gabarito} documentos.`)}
    ${big(r.acerto_automaticos,'Acerto do que foi aprovado sozinho',`${r.automaticos} documentos aprovados sem revisão. ${r.enviados_revisao} foram para a fila humana (${r.pct_revisao}%).`)}</div>
    <div class="c"><div class="ch"><h3>Onde a IA errou no último lote (envio #${ult.envio.id})</h3><span class="small muted num">${r.paginas} páginas · ${r.documentos_gabarito} documentos no gabarito · ${r.documentos_previstos} previstos · páginas com tipo certo: ${r.paginas_tipo_correto}%</span></div>
    ${r.erros.length?`<div class="tablewrap"><table><thead><tr><th>Documento</th><th>Páginas</th><th>Certo</th><th>A IA disse</th></tr></thead><tbody>${r.erros.map(e=>`<tr><td>${esc(e.documento)}</td><td class="num">${esc(e.paginas)}</td><td>${esc(e.esperado)}</td><td>${esc(e.previsto)}</td></tr>`).join('')}</tbody></table></div>${r.total_erros>r.erros.length?`<p class="small muted">E mais ${r.total_erros-r.erros.length}.</p>`:''}`:'<p class="muted">Nenhum erro: todos os documentos foram separados e classificados corretamente.</p>'}</div>`
-  :`<div class="c empty"><span class="doci" style="width:56px;height:56px">${ic('acerto')}</span><h3>${L.length?'Medindo… o resultado aparece quando o lote terminar':'Nenhuma avaliação ainda'}</h3><p class="muted">O lote de teste tem contratos de 9 páginas, notas e aditivos misturados, e uma parte é digitalizada para testar o OCR.</p></div>`}
-  ${L.length?`<div class="c"><div class="ch"><h3>Histórico de avaliações</h3></div><div class="tablewrap"><table><thead><tr><th>Envio</th><th>Quando</th><th>Situação</th><th>Separação (F1)</th><th>Documento certo</th><th>Fila humana</th></tr></thead><tbody>
-   ${L.map(x=>`<tr><td><a href="#envio-${x.envio.id}">#${x.envio.id}</a></td><td>${esc(x.envio.criado_em)}</td><td>${stEnvio(x.envio)}</td><td class="num">${x.resultado?x.resultado.fronteira_f1+'%':'—'}</td><td class="num">${x.resultado?x.resultado.tipo_correto+'%':'—'}</td><td class="num">${x.resultado?x.resultado.pct_revisao+'%':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}`,null,vivo];
+  :`<div class="c empty"><span class="doci" style="width:56px;height:56px">${ic('acerto')}</span><h3>${L.length?'Medindo… o resultado aparece quando o lote terminar':'Nenhuma avaliação ainda'}</h3><p class="muted">O lote de teste tem 8 fornecedores: contratos de 9 páginas, aditivos e notas (XML e PDF), com 6 problemas escondidos. Uma parte é digitalizada para testar o OCR.</p></div>`}
+  ${L.length?`<div class="c"><div class="ch"><h3>Histórico de avaliações</h3></div><div class="tablewrap"><table><thead><tr><th>Envio</th><th>Quando</th><th>Situação</th><th>Problemas encontrados</th><th>Alarmes corretos</th><th>Separação (F1)</th><th>Documento certo</th></tr></thead><tbody>
+   ${L.map(x=>`<tr><td><a href="#envio-${x.envio.id}">#${x.envio.id}</a></td><td>${esc(x.envio.criado_em)}</td><td>${stEnvio(x.envio)}</td><td class="num">${x.resultado?x.resultado.conciliacao.cobertura+'%':'—'}</td><td class="num">${x.resultado?x.resultado.conciliacao.precisao+'%':'—'}</td><td class="num">${x.resultado?x.resultado.fronteira_f1+'%':'—'}</td><td class="num">${x.resultado?x.resultado.tipo_correto+'%':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}`,null,vivo];
 };
 
 V.entrar=async()=>[`<div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;background:#fff;border-radius:28px;box-shadow:0 20px 60px rgba(47,107,255,.14);padding:14px;min-height:calc(100vh - 32px)" class="login">
   <div style="border-radius:20px;padding:34px;display:flex;flex-direction:column;justify-content:space-between;color:#fff;background:radial-gradient(70% 55% at 25% 78%,#0A1A6B 0%,transparent 72%),radial-gradient(55% 60% at 80% 15%,#8FB4FF 0%,transparent 70%),linear-gradient(165deg,#9CC3FF 0%,#2F6BFF 50%,#1D47B8 100%);min-height:300px">
    <div style="display:flex;align-items:center;gap:10px">${MARK(42)}<b style="font-size:22px">concilia AI</b></div>
-   <div style="display:grid;gap:14px"><h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;line-height:1.15">Seus documentos organizados, sem trabalho manual.</h2><p style="opacity:.9">Acesso da equipe Bernhoeft.</p></div></div>
+   <div style="display:grid;gap:14px"><h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;line-height:1.15">Cada nota fiscal conferida com o contrato, sem trabalho manual.</h2><p style="opacity:.9">Acesso da equipe Bernhoeft.</p></div></div>
   <div style="display:flex;align-items:center;justify-content:center;padding:32px 20px"><form id="login" style="width:100%;max-width:360px;display:grid;gap:14px" novalidate>${MARK(30)}<h1 style="font-size:32px;font-weight:800">Entrar</h1>
    <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Usuário<input class="inp" name="usuario" autocomplete="username" placeholder="admin, revisor ou operador"></label>
    <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Senha<input class="inp" name="senha" type="password" autocomplete="current-password"></label>
@@ -340,21 +422,23 @@ V.entrar=async()=>[`<div style="max-width:1100px;margin:0 auto;display:grid;grid
   <style>@media(max-width:900px){.login{grid-template-columns:1fr!important}}</style>`];
 
 V['como-funciona']=async()=>{
-  const R=[['min','Detecção de início e fim de cada documento','Cada página recebe a decisão “começa um novo” ou “continua”, por título, numeração, pessoa e tipo.','enviar'],
-  ['min','Agrupamento de páginas','Páginas seguidas do mesmo documento viram um documento só.','enviar'],
-  ['min','Classificação por tipo documental','Tipos configuráveis por cliente, e novos tipos podem ser ensinados.','documentos'],
-  ['min','OCR pesquisável','Texto de PDFs e imagens vira busca e PDF pesquisável para baixar.','busca'],
-  ['min','Confiança e fila de revisão humana','Cada página e documento tem confiança. Abaixo do limite, vai para Pendências.','pendencias'],
-  ['dif','Modelos multimodais','Com a chave, o Claude lê a imagem e o texto da página juntos.','configuracoes'],
+  const R=[['min','1. Recebe as notas fiscais','XML da NFS-e (leiaute nacional, ABRASF ou o de teste) lido na hora, sem OCR. Nota em PDF também é aceita.','notas'],
+  ['min','2. Separa o lote em PDF','Contratos, aditivos e notas misturados: cada página recebe “começa um novo” ou “continua”, e as páginas viram documentos.','enviar'],
+  ['min','3. Classifica e lê cada documento','Tipo, confiança e texto pesquisável (OCR em digitalizados). Abaixo do limite, a IA pergunta em Dúvidas da leitura.','pendencias'],
+  ['min','4. Extrai os campos do contrato','Número, CNPJ, objeto, valor mensal, vigência e aditivos, por regras ou pelo Claude.','contratos'],
+  ['min','5. Confere nota × contrato','Regras fixas: sem contrato, valor acima (com aditivos vigentes), fora da vigência, duplicada, serviço e tomador diferentes.','divergencias'],
+  ['min','6. Revisão humana e relatório','A equipe aprova ou rejeita cada divergência, com comentário. Tudo vira planilha e trilha de decisões.','relatorios'],
+  ['dif','IA multimodal','Com a chave, o Claude lê a imagem e o texto da página juntos e extrai os campos dos contratos.','configuracoes'],
   ['dif','Retomada após falha','Cada página é salva ao terminar. Em queda ou fechamento, continua da próxima.','enviar'],
   ['dif','Anonimização de dados','CPF, conta, saúde, endereço e contato escondidos no texto e na imagem.','configuracoes'],
-  ['dif','Um workspace por cliente','Clientes da Bernhoeft separados, cada um com seus tipos e regras.','inicio'],
-  ['dif','Acerto medido com gabarito','Lote sintético com resposta certa mede separação e classificação.','acerto'],
-  ['dif','Login com perfis','Operador envia, revisor decide, administrador configura. Tudo registrado.','configuracoes']];
+  ['dif','Um workspace por cliente','Cada cliente da Bernhoeft com seus fornecedores, contratos, notas e regras.','fornecedores'],
+  ['dif','Acerto medido com gabarito','Lote fictício com resposta certa mede a separação e a conferência das notas.','acerto'],
+  ['dif','Login com perfis','Operador envia, revisor decide, administrador configura. Decisões ficam registradas.','configuracoes']];
   const row=r=>`<div class="req ${r[0]==='dif'?'dif':''}"><span class="ok">${ic('check')}</span><div><b>${r[1]}</b><span>${r[2]}</span></div><a class="btn light sm" href="#${r[3]}">Ver</a></div>`;
-  return [`<div class="head"><div><h1>Como funciona</h1><p>Onde cada parte do desafio Document AI Factory acontece de verdade no sistema.</p></div></div>
-  <div class="grid g2"><div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">Capacidades mínimas</h3>${R.filter(r=>r[0]==='min').map(row).join('')}</div>
-  <div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em">Diferenciais</h3>${R.filter(r=>r[0]==='dif').map(row).join('')}</div></div>`];
+  return [`<div class="head"><div><h1>Como funciona</h1><p>A nota fiscal é o centro: tudo o mais serve para conferir se ela bate com o que foi contratado.</p></div></div>
+  <div class="grid g2"><div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">O caminho de uma nota</h3>${R.filter(r=>r[0]==='min').map(row).join('')}</div>
+  <div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em">Diferenciais</h3>${R.filter(r=>r[0]==='dif').map(row).join('')}</div></div>
+  <p class="small muted">A Concilia aponta diferenças e mostra de onde elas vêm. Não substitui análise jurídica, contábil ou tributária.</p>`];
 };
 
 async function render(){
@@ -364,14 +448,14 @@ async function render(){
   if(!V[h])h='inicio';
   if(h==='entrar'||!S.usuario){if(h!=='entrar')location.hash='#entrar';document.getElementById('root').innerHTML=(await V.entrar())[0];document.querySelector('#login input')?.focus();return}
   try{
-    const [inner,pendCount,vivo]=await V[h](arg);
-    let pend=pendCount;if(pend==null){try{pend=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias.length}catch(e){pend=0}}
+    const [inner,c0,vivo]=await V[h](arg);
+    let cont=c0;if(!cont||typeof cont!=='object'){try{cont=await api(`/api/ws/${S.ws}/contagens`)}catch(e){cont={}}}
     const foco=document.activeElement&&document.activeElement.id;
-    document.getElementById('root').innerHTML=shell(h,inner,pend);
+    document.getElementById('root').innerHTML=shell(h,inner,cont);
     if(foco&&document.getElementById(foco)&&foco!=='wsbtn')document.getElementById(foco).focus();
     if(h==='busca'&&S.busq)buscar();
     if(vivo)S.timer=setTimeout(render,1500);
-  }catch(e){document.getElementById('root').innerHTML=shell(h,`<div class="c empty"><h3>Não foi possível carregar</h3><p class="muted">${esc(e.message)}. Confira se o programa está aberto (iniciar.bat).</p></div>`,0);}
+  }catch(e){document.getElementById('root').innerHTML=shell(h,`<div class="c empty"><h3>Não foi possível carregar</h3><p class="muted">${esc(e.message)}. Confira se o programa está aberto (iniciar.bat).</p></div>`,{});}
 }
 async function enviarArquivos(files){
   if(!files.length)return;const fd=new FormData();[...files].forEach(f=>fd.append('arquivos',f));
@@ -381,29 +465,34 @@ async function enviarArquivos(files){
 }
 document.addEventListener('click',async ev=>{
   if(S.menu&&!ev.target.closest('.ws')){S.menu=false;render();}
-  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
+  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-nota],[data-div],[data-fdiv],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
   if(t.hasAttribute('data-sair')){ev.preventDefault();await post('/api/sair');S.usuario=null;location.hash='#entrar';render();return}
-  if(t.id==='avaliar'){t.disabled=true;t.textContent='Gerando lote com gabarito…';try{const e=await post(`/api/ws/${S.ws}/avaliacao`,{fornecedores:4});toast(`Lote de ${e.total} páginas na fila. O resultado aparece ao terminar.`);render();}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.id==='avaliar'){t.disabled=true;t.textContent='Gerando lote com gabarito…';try{const e=await post(`/api/ws/${S.ws}/avaliacao`,{fornecedores:8});toast(`${e.notas_xml} notas e ${e.total} páginas na fila. O resultado aparece ao terminar.`);render();}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.dataset.fdiv){S.fdiv=t.dataset.fdiv;render();return}
+  if(t.dataset.div){const id=t.dataset.div,acao=t.dataset.acaoDiv,com=document.getElementById(`com-${id}`)?.value||'';t.disabled=true;
+    try{const r=await post(`/api/divergencias/${id}/decisao`,{acao,comentario:com});toast(r.msg);render();}catch(e){const er=document.getElementById(`err-${id}`);if(er)er.textContent=e.message;else toast(e.message);t.disabled=false}return}
+  if(t.dataset.nota){S.nota=+t.dataset.nota;if(location.hash!=='#notas')location.hash='#notas';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
   if(t.classList.contains('zoom')){t.remove();return}
   if(t.id==='wsbtn'){S.menu=!S.menu;render();return}
-  if(t.dataset.ws){S.ws=t.dataset.ws;S.menu=false;S.q=0;S.doc=null;S.revelado=null;try{localStorage.setItem('ws',S.ws)}catch(e){}toast(`Agora você está vendo o cliente ${W().nome}`);render();return}
+  if(t.dataset.ws){S.ws=t.dataset.ws;S.menu=false;S.q=0;S.doc=null;S.nota=null;S.revelado=null;try{localStorage.setItem('ws',S.ws)}catch(e){}toast(`Agora você está vendo o cliente ${W().nome}`);render();return}
   if(t.dataset.zoom){const z=document.createElement('div');z.className='zoom';z.innerHTML=`<img src="/api/paginas/${t.dataset.zoom}/imagem" alt="Página ampliada">`;document.body.appendChild(z);return}
   if(t.dataset.acao){const id=location.hash.split('-')[1];await post(`/api/envios/${id}/${t.dataset.acao}`);toast({pausar:'Pausado. Nada se perde.',retomar:'Retomando da próxima página.','simular-falha':'Queda simulada. Veja a retomada automática.'}[t.dataset.acao]);render();return}
   if(t.dataset.dec){const L=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias;const d=L[S.q];if(!d)return;
     t.disabled=true;try{const r=await post(`/api/docs/${d.id}/decisao`,JSON.parse(t.dataset.dec));toast(r.msg);}catch(e){toast(e.message)}render();return}
   if(t.dataset.q){S.q=+t.dataset.q;render();return}
   if(t.dataset.doc){S.doc=+t.dataset.doc;S.revelado=null;if(location.hash!=='#documentos')location.hash='#documentos';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
-  if(t.hasAttribute('data-fechar')){S.doc=null;S.revelado=null;render();return}
+  if(t.hasAttribute('data-fechar')){S.doc=null;S.nota=null;S.revelado=null;render();return}
   if(t.dataset.toast){toast(t.dataset.toast);return}
-  if(t.id==='exemplo'){t.disabled=true;try{const e=await post(`/api/ws/${S.ws}/exemplo`);toast(`Lote de exemplo com ${e.total} páginas na fila.`);location.hash=`#envio-${e.id}`;}catch(e){toast(e.message);t.disabled=false}}
+  if(t.id==='exemplo'){t.disabled=true;t.textContent='Gerando lote fictício…';try{const e=await post(`/api/ws/${S.ws}/exemplo`);toast(`${e.notas_xml} notas lidas do XML. ${e.total} páginas de contratos e notas na fila.`);location.hash=`#envio-${e.id}`;}catch(e){toast(e.message);t.disabled=false}}
 });
 document.addEventListener('change',async ev=>{
   if(ev.target.id==='files')enviarArquivos(ev.target.files);
   if(ev.target.dataset.cfg){await post(`/api/ws/${S.ws}/config`,{[ev.target.dataset.cfg]:ev.target.checked?1:0});toast(ev.target.checked?'Ativado':'Desativado');if(ev.target.dataset.cfg==='usar_claude'){S.cfgClaude=ev.target.checked?'1':'0';render();}}
   if(ev.target.id==='limiar'){await post(`/api/ws/${S.ws}/config`,{limiar:ev.target.value});toast(`Limite de revisão: ${ev.target.value}%`)}
+  if(ev.target.id==='tolerancia'){try{await post(`/api/ws/${S.ws}/config`,{tolerancia:ev.target.value});toast(`Tolerância de valor: ${ev.target.value}%. Conferência refeita.`)}catch(e){toast(e.message)}}
   if(ev.target.id==='outrotipo'&&ev.target.value){const d=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias[S.q];const r=await post(`/api/docs/${d.id}/decisao`,{acao:'confirmar',tipo:ev.target.value});toast(r.msg);render();}
 });
-document.addEventListener('input',ev=>{if(ev.target.id==='limiar')document.getElementById('vlim').textContent=ev.target.value;});
+document.addEventListener('input',ev=>{if(ev.target.id==='limiar')document.getElementById('vlim').textContent=ev.target.value;if(ev.target.id==='tolerancia')document.getElementById('vtol').textContent=ev.target.value;});
 document.addEventListener('submit',async ev=>{ev.preventDefault();const f=ev.target;
   if(f.id==='login'){const d=Object.fromEntries(new FormData(f));if(!d.usuario||!d.senha){document.getElementById('loginerr').textContent='Preencha usuário e senha.';return}
     try{await post('/api/login',d);location.hash='#inicio';await iniciar();toast(`Olá, ${S.usuario.nome}`);}catch(e){document.getElementById('loginerr').textContent=e.message}return}

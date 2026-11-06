@@ -8,6 +8,8 @@
 
 ## Plataforma completa (`app/` + `web/`) — o que roda na apresentação
 
+**Foco na nota fiscal de serviço.** O lote digitalizado traz notas (NFS-e), contratos e aditivos misturados. O XML da NFS-e é lido direto; como diferencial, cada nota é conferida contra o contrato (valor com aditivos vigentes, vigência, serviço, duplicidade, tomador) e as divergências vão para decisão humana. Roteiro da demo no `LEIA-ME.md`.
+
 O repositório tem duas partes que se complementam:
 
 | Parte | Pastas | Para que serve |
@@ -37,7 +39,7 @@ Contas de demonstração: **admin / admin123**, **revisor / revisor123**, **oper
 | Workspaces por cliente | Cada cliente da Bernhoeft com seus tipos, documentos exigidos e regras | Seletor no topo |
 | **Acerto medido com gabarito** | Gera lote sintético (gerador da fase 2), processa sem ver o gabarito e mede F1 da separação, documento inteiro certo e acerto do que foi aprovado sem revisão | Acerto da IA |
 | Login com perfis | Operador envia; revisor decide pendências e revela dados; admin configura. Sessão em cookie assinado | Tela de entrada |
-| Proteções no envio | 40 MB e 500 páginas por arquivo, PDF com senha recusado, arquivo repetido ignorado (SHA-256) | Enviar documentos |
+| Proteções no envio | 300 MB e 2.000 páginas por arquivo (ajustável no `.env`), PDF com senha recusado, arquivo repetido ignorado (SHA-256) | Enviar documentos |
 
 **Resultado medido** (lote sintético de 64 páginas, 18 documentos, parte digitalizada, leitura local): separação F1 **100%**, documento inteiro certo **100%**, 5,6% enviados para revisão humana. Os dados sintéticos são mais fáceis que documentos reais; o número serve para comparar versões, não como promessa de acerto.
 

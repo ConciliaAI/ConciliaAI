@@ -58,12 +58,35 @@ CREATE TABLE IF NOT EXISTS exemplos(id INTEGER PRIMARY KEY, ws TEXT, tipo TEXT, 
 CREATE TABLE IF NOT EXISTS acessos(id INTEGER PRIMARY KEY, ws TEXT, doc_id INT, quando TEXT, motivo TEXT, usuario TEXT);
 CREATE TABLE IF NOT EXISTS arquivos(id INTEGER PRIMARY KEY, ws TEXT, sha256 TEXT, envio_id INT, nome TEXT);
 CREATE TABLE IF NOT EXISTS usuarios(usuario TEXT PRIMARY KEY, nome TEXT, perfil TEXT, senha_hash TEXT);
+-- Conciliação: a nota fiscal é o centro; contratos e aditivos são a referência.
+CREATE TABLE IF NOT EXISTS fornecedores(
+  id INTEGER PRIMARY KEY, ws TEXT, cnpj TEXT, nome TEXT, criado_em TEXT, UNIQUE(ws, cnpj));
+CREATE TABLE IF NOT EXISTS contratos(
+  id INTEGER PRIMARY KEY, ws TEXT, fornecedor_id INT, doc_id INT, envio_id INT, numero TEXT,
+  cnpj_prestador TEXT, nome_prestador TEXT, cnpj_tomador TEXT, objeto TEXT, valor_mensal REAL, valor_total REAL,
+  vigencia_inicio TEXT, vigencia_fim TEXT, criado_em TEXT);
+CREATE TABLE IF NOT EXISTS aditivos(
+  id INTEGER PRIMARY KEY, ws TEXT, doc_id INT, envio_id INT, numero TEXT, contrato_ref TEXT, cnpj_prestador TEXT,
+  valor_adicional REAL, vigencia_inicio TEXT, vigencia_fim TEXT, criado_em TEXT);
+CREATE TABLE IF NOT EXISTS notas(
+  id INTEGER PRIMARY KEY, ws TEXT, fornecedor_id INT, contrato_id INT, doc_id INT, envio_id INT,
+  origem TEXT, formato TEXT, chave TEXT, numero TEXT, data_emissao TEXT, competencia TEXT,
+  cnpj_prestador TEXT, nome_prestador TEXT, cnpj_tomador TEXT, descricao TEXT, codigo_servico TEXT,
+  valor REAL, valor_liquido REAL, contrato_ref TEXT, status TEXT, observacao TEXT, xml TEXT, criado_em TEXT);
+CREATE TABLE IF NOT EXISTS divergencias(
+  id INTEGER PRIMARY KEY, ws TEXT, nota_id INT, contrato_id INT, fornecedor_id INT, regra TEXT, severidade TEXT,
+  mensagem TEXT, esperado TEXT, encontrado TEXT, status TEXT, decidido_por TEXT, decidido_em TEXT,
+  comentario TEXT, criado_em TEXT);
+CREATE TABLE IF NOT EXISTS trilha(id INTEGER PRIMARY KEY, ws TEXT, quando TEXT, usuario TEXT, texto TEXT);
+CREATE INDEX IF NOT EXISTS i_notas ON notas(ws, cnpj_prestador, numero);
+CREATE INDEX IF NOT EXISTS i_div ON divergencias(ws, status);
 """
 with _lock:
     _con.executescript(SCHEMA)
     # Colunas novas em bancos criados por versões anteriores.
     for tabela, coluna in (("envios", "gabarito TEXT"), ("envios", "usuario TEXT"), ("docs", "decidido_por TEXT"),
-                           ("acessos", "usuario TEXT")):
+                           ("acessos", "usuario TEXT"), ("docs", "dados TEXT"), ("docs", "aviso TEXT"),
+                           ("envios", "notas_xml INT DEFAULT 0")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:
@@ -75,9 +98,14 @@ def evento(envio_id, texto):
     x("INSERT INTO eventos(envio_id, quando, texto) VALUES(?,?,?)", (envio_id, agora(), texto))
 
 
+def trilha(ws, usuario, texto):
+    """Registro permanente de decisões humanas (aprovar, rejeitar, reabrir)."""
+    x("INSERT INTO trilha(ws, quando, usuario, texto) VALUES(?,?,?,?)", (ws, agora(), usuario, texto))
+
+
 def get_config(ws):
     padrao = {"cpf": "1", "banco": "1", "saude": "1", "endereco": "0", "contato": "1",
-              "limiar": "75", "usar_claude": "1"}
+              "limiar": "75", "usar_claude": "1", "tolerancia": "0"}
     for r in q("SELECT chave, valor FROM config WHERE ws=?", (ws,)):
         padrao[r["chave"]] = r["valor"]
     return padrao

@@ -1,6 +1,19 @@
 # Concilia AI · Document AI Factory
 
-Plataforma que recebe lotes de documentos misturados (PDF, fotos, TIFF, ZIP), descobre onde cada documento começa e termina, agrupa as páginas, classifica o tipo, lê o texto (OCR pesquisável), dá uma confiança para cada decisão e manda os casos duvidosos para revisão humana. Também retoma o processamento após falhas e esconde dados sensíveis. Cada cliente da Bernhoeft tem seu próprio workspace.
+Plataforma que recebe lotes digitalizados grandes e misturados (TIFF multipágina, PDF, fotos, ZIP, até 300 MB por arquivo), descobre onde cada documento começa e termina, agrupa as páginas, classifica o tipo, lê o texto (OCR pesquisável), dá uma confiança para cada decisão e manda os casos duvidosos para revisão humana. Retoma o processamento após falhas e esconde dados sensíveis. Cada cliente da Bernhoeft tem seu próprio workspace.
+
+**Foco: a nota fiscal de serviço.** Os documentos do lote são notas (NFS-e), contratos e aditivos de fornecedores terceirizados. O XML da NFS-e é lido direto, sem OCR. Como diferencial, cada nota é conferida contra o contrato (valor, vigência, aditivos, serviço, duplicidade) e as divergências vão para decisão humana.
+
+## Requisitos mínimos do Desafio 3: onde ver
+
+| Requisito | Onde ver na demo |
+|---|---|
+| Detecção de início e fim | Envios → Ver: a borda escura marca a 1ª página de cada documento |
+| Agrupamento de páginas | Envios → Ver: páginas do mesmo documento aparecem juntas |
+| Classificação por tipo | Documentos; Acerto da IA mede contra o gabarito |
+| OCR pesquisável | Busca (ex.: *limpeza*, *CTR-001*) e "Baixar PDF pesquisável" no documento |
+| Confiança e fila de revisão | Barra de confiança em cada documento; abaixo de 75% vai para **Dúvidas da leitura** |
+| Diferenciais | Simular queda (retomada), dados protegidos (anonimização), Claude multimodal com chave |
 
 ## Como abrir
 
@@ -17,16 +30,16 @@ Na primeira vez ele instala o que precisa (alguns minutos, precisa de internet).
 
 Para trocar as senhas, coloque no `.env`: `CONCILIA_SENHA_ADMIN=...` (vale na primeira execução; depois, apague a pasta `dados`).
 
-## Demonstração rápida
+## Demonstração rápida (lote fictício)
 
-0. Entre como **admin**. Em **Acerto da IA** (cliente Atlântica Facilities), clique em **Gerar lote com gabarito e medir** e mostre o resultado.
-1. Em **Enviar documentos**, clique em **Carregar lote de exemplo** (14 páginas misturadas, algumas tortas e borradas).
-2. Enquanto processa, clique em **Simular queda**: o envio falha e retoma sozinho da página onde parou.
-3. Veja a separação em documentos, com a confiança de cada um.
-4. Em **Pendências**, responda as dúvidas da IA (teclas 1, 2, 3).
-5. Em **Documentos**, veja a tabela por colaborador (Ok / Confirmar / Falta), abra um documento, baixe o PDF pesquisável.
-6. Em **Busca**, procure por *hemograma*, *porteiro* ou *10/2026*.
-7. Troque o cliente no topo (Construtora Vale Alto tem outro lote de exemplo).
+1. Entre como **admin**. Em **Enviar documentos**, clique em **Carregar lote de exemplo**: gera um TIFF digitalizado de ~100 páginas (contratos, aditivos e notas misturados, algumas folhas tortas e borradas) + o XML de cada nota.
+2. Enquanto processa, clique em **Simular queda**: falha e retoma sozinho da página onde parou.
+3. Veja a separação em documentos com a confiança de cada um.
+4. Em **Dúvidas da leitura**, responda o que a IA não teve certeza (teclas 1, 2, 3).
+5. Em **Divergências**, aprove ou rejeite as notas que não batem com o contrato.
+6. Em **Busca**, procure *limpeza* ou *CTR-002*. Em **Acerto da IA**, gere um lote com gabarito e mostre os números.
+
+O processamento usa a CPU do computador: conte uns 2 a 3 segundos por página digitalizada sem a chave do Claude.
 
 ## Ligar o Claude (IA multimodal)
 
@@ -43,5 +56,5 @@ Com a chave, cada página é lida pelo Claude (`claude-opus-5-5`) olhando **a im
 | `app/` | Motor: OCR, análise, separação, anonimização, fila com retomada, API |
 | `web/index.html` | As telas |
 | `dados/` | Banco de dados e imagens das páginas (apague para recomeçar do zero) |
-| `exemplos/` | Lotes de exemplo fictícios |
-| `ferramentas/` | Gerador de exemplos e teste automático |
+| `app/fiscal.py`, `app/conciliacao.py` | Leitura da NFS-e e dos contratos; regras de conferência |
+| `ferramentas/medir_acerto.py` | Mede o acerto com um lote com gabarito (servidor aberto) |

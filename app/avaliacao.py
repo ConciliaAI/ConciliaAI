@@ -29,6 +29,33 @@ def gerar_lote(fornecedores: int = 4, notas: int = 3, digitalizar: bool = True, 
     return pasta
 
 
+def digitalizar(pdf: Path, destino: Path, semente: int = 7) -> Path:
+    """Transforma o lote em PDF num TIFF multipágina só de imagem (como sai de um scanner).
+    Algumas folhas saem tortas, borradas ou apagadas, para testar o OCR e a fila de revisão."""
+    import random
+
+    import pymupdf as fitz
+    from PIL import Image, ImageEnhance, ImageFilter
+
+    rng = random.Random(semente)
+    paginas = []
+    with fitz.open(pdf) as d:
+        for pg in d:
+            pix = pg.get_pixmap(matrix=fitz.Matrix(1.6, 1.6), colorspace=fitz.csGRAY)
+            im = Image.frombytes("L", (pix.width, pix.height), pix.samples)
+            sorte = rng.random()
+            if sorte < 0.06:  # folha ruim (xerox apagado, torto e fora de foco): deve ir para revisão humana
+                im = im.rotate(rng.choice([-5, 4.5]), fillcolor=255, expand=False)
+                im = im.filter(ImageFilter.GaussianBlur(3.2))
+                im = ImageEnhance.Brightness(ImageEnhance.Contrast(im).enhance(0.22)).enhance(1.25)
+            elif sorte < 0.45:  # leve inclinação e ruído de scanner
+                im = im.rotate(rng.choice([-0.8, 0.6, 1.1]), fillcolor=255, expand=False)
+                im = im.filter(ImageFilter.GaussianBlur(0.4))
+            paginas.append(im)
+    paginas[0].save(destino, save_all=True, append_images=paginas[1:], compression="tiff_deflate", dpi=(115, 115))
+    return destino
+
+
 def medir(gabarito: dict, docs: list[dict], paginas: list[dict]) -> dict:
     """Compara documentos previstos (pag_ini, pag_fim, tipo, status) com o gabarito."""
     inicios_v = set(gabarito["boundary_start_pages"])
@@ -88,4 +115,7 @@ def medir_envio(eid: int) -> dict | None:
     gabarito = json.loads(Path(e["gabarito"]).read_text(encoding="utf-8"))
     docs = db.q("SELECT * FROM docs WHERE envio_id=? ORDER BY pag_ini", (eid,))
     pags = db.q("SELECT n, tipo FROM paginas WHERE envio_id=?", (eid,))
-    return medir(gabarito, docs, pags)
+    r = medir(gabarito, docs, pags)
+    from . import conciliacao  # evita import circular (conciliacao -> analise)
+    r["conciliacao"] = conciliacao.medir(e["ws"], gabarito)
+    return r

@@ -8,7 +8,6 @@ if not exist ".venv\Scripts\python.exe" (
   ".venv\Scripts\python.exe" -m pip install -q --upgrade pip
   ".venv\Scripts\python.exe" -m pip install -q -r requirements.txt || (echo Falha ao instalar as bibliotecas. Verifique a internet. & pause & exit /b 1)
 )
-if not exist "exemplos\lote-misturado-horizonte.pdf" ".venv\Scripts\python.exe" ferramentas\gerar_exemplo.py
 echo.
 echo  Concilia AI rodando em http://127.0.0.1:8000
 echo  Para parar, feche esta janela.
