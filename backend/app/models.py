@@ -58,3 +58,46 @@ class Page(Base):
     ocr_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
     word_boxes: Mapped[list | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DocumentGroup(Base):
+    """Documento lógico identificado em um único arquivo de origem."""
+    __tablename__ = "document_groups"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_file_id: Mapped[int] = mapped_column(ForeignKey("source_files.id"), index=True)
+    start_page: Mapped[int] = mapped_column(Integer)
+    end_page: Mapped[int] = mapped_column(Integer)
+    document_type: Mapped[str] = mapped_column(String(50), default="outros")
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    reasons: Mapped[list] = mapped_column(JSON, default=list)
+    fields: Mapped[dict] = mapped_column(JSON, default=dict)
+    review_status: Mapped[str] = mapped_column(String(32), default="pendente")
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class Finding(Base):
+    __tablename__ = "findings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    batch_id: Mapped[int] = mapped_column(ForeignKey("batches.id"), index=True)
+    invoice_id: Mapped[int] = mapped_column(ForeignKey("document_groups.id"))
+    contract_id: Mapped[int | None] = mapped_column(ForeignKey("document_groups.id"), nullable=True)
+    rule: Mapped[str] = mapped_column(String(60))
+    severity: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(48))
+    message: Mapped[str] = mapped_column(Text)
+    expected: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observed: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ReviewAction(Base):
+    __tablename__ = "review_actions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document_groups.id"))
+    reviewer_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(48))
+    before: Mapped[dict] = mapped_column(JSON, default=dict)
+    after: Mapped[dict] = mapped_column(JSON, default=dict)
+    justification: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

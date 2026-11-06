@@ -10,3 +10,10 @@ dist/
 
 # Gerador de dados: arquivos de demonstração locais
 data/
+
+.env
+*.db
+__pycache__/
+.pytest_cache/
+node_modules/
+dist/

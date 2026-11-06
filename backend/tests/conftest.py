@@ -24,4 +24,4 @@ def client(monkeypatch):
     with TestClient(app) as c:
         yield c
     Base.metadata.drop_all(bind=engine)
-    Path('/tmp/test_concilia.db').unlink(missing_ok=True)
+Path('/tmp/test_concilia.db').unlink(missing_ok=True)

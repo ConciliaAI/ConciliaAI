@@ -1,0 +1,140 @@
+{
+  "documents": [
+    {
+      "start": 1,
+      "end": 2,
+      "kind": "contrato",
+      "confidence": 0.935
+    },
+    {
+      "start": 3,
+      "end": 4,
+      "kind": "nota_fiscal_servico",
+      "confidence": 0.98
+    },
+    {
+      "start": 5,
+      "end": 6,
+      "kind": "aditivo_contratual",
+      "confidence": 0.98
+    },
+    {
+      "start": 7,
+      "end": 8,
+      "kind": "contrato",
+      "confidence": 0.98
+    },
+    {
+      "start": 9,
+      "end": 10,
+      "kind": "nota_fiscal_servico",
+      "confidence": 0.98
+    },
+    {
+      "start": 11,
+      "end": 12,
+      "kind": "contrato",
+      "confidence": 0.98
+    },
+    {
+      "start": 13,
+      "end": 14,
+      "kind": "nota_fiscal_servico",
+      "confidence": 0.98
+    }
+  ],
+  "findings": [
+    {
+      "invoice_id": 2,
+      "contract_id": 1,
+      "rule": "R02_ADITIVO",
+      "severity": "baixa",
+      "status": "justificada_pendente_validacao",
+      "message": "Diferença amparada por aditivo vigente; verificar manualmente",
+      "expected": "4000.00",
+      "observed": "6500.00",
+      "evidence": [
+        {
+          "document_id": 2,
+          "field": "value",
+          "value": "6500.00",
+          "page": 3,
+          "excerpt": "VALOR DO SERVICO: R$ 6.500,00",
+          "confidence": 1.0
+        },
+        {
+          "document_id": 1,
+          "field": "value",
+          "value": "4000.00",
+          "page": 1,
+          "excerpt": "VALOR MENSAL: R$ 4.000,00",
+          "confidence": 0.9351
+        },
+        {
+          "document_id": 3,
+          "field": "additional_value",
+          "value": "2500.00",
+          "page": 5,
+          "excerpt": "ACRESCIMO MENSAL: R$ 2.500,00",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "invoice_id": 5,
+      "contract_id": 4,
+      "rule": "R02_VALOR",
+      "severity": "alta",
+      "status": "divergencia",
+      "message": "Valor faturado diferente do mensal contratado sem aditivo aplicável identificado",
+      "expected": "4350.00",
+      "observed": "6850.00",
+      "evidence": [
+        {
+          "document_id": 5,
+          "field": "value",
+          "value": "6850.00",
+          "page": 9,
+          "excerpt": "VALOR DO SERVICO: R$ 6.850,00",
+          "confidence": 1.0
+        },
+        {
+          "document_id": 4,
+          "field": "value",
+          "value": "4350.00",
+          "page": 7,
+          "excerpt": "VALOR MENSAL: R$ 4.350,00",
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "invoice_id": 7,
+      "contract_id": 6,
+      "rule": "R02_VALOR",
+      "severity": "alta",
+      "status": "divergencia",
+      "message": "Valor faturado diferente do mensal contratado sem aditivo aplicável identificado",
+      "expected": "4700.00",
+      "observed": "7200.00",
+      "evidence": [
+        {
+          "document_id": 7,
+          "field": "value",
+          "value": "7200.00",
+          "page": 13,
+          "excerpt": "VALOR DO SERVICO: R$ 7.200,00",
+          "confidence": 1.0
+        },
+        {
+          "document_id": 6,
+          "field": "value",
+          "value": "4700.00",
+          "page": 11,
+          "excerpt": "VALOR MENSAL: R$ 4.700,00",
+          "confidence": 1.0
+        }
+      ]
+    }
+  ]
+}

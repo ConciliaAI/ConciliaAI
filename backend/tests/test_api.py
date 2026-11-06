@@ -9,7 +9,7 @@ def headers(client):
 
 
 def test_health(client):
-    assert client.get('/health').json()['phase'] == 3
+    assert client.get('/health').json()['phase'] == 'mvp-essential'
 
 
 def test_auth_and_batch(client):

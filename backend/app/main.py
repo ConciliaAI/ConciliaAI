@@ -1,3 +1,4 @@
+﻿from app.status_sync import sync_batch
 from contextlib import asynccontextmanager
 from hashlib import sha256
 from io import BytesIO
@@ -29,10 +30,10 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Concilia AI", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Concilia AI", version="0.7.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware,
     allow_origins=[part.strip() for part in get_settings().cors_origins.split(",")],
-    allow_credentials=True, allow_methods=["GET", "POST"],
+    allow_credentials=True, allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"])
 
 
@@ -73,7 +74,7 @@ def owned_batch(batch_id: int, user: User, db: Session) -> Batch:
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "phase": 3}
+    return {"status": "ok", "phase": "mvp-essential"}
 
 
 @app.post("/auth/token")
@@ -174,6 +175,7 @@ def start_batch(batch_id: int, user: User = Depends(current_user),
 def progress(batch_id: int, user: User = Depends(current_user),
              db: Session = Depends(get_db)):
     batch = owned_batch(batch_id, user, db)
+    sync_batch(db, batch_id)
     files = list(db.scalars(select(SourceFile).where(SourceFile.batch_id == batch_id)
                             .order_by(SourceFile.id)))
     counters = {"pending": 0, "processing": 0, "ok": 0, "error": 0}
@@ -193,13 +195,21 @@ def progress(batch_id: int, user: User = Depends(current_user),
 
 
 @app.get("/batches/{batch_id}/pages", response_model=list[PageOut])
-def list_pages(batch_id: int, user: User = Depends(current_user),
+def list_pages(batch_id: int, include_boxes: bool = False, user: User = Depends(current_user),
                db: Session = Depends(get_db)):
     owned_batch(batch_id, user, db)
-    return list(db.scalars(select(Page).join(SourceFile).where(
+    records = list(db.scalars(select(Page).join(SourceFile).where(
         SourceFile.batch_id == batch_id).order_by(SourceFile.id, Page.page_number)))
+    # Em lotes grandes, evita transferir coordenadas de cada palavra no polling do painel.
+    return [PageOut.model_validate(p).model_copy(update={"word_boxes": None}) if not include_boxes
+            else PageOut.model_validate(p) for p in records]
 
 
 @app.get("/")
 def index():
-    return {"product": "Concilia AI", "message": "API Fase 3. Consulte /docs."}
+    return {"product": "Concilia AI", "message": "API MVP Essencial. Consulte /docs."}
+
+# MVP Essencial: rotas adicionais sobre a API já existente.
+from app.mvp_api import router as mvp_router
+app.include_router(mvp_router)
+
