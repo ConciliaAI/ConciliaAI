@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 
@@ -25,6 +25,10 @@ function App() {
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
+  const [reviewDoc,setReviewDoc] = useState(null);
+  const [reviewType,setReviewType] = useState('outros');
+  const [reviewNote,setReviewNote] = useState('');
+  const [reviewApprove,setReviewApprove] = useState(true);
   const canReview = ['admin','revisor'].includes(role);
   async function request(path, options={}) {
     const response=await fetch(API+path,{...options,headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),...(options.headers||{})}});
@@ -57,7 +61,49 @@ function App() {
   async function run(){await action(()=>request(`/batches/${selected}/start`,{method:'POST'}),'OCR iniciado. O progresso será atualizado automaticamente.');}
   async function analyze(){await action(()=>request(`/batches/${selected}/analyze`,{method:'POST'}),'Documentos separados e conciliação executada.');setTab('documents');}
   async function search(e){e.preventDefault();if(query.trim().length<2)return;await action(async()=>setSearchResults(await request(`/batches/${selected}/search?q=${encodeURIComponent(query)}`)),'Pesquisa concluída');}
-  async function review(doc){const next=prompt('Tipo: contrato, nota_fiscal_servico, aditivo_contratual, outros',doc.document_type);if(next===null)return;const note=prompt('Justificativa da revisão (obrigatória):','Conferência visual do documento');if(!note)return;await action(()=>request(`/documents/${doc.id}/review`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({document_type:next,approve:true,justification:note})}),'Documento revisado');}
+  function review(doc) {
+    setReviewDoc(doc);
+    setReviewType(doc.document_type);
+    setReviewNote('');
+    setReviewApprove(true);
+    setError('');
+    setNotice('');
+  }
+
+  async function saveReview(e) {
+    e.preventDefault();
+    if (!reviewDoc || busy) return;
+
+    const justification = reviewNote.trim();
+    if (justification.length < 3) {
+      setError('Informe uma justificativa com pelo menos 3 caracteres.');
+      return;
+    }
+
+    setBusy(true);
+    setError('');
+    setNotice('');
+
+    try {
+      await request(`/documents/${reviewDoc.id}/review`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          document_type: reviewType,
+          approve: reviewApprove,
+          justification
+        })
+      });
+
+      await refresh();
+      setReviewDoc(null);
+      setNotice('Revisão registrada com sucesso.');
+    } catch (err) {
+      setError('Não foi possível salvar a revisão: ' + err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function split(doc){const page=prompt(`Nova primeira página (entre ${doc.start_page+1} e ${doc.end_page}):`);if(!page)return;const note=prompt('Justificativa da divisão:','Separação manual confirmada');if(!note)return;await action(()=>request(`/documents/${doc.id}/split`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({next_start_page:Number(page),justification:note})}),'Documento dividido');}
   async function merge(doc){const options=docs.filter(x=>x.source_file_id===doc.source_file_id&&x.start_page===doc.end_page+1);if(!options.length){setError('Não existe documento imediatamente seguinte no mesmo arquivo');return;}const note=prompt('Justificativa da junção:','Páginas do mesmo documento');if(!note)return;await action(()=>request(`/documents/${doc.id}/merge`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({other_document_id:options[0].id,justification:note})}),'Documentos unidos');}
   async function resolve(finding,decision){const note=prompt('Justificativa para esta decisão:');if(!note)return;await action(()=>request(`/findings/${finding.id}/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision,justification:note})}),'Divergência revisada');}
@@ -81,9 +127,74 @@ function App() {
           {tab==='pages'&&<div className="space-y-2 max-h-[500px] overflow-auto">{pages.map(p=><details key={p.id} className="border rounded-xl p-3 text-sm"><summary className="cursor-pointer">Página {p.page_number} · {p.status} · {p.ocr_method||'—'} · {formatConf(p.ocr_confidence)}</summary><pre className="mt-2 text-xs whitespace-pre-wrap max-h-48 overflow-auto">{p.ocr_text||p.error||'(sem texto)'}</pre></details>)}</div>}
         </section>
       </>}</div></div>}
+      {reviewDoc && <div className="fixed inset-0 z-40 bg-slate-950/70 flex items-center justify-center p-4">
+        <form onSubmit={saveReview} className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg space-y-4">
+          <div>
+            <h2 className="text-xl font-bold">Revisão humana</h2>
+            <p className="text-sm text-slate-500">
+              Documento #{reviewDoc.id} · páginas {reviewDoc.start_page}–{reviewDoc.end_page}
+            </p>
+          </div>
+
+          <label className="block text-sm font-semibold">
+            Tipo documental
+            <select
+              className="block w-full border rounded-lg p-3 mt-1"
+              value={reviewType}
+              onChange={e => setReviewType(e.target.value)}
+            >
+              <option value="contrato">Contrato</option>
+<option value="nota_fiscal_servico">Nota fiscal</option>
+<option value="aditivo_contratual">Aditivo contratual</option>
+<option value="outros">Outros</option>
+            </select>
+          </label>
+
+          <label className="block text-sm font-semibold">
+            Justificativa obrigatória
+            <textarea
+              className="block w-full border rounded-lg p-3 mt-1"
+              rows={4}
+              maxLength={1000}
+              required
+              minLength={3}
+              value={reviewNote}
+              onChange={e => setReviewNote(e.target.value)}
+              placeholder="Descreva o que foi conferido no documento."
+            />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={reviewApprove}
+              onChange={e => setReviewApprove(e.target.checked)}
+            />
+            Aprovar a classificação selecionada
+          </label>
+
+          <p className="text-xs text-slate-500">
+            Desmarcar a aprovação registra o documento como corrigido.
+            A revisão será associada ao usuário autenticado.
+          </p>
+
+          <div className="flex justify-end gap-3">
+            <button type="button" disabled={busy}
+              className="border rounded-lg px-4 py-2"
+              onClick={() => setReviewDoc(null)}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={busy || reviewNote.trim().length < 3}
+              className="bg-blue-700 text-white rounded-lg px-4 py-2 disabled:opacity-40">
+              {busy ? 'Salvando...' : 'Salvar revisão'}
+            </button>
+          </div>
+        </form>
+      </div>}
       {(error||notice)&&<div role="status" className={`fixed bottom-5 right-5 max-w-lg px-5 py-4 rounded-xl shadow-lg text-sm ${error?'bg-red-800 text-white':'bg-emerald-800 text-white'}`}>{error||notice}<button className="ml-4 underline" onClick={()=>{setError('');setNotice('')}}>Fechar</button></div>}
       <footer className="text-xs text-slate-500 py-6">Concilia AI · MVP experimental · Dados autorizados e revisão humana obrigatória para decisões</footer>
     </div>
   </div>;
 }
 createRoot(document.getElementById('root')).render(<App/>);
+
