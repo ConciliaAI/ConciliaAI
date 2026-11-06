@@ -197,7 +197,7 @@ function shell(rota,inner,cont){
   <div class="navlabel">Conta</div><a href="#configuracoes" class="${rota==='configuracoes'?'on':''}">${ic('configuracoes')}Configurações</a><a href="#como-funciona" class="${rota==='como-funciona'?'on':''}">${ic('como')}Como funciona</a><a href="#entrar" data-sair>${ic('sair')}Sair</a></nav>
   ${claude?`<div class="motor"><b>Claude conectado</b><p>O ${esc(S.estado.modelo)} lê cada página (imagem + texto) e extrai os campos dos contratos.</p></div>`:''}</aside>
   <div class="main"><header class="top"><div class="ws"><button class="wsbtn" id="wsbtn">${logo(w)}<div><b>${esc(w.nome)}</b><small>Cliente da Bernhoeft · ${esc(w.setor)}</small></div>${ic('chev')}</button>
-  ${S.menu?`<div class="wsmenu"><div class="navlabel" style="padding:6px 10px">Clientes da Bernhoeft</div>${S.clientes.map(c=>`<button class="wsopt ${c.id===S.ws?'on':''}" data-ws="${c.id}">${logo(c)}<div><b>${esc(c.nome)}</b><small>${esc(c.setor)}</small></div></button>`).join('')}</div>`:''}</div>
+  ${S.menu?`<div class="wsmenu"><div class="navlabel" style="padding:6px 10px">Clientes da Bernhoeft</div>${S.clientes.map(c=>`<button class="wsopt ${c.id===S.ws?'on':''}" data-ws="${c.id}">${logo(c)}<div><b>${esc(c.nome)}</b><small>${esc(c.setor)}</small></div></button>`).join('')}${pode('admin')?`<a class="wsopt" href="#novo-cliente" style="text-decoration:none;color:var(--tinta);font-weight:700">${ic('plus')}Novo cliente</a>`:''}</div>`:''}</div>
   <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar em contratos e notas" aria-label="Buscar em contratos e notas"></label>
   ${claude?'<span class="badge" style="background:var(--nevoa);color:var(--tinta)">IA: Claude</span>':''}
   <span style="display:flex;align-items:center;gap:10px;padding:0 6px"><span class="wslogo" style="background:var(--nevoa);color:var(--tinta)">${esc((S.usuario?.nome||'?').slice(0,2).toUpperCase())}</span><span><b style="display:block;font-size:14px">${esc(S.usuario?.nome||'')}</b><small style="font-size:12px;color:var(--suave)">${NOMEPERF[S.usuario?.perfil]||''}</small></span></span></header>
@@ -287,15 +287,19 @@ V.pendencias=async()=>{
 V.documentos=async()=>{
   const docs=await api(`/api/ws/${S.ws}/documentos`);
   const NOMES={numero:'Número',nome_prestador:'Prestador / contratada',cnpj_prestador:'CNPJ do prestador',cnpj_tomador:'CNPJ do tomador',objeto:'Objeto',valor_mensal:'Valor mensal',valor_total:'Valor total',vigencia_inicio:'Início da vigência',vigencia_fim:'Fim da vigência',contrato_ref:'Contrato de referência',valor_adicional:'Acréscimo mensal',data_emissao:'Emissão',competencia:'Competência',descricao:'Serviço',valor:'Valor'};
-  const campo=(k,v)=>k.startsWith('valor')?brl(v):(k.startsWith('vigencia')||k==='data_emissao')?dt(v):esc(v);
+  const campo=(k,v)=>k.startsWith('cnpj')&&String(v).length===14?String(v).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):k.startsWith('valor')?brl(v):(k.startsWith('vigencia')||k==='data_emissao')?dt(v):esc(v);
   let viewer='';
   if(S.doc){try{const d=await api(`/api/docs/${S.doc}`);const txt=S.revelado&&S.revelado.id===d.id?esc(S.revelado.texto):prot(d.texto);
    const C=d.dados&&d.dados.campos;
    viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>${esc(d.tipo)}${d.empresa?' · '+esc(d.empresa):''}</h3><p class="small muted">Envio #${d.envio_id} · páginas ${d.pag_ini}–${d.pag_fim}${d.decisao?' · '+esc(d.decisao):''}</p></div>
    <div class="actions"><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}Baixar PDF pesquisável</a><button class="btn light sm" data-fechar>${ic('x')}Fechar</button></div></div>
-   <div class="viewer"><div class="pgs">${d.paginas.map(p=>`<img src="/api/paginas/${p.id}/imagem?largura=600${S.revelado&&S.revelado.id===d.id?'&revelar=1':''}" alt="Página ${p.n}" data-zoom="${p.id}">`).join('')}</div>
+   <div class="viewer"><div class="pgs">${d.paginas.map(p=>{const fraca=p.conf<d.limiar;return `<div style="display:grid;gap:4px"><img src="/api/paginas/${p.id}/imagem?largura=600${S.revelado&&S.revelado.id===d.id?'&revelar=1':''}" alt="Página ${p.n}" data-zoom="${p.id}" ${fraca?'style="outline:3px solid var(--ambar);outline-offset:2px"':''}>
+    <span class="small num" style="font-weight:600;color:${fraca?'var(--ambar-texto)':'var(--suave)'}">pág. ${p.n} · ${cw(p.conf)} ${p.conf}%${fraca?' · esta página derrubou a confiança':''}</span></div>`}).join('')}</div>
    <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
-   ${C?`<div><p class="small muted" style="margin-bottom:6px">Campos lidos para a conferência${d.dados.motor==='claude'?' (pelo Claude)':''}</p><div class="kv">${Object.entries(C).map(([k,v])=>`<span>${NOMES[k]||k}</span><b class="num">${campo(k,v)}</b>`).join('')}</div></div>`:''}
+   ${d.conf<d.limiar||d.status==='revisao'?`<div style="background:var(--ambar-fundo);color:var(--ambar-texto);border-radius:12px;padding:12px 14px;display:grid;gap:6px"><b>Por que a confiança está baixa</b>
+    <ul style="margin:0;padding-left:18px;display:grid;gap:3px" class="small">${d.fracas.map(p=>`<li>Página ${p.n} (${p.conf}%): ${esc(p.sinais.filter(s=>!/Primeira página|Numeração/.test(s)).join('; ')||'pouco texto legível')}</li>`).join('')}<li>A confiança do documento é a da página mais fraca. Abaixo de ${d.limiar}%, uma pessoa confirma antes de o documento entrar na conferência.</li></ul>
+    ${d.status==='revisao'?`<a class="btn sm" href="#pendencias" style="justify-self:start">Confirmar em Dúvidas da leitura</a>`:`<span class="small">Já confirmado por uma pessoa${d.decisao?': '+esc(d.decisao):''}.</span>`}</div>`:''}
+   ${C?`<div><p class="small muted" style="margin-bottom:6px">${d.dados.provisorio?'Campos lidos (ainda não usados na conferência: aguardando confirmação)':'Campos lidos para a conferência'}${d.dados.motor==='claude'?' (pelo Claude)':''}</p><div class="kv">${Object.entries(C).map(([k,v])=>`<span>${NOMES[k]||k}</span><b class="num">${campo(k,v)}</b>`).join('')}</div></div>`:''}
    ${d.aviso?`<p class="small" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:10px 12px;border-radius:10px">${esc(d.aviso)}</p>`:''}
    <div><p class="small muted" style="margin-bottom:6px">Texto reconhecido (pesquisável)</p><div class="ocr">${txt}</div></div>
    ${d.protegidos&&!(S.revelado&&S.revelado.id===d.id)?`<form id="revelar" class="actions" data-id="${d.id}"><span class="small muted">${ic('shield')} ${d.protegidos} dado(s) protegido(s).</span><input class="inp" id="motivo" placeholder="Motivo para ver (fica registrado)" style="flex:1;min-width:200px"><button class="btn light sm">Ver dados</button></form><p class="err" id="reverr"></p>`:''}</div></div></div>`;}catch(e){S.doc=null}}
@@ -304,6 +308,13 @@ V.documentos=async()=>{
   ${docs.length?`<div class="c"><div class="ch"><h3>Todos os documentos</h3><span class="small muted">${docs.length} no total</span></div><div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Empresa</th><th>Envio</th><th>Páginas</th><th>Confiança</th><th>Situação</th><th></th></tr></thead><tbody>
    ${docs.map(d=>`<tr><td><b>${esc(d.tipo)}</b>${d.aviso?`<br><span class="small" style="color:var(--ambar-texto)">${esc(d.aviso)}</span>`:''}</td><td>${esc(d.empresa||'—')}</td><td class="num">#${d.envio_id}</td><td class="num">${d.pag_ini}–${d.pag_fim}</td><td>${conf(d.conf)}</td><td>${d.status==='confirmado'?chip('ok',d.decisao?'Confirmado por você':'Confirmado'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia')}</td><td><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`:`<div class="c empty"><h3>Nenhum documento ainda</h3><p class="muted">Contratos, aditivos e notas em PDF aparecem aqui depois de separados. Notas em XML vão direto para Notas fiscais.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
 };
+
+V['novo-cliente']=async()=>{S.menu=false;return [`<div class="head"><div><h1>Novo cliente</h1><p>Cada empresa atendida pela Bernhoeft tem um espaço separado: fornecedores, contratos, notas e regras próprios. Ninguém de um cliente vê os dados de outro.</p></div></div>
+  ${pode('admin')?`<form class="c" id="cliente" style="display:grid;gap:12px;max-width:560px"><label style="display:grid;gap:6px;font-weight:600;font-size:14px">Nome da empresa<input class="inp" name="nome" placeholder="Ex.: Construtora Boa Vista S.A." required></label>
+  <label style="display:grid;gap:6px;font-weight:600;font-size:14px">CNPJ (opcional)<input class="inp" name="cnpj" placeholder="00.000.000/0000-00"></label>
+  <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Setor<input class="inp" name="setor" placeholder="Ex.: Construção civil"></label>
+  <p class="err" id="clierr"></p><div class="actions"><button class="btn">${ic('plus')}Criar cliente</button><span class="small muted">Depois, cadastre os fornecedores em Fornecedores ou envie notas e contratos.</span></div></form>`
+  :`<div class="c"><p class="muted">Só o administrador cadastra clientes.</p></div>`}`];};
 
 // ---------------------------------------------------------------- conciliação
 const FILTROS=[['aberta','Abertas'],['aprovada','Aprovadas'],['rejeitada','Rejeitadas'],['todas','Todas']];
@@ -354,10 +365,17 @@ V.contratos=async()=>{
 };
 
 V.fornecedores=async()=>{
-  const L=await api(`/api/ws/${S.ws}/fornecedores`);
-  return [`<div class="head"><div><h1>Fornecedores</h1><p>As micro e pequenas empresas terceirizadas deste cliente, com o que faturaram e quantas notas tiveram problema.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=fornecedores">${ic('download')}Baixar (Excel)</a></div></div>
-  ${L.length?`<div class="c"><div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>CNPJ</th><th>Contratos</th><th>Notas</th><th>Faturado</th><th>Abertas</th><th>Rejeitadas</th><th>Última nota</th></tr></thead><tbody>
-   ${L.map(f=>`<tr><td><b>${esc(f.nome||'—')}</b></td><td class="num">${esc(f.cnpj_fmt)}</td><td class="num">${f.contratos||chip('err','Sem contrato')}</td><td class="num">${f.notas}</td><td class="num">${brl(f.faturado)}</td><td>${f.abertas?chip('rev',f.abertas):'<span class="muted">0</span>'}</td><td>${f.rejeitadas?chip('err',f.rejeitadas):'<span class="muted">0</span>'}</td><td class="num">${dt(f.ultima)}</td></tr>`).join('')}</tbody></table></div></div>`
+  const L=await api(`/api/ws/${S.ws}/fornecedores`);const ed=S.fedit?L.find(f=>f.id===S.fedit):null;
+  const contr=f=>f.contratos?String(f.contratos):f.contrato_em_duvida?`<a href="#pendencias" style="text-decoration:none">${chip('rev','Aguardando confirmação')}</a>`:chip('err','Sem contrato');
+  const form=pode('revisor')?`<details class="c" ${ed||!L.length?'open':''}><summary style="cursor:pointer;font-weight:700;font-size:16px">${ed?'Editar fornecedor':'+ Cadastrar fornecedor'}</summary>
+   <form id="fornecedor" style="display:grid;gap:10px;margin-top:14px"><div class="grid g2"><input class="inp" name="cnpj" placeholder="CNPJ (14 números)" value="${esc(ed?ed.cnpj_fmt:'')}" ${ed?'readonly':''} required><input class="inp" name="nome" placeholder="Razão social" value="${esc(ed?.nome||'')}" required>
+   <input class="inp" name="email" placeholder="E-mail do fornecedor" value="${esc(ed?.email||'')}"><input class="inp" name="telefone" placeholder="Telefone do fornecedor" value="${esc(ed?.telefone||'')}"></div>
+   <input class="inp" name="responsavel" placeholder="Responsável no cliente (quem acompanha este fornecedor), ex.: Carlos, gestor de contratos" value="${esc(ed?.responsavel||'')}">
+   <p class="err" id="fornerr"></p><div class="actions"><button class="btn sm">${ic('check')}${ed?'Salvar':'Cadastrar'}</button>${ed?`<button type="button" class="btn light sm" data-fedit="0">Cancelar</button>`:''}<span class="small muted">Fornecedores também são cadastrados sozinhos pelo CNPJ das notas e dos contratos enviados.</span></div></form></details>`:'';
+  return [`<div class="head"><div><h1>Fornecedores</h1><p>As micro e pequenas empresas terceirizadas de ${esc(W().nome)}, com o que faturaram e quantas notas tiveram problema.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=fornecedores">${ic('download')}Baixar (Excel)</a></div></div>
+  ${form}
+  ${L.length?`<div class="c"><div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>CNPJ</th><th>Contato</th><th>Contratos</th><th>Notas</th><th>Faturado</th><th>Abertas</th><th>Rejeitadas</th><th>Última nota</th><th></th></tr></thead><tbody>
+   ${L.map(f=>`<tr><td><b>${esc(f.nome||'—')}</b>${f.cadastro==='manual'?'<br><span class="small muted">cadastrado à mão</span>':''}</td><td class="num">${esc(f.cnpj_fmt)}</td><td class="small">${[f.responsavel&&'Resp.: '+esc(f.responsavel),esc(f.email||''),esc(f.telefone||'')].filter(Boolean).join('<br>')||'<span class="muted">—</span>'}</td><td class="num">${contr(f)}</td><td class="num">${f.notas}</td><td class="num">${brl(f.faturado)}</td><td>${f.abertas?chip('rev',f.abertas):'<span class="muted">0</span>'}</td><td>${f.rejeitadas?chip('err',f.rejeitadas):'<span class="muted">0</span>'}</td><td class="num">${dt(f.ultima)}</td><td>${pode('revisor')?`<button class="btn light sm" data-fedit="${f.id}">Editar</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`
    :`<div class="c empty"><span class="bigic">${ic('fornecedores')}</span><h3>Nenhum fornecedor ainda</h3><p class="muted">Os fornecedores são cadastrados sozinhos pelo CNPJ das notas e dos contratos.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
 };
 
@@ -465,10 +483,11 @@ async function enviarArquivos(files){
 }
 document.addEventListener('click',async ev=>{
   if(S.menu&&!ev.target.closest('.ws')){S.menu=false;render();}
-  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-nota],[data-div],[data-fdiv],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
+  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-nota],[data-div],[data-fdiv],[data-fedit],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
   if(t.hasAttribute('data-sair')){ev.preventDefault();await post('/api/sair');S.usuario=null;location.hash='#entrar';render();return}
   if(t.id==='avaliar'){t.disabled=true;t.textContent='Gerando lote com gabarito…';try{const e=await post(`/api/ws/${S.ws}/avaliacao`,{fornecedores:8});toast(`${e.notas_xml} notas e ${e.total} páginas na fila. O resultado aparece ao terminar.`);render();}catch(e){toast(e.message);t.disabled=false}return}
   if(t.dataset.fdiv){S.fdiv=t.dataset.fdiv;render();return}
+  if(t.dataset.fedit!==undefined){S.fedit=+t.dataset.fedit||null;await render();document.getElementById('fornecedor')?.scrollIntoView({behavior:'smooth'});return}
   if(t.dataset.div){const id=t.dataset.div,acao=t.dataset.acaoDiv,com=document.getElementById(`com-${id}`)?.value||'';t.disabled=true;
     try{const r=await post(`/api/divergencias/${id}/decisao`,{acao,comentario:com});toast(r.msg);render();}catch(e){const er=document.getElementById(`err-${id}`);if(er)er.textContent=e.message;else toast(e.message);t.disabled=false}return}
   if(t.dataset.nota){S.nota=+t.dataset.nota;if(location.hash!=='#notas')location.hash='#notas';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
@@ -497,6 +516,8 @@ document.addEventListener('submit',async ev=>{ev.preventDefault();const f=ev.tar
   if(f.id==='login'){const d=Object.fromEntries(new FormData(f));if(!d.usuario||!d.senha){document.getElementById('loginerr').textContent='Preencha usuário e senha.';return}
     try{await post('/api/login',d);location.hash='#inicio';await iniciar();toast(`Olá, ${S.usuario.nome}`);}catch(e){document.getElementById('loginerr').textContent=e.message}return}
   if(f.id==='fbusca')buscar();
+  if(f.id==='fornecedor'){const fd=Object.fromEntries(new FormData(f));try{const r=await post(`/api/ws/${S.ws}/fornecedores`,fd);S.fedit=null;toast(r.msg);render();}catch(e){document.getElementById('fornerr').textContent=e.message}}
+  if(f.id==='cliente'){const fd=Object.fromEntries(new FormData(f));try{const c=await post('/api/clientes',fd);S.estado=await api('/api/estado');S.clientes=S.estado.clientes;S.ws=c.id;try{localStorage.setItem('ws',c.id)}catch(e){}toast(`Cliente ${c.nome} criado. Agora cadastre os fornecedores.`);location.hash='#fornecedores';}catch(e){document.getElementById('clierr').textContent=e.message}}
   if(f.id==='revelar'){const m=document.getElementById('motivo').value;try{const r=await post(`/api/docs/${f.dataset.id}/revelar`,{motivo:m});S.revelado={id:+f.dataset.id,texto:r.texto};toast('Acesso registrado.');render();}catch(e){document.getElementById('reverr').textContent=e.message}}
   if(f.id==='novotipo'){const fd=Object.fromEntries(new FormData(f));fd.exigido=!!fd.exigido;try{await post(`/api/ws/${S.ws}/tipos`,fd);toast('Tipo adicionado. Vale para os próximos envios.');render();}catch(e){document.getElementById('tipoerr').textContent=e.message}}
 });

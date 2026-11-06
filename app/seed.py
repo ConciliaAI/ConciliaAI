@@ -39,12 +39,37 @@ WORKSPACES = [
 ]
 
 
+CORES = ["#2F6BFF", "#1D47B8", "#0F1E3D", "#F5B700", "#4B5E8C"]
+
+
+def criar_cliente(nome: str, setor: str = "", cnpj: str | None = None) -> str:
+    """Cadastra um cliente novo da Bernhoeft (um workspace) com os tipos de documento padrão."""
+    import re
+    import unicodedata
+
+    base = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode().lower()
+    wid = re.sub(r"[^a-z0-9]+", "", base)[:20] or "cliente"
+    sufixo, final = 1, wid
+    while db.q("SELECT 1 FROM workspaces WHERE id=?", (final,)):
+        sufixo += 1
+        final = f"{wid}{sufixo}"
+    palavras = [p for p in re.findall(r"[A-Za-zÀ-ü]+", nome) if len(p) > 2] or [nome]
+    sigla = "".join(p[0] for p in palavras[:2]).upper() or "CL"
+    ordem = (db.q("SELECT COALESCE(MAX(ordem), 0) m FROM workspaces", um=True)["m"] or 0) + 1
+    db.x("INSERT INTO workspaces(id, nome, setor, cor, sigla, ordem, cnpj) VALUES(?,?,?,?,?,?,?)",
+         (final, nome, setor or "Cliente", CORES[ordem % len(CORES)], sigla, ordem, cnpj))
+    for nome_t, (tit, pal) in TIPOS.items():
+        db.x("INSERT INTO tipos(ws, nome, titulos, palavras, exigido) VALUES(?,?,?,?,?)",
+             (final, nome_t, json.dumps(tit), json.dumps(pal), 0))
+    return final
+
+
 def semear():
     """Cria os clientes que ainda não existem."""
     for i, (wid, nome, setor, cor, sigla) in enumerate(WORKSPACES):
         if db.q("SELECT 1 FROM workspaces WHERE id=?", (wid,)):
             continue
-        db.x("INSERT INTO workspaces VALUES(?,?,?,?,?,?)", (wid, nome, setor, cor, sigla, i))
+        db.x("INSERT INTO workspaces(id, nome, setor, cor, sigla, ordem) VALUES(?,?,?,?,?,?)", (wid, nome, setor, cor, sigla, i))
         for nome_t, (tit, pal) in TIPOS.items():
             db.x("INSERT INTO tipos(ws, nome, titulos, palavras, exigido) VALUES(?,?,?,?,?)",
                  (wid, nome_t, json.dumps(tit), json.dumps(pal), 0))

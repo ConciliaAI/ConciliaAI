@@ -290,7 +290,8 @@ def decisao(request: Request, did: int, corpo: dict):
     if db.q("SELECT 1 FROM docs WHERE id=?", (did,)):
         db.x("UPDATE docs SET decidido_por=? WHERE id=?", (u["nome"], did))
     # Documento confirmado: lê os campos e refaz o cruzamento com as notas.
-    for d in db.q("SELECT id FROM docs WHERE ws=? AND status='confirmado' AND dados IS NULL", (ws,)):
+    for d in db.q("""SELECT id FROM docs WHERE ws=? AND status='confirmado'
+                     AND (dados IS NULL OR dados LIKE '%"provisorio": true%')""", (ws,)):
         conciliacao.extrair_doc(d["id"])
     conciliacao.conciliar(ws)
     return resultado
@@ -471,9 +472,56 @@ def fornecedores(ws: str):
                (SELECT COUNT(*) FROM divergencias d WHERE d.fornecedor_id=f.id AND d.status='rejeitada') rejeitadas,
                (SELECT MAX(data_emissao) FROM notas n WHERE n.fornecedor_id=f.id) ultima
                FROM fornecedores f WHERE f.ws=? ORDER BY abertas DESC, f.nome""", (ws,))
+    # Contrato que ainda está em "Dúvidas da leitura": não é "sem contrato", é "aguardando confirmação".
+    em_duvida = {}
+    for d in db.q("SELECT id FROM docs WHERE ws=? AND status='revisao' AND tipo=? AND dados IS NULL", (ws, fiscal.TIPO_CONTRATO)):
+        conciliacao.extrair_doc(d["id"])  # envios antigos: lê os campos provisórios agora
+    for d in db.q("SELECT id, dados FROM docs WHERE ws=? AND status='revisao' AND tipo=?", (ws, fiscal.TIPO_CONTRATO)):
+        cnpj = (_j(d["dados"], {}) or {}).get("campos", {}).get("cnpj_prestador")
+        if cnpj:
+            em_duvida[cnpj] = d["id"]
     for f in L:
         f["cnpj_fmt"] = fmt_cnpj(f["cnpj"])
+        f["contrato_em_duvida"] = em_duvida.get(f["cnpj"])
     return L
+
+
+@app.post("/api/ws/{ws}/fornecedores")
+def cadastrar_fornecedor(request: Request, ws: str, corpo: dict):
+    """Cadastro manual (ou edição) de um fornecedor do cliente. O CNPJ é a chave."""
+    _ws(ws)
+    auth.exigir(request, "revisor")
+    cnpj = fiscal.so_digitos(corpo.get("cnpj"))
+    if not fiscal.cnpj_valido(cnpj):
+        raise HTTPException(400, "CNPJ inválido. Confira os 14 números.")
+    nome = (corpo.get("nome") or "").strip()
+    if len(nome) < 2:
+        raise HTTPException(400, "Informe a razão social do fornecedor.")
+    campos = {k: (corpo.get(k) or "").strip() or None for k in ("email", "telefone", "responsavel")}
+    atual = db.q("SELECT id FROM fornecedores WHERE ws=? AND cnpj=?", (ws, cnpj), um=True)
+    if atual:
+        db.x("UPDATE fornecedores SET nome=?, email=?, telefone=?, responsavel=? WHERE id=?",
+             (nome, campos["email"], campos["telefone"], campos["responsavel"], atual["id"]))
+        return {"ok": True, "msg": f"{nome} atualizado."}
+    db.x("""INSERT INTO fornecedores(ws, cnpj, nome, email, telefone, responsavel, cadastro, criado_em)
+            VALUES(?,?,?,?,?,?, 'manual', ?)""", (ws, cnpj, nome, campos["email"], campos["telefone"], campos["responsavel"], db.agora()))
+    return {"ok": True, "msg": f"{nome} cadastrado. As notas e contratos com este CNPJ entram aqui."}
+
+
+@app.post("/api/clientes")
+def cadastrar_cliente(request: Request, corpo: dict):
+    """Novo cliente da Bernhoeft (um workspace separado)."""
+    auth.exigir(request, "admin")
+    nome = (corpo.get("nome") or "").strip()
+    if len(nome) < 2:
+        raise HTTPException(400, "Informe o nome da empresa.")
+    cnpj = fiscal.so_digitos(corpo.get("cnpj")) or None
+    if cnpj and not fiscal.cnpj_valido(cnpj):
+        raise HTTPException(400, "CNPJ inválido. Confira os 14 números ou deixe em branco.")
+    if cnpj and db.q("SELECT 1 FROM workspaces WHERE cnpj=?", (cnpj,)):
+        raise HTTPException(400, "Já existe um cliente com esse CNPJ.")
+    wid = seed.criar_cliente(nome, (corpo.get("setor") or "").strip(), cnpj)
+    return db.q("SELECT * FROM workspaces WHERE id=?", (wid,), um=True)
 
 
 @app.post("/api/ws/{ws}/reconciliar")
@@ -499,6 +547,11 @@ def doc(did: int):
     texto = "\n\n".join(p["texto"] or "" for p in pags)
     out["texto"] = anonimizar.mascarar_texto(texto, cats, _j(d["sensiveis"], []))
     out["protegidos"] = len(anonimizar.achar(texto, cats, _j(d["sensiveis"], [])))
+    # Para explicar uma confiança baixa: quais páginas ficaram abaixo do limite e o que a IA observou nelas.
+    out["limiar"] = int(db.get_config(d["ws"])["limiar"])
+    out["fracas"] = [{"n": p["n"], "conf": p["conf"], "sinais": _j(p["sinais"], [])}
+                     for p in db.q("SELECT n, conf, sinais FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ? AND conf < ? ORDER BY conf",
+                                   (d["envio_id"], d["pag_ini"], d["pag_fim"], out["limiar"]))][:4]
     return out
 
 

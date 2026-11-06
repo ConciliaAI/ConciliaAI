@@ -86,7 +86,9 @@ with _lock:
     # Colunas novas em bancos criados por versões anteriores.
     for tabela, coluna in (("envios", "gabarito TEXT"), ("envios", "usuario TEXT"), ("docs", "decidido_por TEXT"),
                            ("acessos", "usuario TEXT"), ("docs", "dados TEXT"), ("docs", "aviso TEXT"),
-                           ("envios", "notas_xml INT DEFAULT 0")):
+                           ("envios", "notas_xml INT DEFAULT 0"), ("workspaces", "cnpj TEXT"),
+                           ("fornecedores", "email TEXT"), ("fornecedores", "telefone TEXT"),
+                           ("fornecedores", "responsavel TEXT"), ("fornecedores", "cadastro TEXT DEFAULT 'documento'")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:

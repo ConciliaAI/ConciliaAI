@@ -141,3 +141,21 @@ def test_pdf_com_senha_e_recusado(cliente):
     r = cliente.post("/api/ws/marazul/envios", files=[("arquivos", ("secreto.pdf", protegido, "application/pdf"))])
     assert r.json()["status"] == "recusado"
     assert "senha" in r.json()["erro"]
+
+
+def test_cadastro_de_cliente_e_fornecedor(cliente):
+    entrar(cliente, "revisor")
+    assert cliente.post("/api/clientes", json={"nome": "Construtora Boa Vista"}).status_code == 403
+    entrar(cliente, "admin")
+    assert cliente.post("/api/clientes", json={"nome": "X", "cnpj": "11.111.111/1111-11"}).status_code == 400
+    novo = cliente.post("/api/clientes", json={"nome": "Construtora Boa Vista", "setor": "Construção civil"}).json()
+    assert novo["id"] == "construtoraboavista"
+    ws = novo["id"]
+    assert cliente.post(f"/api/ws/{ws}/fornecedores", json={"cnpj": "12.345.678/0001-00", "nome": "Y"}).status_code == 400
+    r = cliente.post(f"/api/ws/{ws}/fornecedores", json={"cnpj": CNPJ, "nome": "Limpeza Brilho ME",
+                                                        "email": "contato@brilho.exemplo", "responsavel": "Carlos (contratos)"})
+    assert r.status_code == 200, r.text
+    f = cliente.get(f"/api/ws/{ws}/fornecedores").json()
+    assert len(f) == 1 and f[0]["responsavel"] == "Carlos (contratos)" and f[0]["cadastro"] == "manual"
+    # Outro cliente não vê esse fornecedor.
+    assert all(x["cnpj"] != fiscal.so_digitos(CNPJ) or x["cadastro"] != "manual" for x in cliente.get("/api/ws/marazul/fornecedores").json())

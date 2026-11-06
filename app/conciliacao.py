@@ -122,11 +122,17 @@ def salvar_aditivo(ws: str, a: dict, doc_id: int | None, envio_id: int | None) -
 def extrair_doc(did: int) -> str | None:
     """Lê os campos de um documento confirmado (contrato, aditivo ou nota em PDF) e guarda. Devolve um aviso, se houver."""
     d = db.q("SELECT * FROM docs WHERE id=?", (did,), um=True)
-    if not d or d["status"] != "confirmado" or d["tipo"] not in fiscal.TIPOS_FISCAIS:
+    if not d or d["status"] not in ("confirmado", "revisao") or d["tipo"] not in fiscal.TIPOS_FISCAIS:
         return None
     pags = db.q("SELECT texto FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ? ORDER BY n",
                 (d["envio_id"], d["pag_ini"], d["pag_fim"]))
     texto = "\n".join(p["texto"] or "" for p in pags)
+    if d["status"] == "revisao":
+        # Ainda em dúvida: lê os campos só para mostrar (ex.: "contrato aguardando confirmação"), sem usar na conferência.
+        dados = fiscal.extrair_local(d["tipo"], texto)
+        db.x("UPDATE docs SET dados=? WHERE id=?",
+             (json.dumps({"campos": dados, "motor": "local", "provisorio": True}, ensure_ascii=False), did))
+        return None
     usar = db.get_config(d["ws"]).get("usar_claude") == "1"
     dados, motor = fiscal.extrair(d["tipo"], texto, usar)
     aviso = None
@@ -148,7 +154,7 @@ def extrair_doc(did: int) -> str | None:
 
 
 def extrair_envio(eid: int):
-    for d in db.q("SELECT id FROM docs WHERE envio_id=? AND status='confirmado'", (eid,)):
+    for d in db.q("SELECT id FROM docs WHERE envio_id=? AND status IN ('confirmado','revisao')", (eid,)):
         extrair_doc(d["id"])
 
 
