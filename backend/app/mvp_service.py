@@ -2,7 +2,8 @@
 """Persistência e reaplicação segura do pipeline do MVP Essencial."""
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
-from app.intelligence import segment, extract_fields, reconcile
+from app import llm
+from app.intelligence import segment, reconcile
 from app.models import DocumentGroup, Finding, Page, SourceFile, ReviewAction
 
 REVIEW_THRESHOLD = .75
@@ -32,10 +33,10 @@ def build_groups(db: Session, batch_id: int):
         payload = [{"number": p.page_number, "text": p.ocr_text, "confidence": p.ocr_confidence} for p in pages]
         for g in segment(payload):
             gp = [p for p in payload if g.start <= p["number"] <= g.end]
+            kind, conf, reasons, fields = llm.analisar(gp, g.kind, g.confidence, g.reasons)
             db.add(DocumentGroup(source_file_id=f.id, start_page=g.start, end_page=g.end,
-                                 document_type=g.kind, confidence=g.confidence, reasons=g.reasons,
-                                 fields=extract_fields(gp, g.kind),
-                                 review_status="pendente" if g.confidence < REVIEW_THRESHOLD or g.kind == "outros" else "auto_classificado"))
+                                 document_type=kind, confidence=conf, reasons=reasons, fields=fields,
+                                 review_status="pendente" if conf < REVIEW_THRESHOLD or kind == "outros" else "auto_classificado"))
     db.flush()
     recompute_findings(db, batch_id)
     db.commit()
