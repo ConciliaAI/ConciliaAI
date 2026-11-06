@@ -227,7 +227,7 @@ V.inicio=async()=>{
 function restante(e){if(!e.feitas||e.feitas>=e.total||!e.criado_em)return '';
   const ini=new Date(e.criado_em.replace(' ','T'));const passou=(Date.now()-ini)/1000;if(!(passou>0))return '';
   const s=passou/e.feitas*(e.total-e.feitas);const t=s<60?'menos de 1 min':s<3600?`${Math.round(s/60)} min`:`${(s/3600).toFixed(1).replace('.',',')} h`;
-  return ` Faltam cerca de ${t}.`;}
+  return s<60?' Falta menos de 1 min.':` Faltam cerca de ${t}.`;}
 const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div class="t"><b>#${e.id} · ${esc(e.nome)}</b><span>${esc(e.criado_em)}${e.notas_xml?` · ${e.notas_xml} XML de nota`:''}${e.total?` · ${e.total} páginas`:''}${e.retomadas?` · retomado ${e.retomadas}x após falha`:''}</span></div>${stEnvio(e)}<a class="btn light sm" href="#envio-${e.id}">Ver</a></div>`;
 
 V.enviar=async()=>{
