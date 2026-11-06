@@ -140,6 +140,30 @@ def resumo(ws: str):
             "envios": db.q("SELECT * FROM envios WHERE ws=? ORDER BY id DESC LIMIT 5", (ws,))}
 
 
+@app.get("/api/ws/{ws}/visao")
+def visao(ws: str):
+    """Números das 5 etapas: ingestão, identificação, classificação, validação e disponibilização."""
+    _ws(ws)
+    def um(sql, args=()):
+        return db.q(sql, (ws, *args), um=True)["c"] or 0
+    tipos = db.q("SELECT tipo, COUNT(*) c FROM docs WHERE ws=? GROUP BY tipo ORDER BY c DESC", (ws,))
+    docs = um("SELECT COUNT(*) c FROM docs WHERE ws=?")
+    auto = um("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='confirmado' AND decisao IS NULL")
+    return {
+        "envios": um("SELECT COUNT(*) c FROM envios WHERE ws=?"),
+        "arquivos": um("SELECT COUNT(*) c FROM arquivos WHERE ws=?"),
+        "paginas": um("SELECT COALESCE(SUM(feitas),0) c FROM envios WHERE ws=?"),
+        "documentos": docs, "tipos": tipos,
+        "automaticos": auto, "pct_auto": round(100 * auto / docs) if docs else None,
+        "revisao": um("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='revisao'"),
+        "decididos": um("SELECT COUNT(*) c FROM docs WHERE ws=? AND decisao IS NOT NULL"),
+        "prontos": um("SELECT COUNT(*) c FROM docs WHERE ws=? AND status='confirmado'"),
+        "retomadas": um("SELECT COALESCE(SUM(retomadas),0) c FROM envios WHERE ws=?"),
+        "ativos": db.q("SELECT * FROM envios WHERE ws=? AND status IN ('fila','processando','pausado','falhou','recebendo') ORDER BY id DESC", (ws,)),
+        "recentes": db.q("SELECT * FROM envios WHERE ws=? ORDER BY id DESC LIMIT 5", (ws,)),
+    }
+
+
 @app.get("/api/ws/{ws}/contagens")
 def contagens(ws: str):
     """Números do menu lateral."""
@@ -599,19 +623,48 @@ def revelar(request: Request, did: int, corpo: dict):
     return {"texto": "\n\n".join(p["texto"] or "" for p in pags), "cpf": d["cpf"]}
 
 
+def _nome_arquivo(d) -> str:
+    return re.sub(r"[^\w-]+", "-", f"{d['tipo']}-{d['empresa'] or 'doc'}-{d['id']}").strip("-")
+
+
+@app.get("/api/ws/{ws}/documentos.zip")
+def baixar_tudo(ws: str):
+    """Todos os documentos prontos, em PDF pesquisável, numa pasta por tipo (o "retorno" do sistema)."""
+    import zipfile
+    w = _ws(ws)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for d in db.q("SELECT * FROM docs WHERE ws=? AND status='confirmado' ORDER BY tipo, id", (ws,)):
+            pasta = re.sub(r"[^\w ()-]+", "", d["tipo"]).strip() or "Outros"
+            z.writestr(f"{pasta}/{_nome_arquivo(d)}.pdf", _pdf_doc(d))
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="concilia-{w["id"]}-documentos.zip"'})
+
+
 @app.get("/api/docs/{did}/pdf")
 def pdf_pesquisavel(did: int):
     d = _doc(did)
+    return Response(_pdf_doc(d), media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="{_nome_arquivo(d)}.pdf"'})
+
+
+def _pdf_doc(d) -> bytes:
+    """PDF do documento: a imagem de cada página com o texto do OCR por baixo (pesquisável), dados protegidos escondidos."""
     cats = _cats(d["ws"])
     pags = db.q("SELECT * FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ? ORDER BY n", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
     sens = _j(d["sensiveis"], [])
     saida = fitz.open()
     for p in pags:
         im = anonimizar.mascarar_imagem(p["img"], _j(p["linhas"], []), cats, sens)
-        buf = io.BytesIO()
-        im.save(buf, "PNG")
         s = 0.5
-        pg = saida.new_page(width=im.width * s, height=im.height * s)
+        largura, altura = im.width, im.height
+        # JPEG em até 1400 px: o PDF fica ~50x menor que PNG em resolução cheia e o texto continua legível.
+        foto = im.convert("RGB")
+        if max(foto.size) > 1400:
+            foto.thumbnail((1400, 1400))
+        buf = io.BytesIO()
+        foto.save(buf, "JPEG", quality=72, optimize=True)
+        pg = saida.new_page(width=largura * s, height=altura * s)
         pg.insert_image(pg.rect, stream=buf.getvalue())
         for ln in _j(p["linhas"], []):
             t = anonimizar.mascarar_texto(ln.get("text", ""), cats, sens)
@@ -621,10 +674,7 @@ def pdf_pesquisavel(did: int):
                 pg.insert_text((x0 * s, y1 * s - 1), t, fontsize=tam, render_mode=3)
             except Exception:
                 pass
-    dados = saida.tobytes()
-    nome = re.sub(r"[^\w-]+", "-", f"{d['tipo']}-{d['empresa'] or 'doc'}-{did}").strip("-")
-    return Response(dados, media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="{nome}.pdf"'})
+    return saida.tobytes()
 
 
 # ------------------------------------------------------------------ busca

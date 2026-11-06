@@ -178,7 +178,7 @@ let tt;function toast(m){const t=document.getElementById('toast');t.textContent=
 const W=()=>S.clientes.find(c=>c.id===S.ws)||S.clientes[0];
 const logo=c=>`<span class="wslogo" style="background:${c.cor};${c.cor==='#F5B700'?'color:#3D2C00':''}">${c.sigla}</span>`;
 
-const NAV=[['inicio','Início'],['divergencias','Divergências'],['notas','Notas fiscais'],['contratos','Contratos'],['fornecedores','Fornecedores'],['enviar','Enviar documentos'],['pendencias','Dúvidas da leitura'],['documentos','Documentos'],['busca','Busca'],['relatorios','Relatórios'],['acerto','Acerto da IA']];
+const NAV=[['inicio','Visão geral'],['enviar','Enviar documentos'],['documentos','Documentos']];
 P.acerto='M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z';
 P.sair='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9';
 P.divergencias=P.alert;P.notas='M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4';P.contratos=P.file;
@@ -191,14 +191,14 @@ const STN={conciliada:['ok','Conferida'],divergente:['rev','Com divergência'],a
 const stNota=s=>chip(...(STN[s]||['neu',s]));
 const STD={aberta:['rev','Aberta'],aprovada:['ok','Aprovada'],rejeitada:['err','Rejeitada']};
 function shell(rota,inner,cont){
-  const w=W();const claude=S.estado.claude_configurado&&S.cfgClaude!=='0';const n={pendencias:cont.pendencias,divergencias:cont.divergencias};
+  const w=W();const claude=S.estado.claude_configurado&&S.cfgClaude!=='0';const n={documentos:cont.pendencias};
   return `<div class="app"><aside class="side"><div class="brand">${MARK(34)}<b>concilia</b><span>AI</span></div><nav class="nav" style="display:contents">
-  ${NAV.map(([k,t])=>`<a href="#${k}" class="${rota===k||(rota==='envio'&&k==='enviar')?'on':''}">${ic(k)}${t}${n[k]?`<span class="count num">${n[k]}</span>`:''}</a>`).join('')}
-  <div class="navlabel">Conta</div><a href="#configuracoes" class="${rota==='configuracoes'?'on':''}">${ic('configuracoes')}Configurações</a><a href="#como-funciona" class="${rota==='como-funciona'?'on':''}">${ic('como')}Como funciona</a><a href="#entrar" data-sair>${ic('sair')}Sair</a></nav>
+  ${NAV.map(([k,t])=>`<a href="#${k}" class="${rota===k||(rota==='envio'&&k==='enviar')||(rota==='pendencias'&&k==='documentos')?'on':''}">${ic(k)}${t}${n[k]?`<span class="count num">${n[k]}</span>`:''}</a>`).join('')}
+  <div class="navlabel">Conta</div><a href="#entrar" data-sair>${ic('sair')}Sair</a></nav>
   ${claude?`<div class="motor"><b>Claude conectado</b><p>O ${esc(S.estado.modelo)} lê cada página (imagem + texto) e extrai os campos dos contratos.</p></div>`:''}</aside>
   <div class="main"><header class="top"><div class="ws"><button class="wsbtn" id="wsbtn">${logo(w)}<div><b>${esc(w.nome)}</b><small>Cliente da Bernhoeft · ${esc(w.setor)}</small></div>${ic('chev')}</button>
   ${S.menu?`<div class="wsmenu"><div class="navlabel" style="padding:6px 10px">Clientes da Bernhoeft</div>${S.clientes.map(c=>`<button class="wsopt ${c.id===S.ws?'on':''}" data-ws="${c.id}">${logo(c)}<div><b>${esc(c.nome)}</b><small>${esc(c.setor)}</small></div></button>`).join('')}${pode('admin')?`<a class="wsopt" href="#novo-cliente" style="text-decoration:none;color:var(--tinta);font-weight:700">${ic('plus')}Novo cliente</a>`:''}</div>`:''}</div>
-  <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar em contratos e notas" aria-label="Buscar em contratos e notas"></label>
+  <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar dentro dos documentos" aria-label="Buscar dentro dos documentos"></label>
   ${claude?'<span class="badge" style="background:var(--nevoa);color:var(--tinta)">IA: Claude</span>':''}
   <span style="display:flex;align-items:center;gap:10px;padding:0 6px"><span class="wslogo" style="background:var(--nevoa);color:var(--tinta)">${esc((S.usuario?.nome||'?').slice(0,2).toUpperCase())}</span><span><b style="display:block;font-size:14px">${esc(S.usuario?.nome||'')}</b><small style="font-size:12px;color:var(--suave)">${NOMEPERF[S.usuario?.perfil]||''}</small></span></span></header>
   <section class="panel">${inner}</section></div></div>`;
@@ -206,22 +206,22 @@ function shell(rota,inner,cont){
 
 const V={};
 V.inicio=async()=>{
-  const r=await api(`/api/ws/${S.ws}/resumo`);const a=r.ativo;
-  const pct=r.notas?Math.round(100*r.conciliadas/r.notas):null;
-  const ativoCard=a?`<div class="c"><div class="ch"><h3>Lendo documentos agora</h3>${stEnvio(a)}</div><div class="bar"><span style="width:${a.total?Math.round(100*a.feitas/a.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">Envio #${a.id} · ${a.feitas} de ${a.total} páginas. As divergências são refeitas quando os contratos terminarem de ser lidos.</p><a class="btn ghost sm" href="#envio-${a.id}" style="margin-top:10px">Acompanhar</a></div>`:'';
-  if(!r.notas&&!a)return [`<div class="head"><div><h1>Conferência de notas fiscais</h1><p>Cliente ${esc(W().nome)}. Nenhuma nota ainda.</p></div></div>
-  <div class="c empty"><span class="bigic">${ic('notas')}</span><h2>Comece pelas notas fiscais</h2><p class="muted" style="max-width:56ch">Envie o XML das NFS-e (ou o PDF), junto com os contratos e aditivos dos fornecedores. A Concilia confere cada nota contra o contrato e mostra só o que não bate.</p>
-  <div class="actions" style="justify-content:center"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a>${pode('operador')?`<button class="btn ghost" id="exemplo">${ic('zap')}Carregar lote de exemplo</button>`:''}</div></div>`,{pendencias:r.pendencias,divergencias:0},false];
-  return [`<div class="head"><div><h1>Conferência de notas fiscais</h1><p>Cliente ${esc(W().nome)}: ${r.notas} nota(s) de ${r.fornecedores} fornecedor(es), conferidas contra ${r.contratos} contrato(s).</p></div><div class="actions"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a></div></div>
-  <div class="grid g3">
-  ${r.div_abertas?`<div class="c task hl"><div class="eb">${ic('alert')}Precisa de você</div><div class="big num">${r.div_abertas} ${r.div_abertas>1?'divergências':'divergência'}</div><p>Notas que não batem com o contrato. Aprove com justificativa ou rejeite para cobrar o fornecedor.</p><a class="btn white" href="#divergencias" style="justify-self:start">Revisar agora ${ic('arrow')}</a></div>`
-   :`<div class="c task hl"><div class="eb">${ic('check')}Nada pendente</div><div class="big">Tudo conferido</div><p>Todas as notas batem com os contratos ou já foram decididas.</p></div>`}
-  <div class="c task"><div class="eb">${ic('notas')}Notas conferidas</div><div class="big num">${r.conciliadas} de ${r.notas}</div><p>${pct}% das notas bateram com o contrato ou foram aprovadas. Total faturado: <b class="num">${brl(r.valor_total)}</b>.</p><a class="btn ghost sm" href="#notas" style="justify-self:start">Ver notas</a></div>
-  <div class="c task"><div class="eb">${ic('shield')}Valor em conferência</div><div class="big num">${brl(r.valor_risco)}</div><p>Soma das notas com divergência aberta ou rejeitadas. Não pague antes de decidir.</p>${r.pendencias?`<a class="btn ghost sm" href="#pendencias" style="justify-self:start">${r.pendencias} dúvida(s) de leitura</a>`:''}</div></div>
-  <div class="grid g-wide"><div class="c"><div class="ch"><h3>Divergências mais graves</h3><a href="#divergencias" class="small" style="font-weight:700">Ver todas</a></div>
-  ${r.alertas.length?r.alertas.map(x=>`<div class="li"><span class="doci ${x.severidade==='critica'?'bad':'warn'}">${ic('alert')}</span><div class="t"><b>${esc(x.titulo)} · nota ${esc(x.numero)}</b><span>${esc(x.nome_prestador||x.cnpj_prestador)} · ${brl(x.valor)}</span><span style="display:block">${esc(x.mensagem)}</span></div>${sev(x.severidade)}<a class="btn light sm" href="#divergencias">Revisar</a></div>`).join(''):'<p class="muted">Nenhuma divergência aberta.</p>'}</div>
-  <div class="grid" style="align-content:start">${ativoCard}<div class="c dark" style="display:grid;gap:14px"><h3>O que a Concilia já fez</h3><div class="value"><div><b class="num">${r.notas}</b><span>notas conferidas</span></div><div><b class="num">${r.contratos}</b><span>contratos lidos</span></div><div><b class="num">${pct??'—'}${pct!=null?'%':''}</b><span>batem ou já decididas</span></div></div></div>
-  <div class="c"><div class="ch"><h3>Envios recentes</h3></div>${r.envios.length?r.envios.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div></div>`, {pendencias:r.pendencias,divergencias:r.div_abertas}, !!a];
+  const r=await api(`/api/ws/${S.ws}/visao`);const a=r.ativos[0];
+  const etapa=(n,t,num,rot,txt,link)=>`<a class="c" href="${link}" style="text-decoration:none;color:inherit;display:grid;gap:8px;align-content:start;border:1.5px solid var(--borda)">
+    <span class="small" style="font-weight:700;color:var(--tinta)">${n} · ${t}</span><b class="num" style="font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1">${num}</b><span class="small" style="font-weight:600">${rot}</span><span class="small muted">${txt}</span></a>`;
+  const tipos=r.tipos.slice(0,3).map(x=>`${x.c} ${esc(x.tipo)}`).join(' · ')||'—';
+  return [`<div class="head"><div><h1>Visão geral</h1><p>Cliente ${esc(W().nome)}. Lotes de imagens entram desorganizados e saem como documentos separados, classificados e pesquisáveis.</p></div><div class="actions"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a><a class="btn ghost" href="#documentos">${ic('documentos')}Ver documentos</a></div></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+   ${etapa(1,'Ingestão',r.paginas,'páginas recebidas',`${r.arquivos} arquivo(s) em ${r.envios} envio(s): imagens, TIFF, PDF ou ZIP.`,'#enviar')}
+   ${etapa(2,'Identificação',r.documentos,'documentos separados','Onde cada documento começa e termina, com as páginas agrupadas.','#enviar')}
+   ${etapa(3,'Classificação',r.tipos.length,'tipos encontrados',tipos+'. Texto lido por OCR.','#documentos')}
+   ${etapa(4,'Validação',(r.pct_auto??'—')+(r.pct_auto!=null?'%':''),'aprovados sem revisão',`${r.revisao} aguardando revisão humana · ${r.decididos} já decididos por uma pessoa.`,'#pendencias')}
+   ${etapa(5,'Disponibilização',r.prontos,'documentos prontos','Em pastas por tipo, com busca e PDF pesquisável para baixar.','#documentos')}</div>
+  ${r.revisao?`<div class="c task hl" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px;display:grid;gap:4px"><div class="eb">${ic('pendencias')}Precisa de você</div><p>${r.revisao} documento(s) com confiança baixa. A IA preferiu perguntar a errar.</p></div><a class="btn white" href="#pendencias">Revisar agora ${ic('arrow')}</a></div>`:''}
+  <div class="grid g2">
+   <div class="c"><div class="ch"><h3>Em processamento</h3>${a?stEnvio(a):''}</div>${a?`<p><b>Envio #${a.id}</b> · ${esc(a.nome)}</p><div class="bar" style="margin-top:10px"><span style="width:${a.total?Math.round(100*a.feitas/a.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${a.feitas} de ${a.total} páginas lidas e salvas.${restante(a)}</p><a class="btn ghost sm" href="#envio-${a.id}" style="margin-top:10px">Acompanhar</a>`:'<p class="muted">Nada sendo processado agora.</p>'}
+    <p class="small muted" style="margin-top:12px">${ic('refresh')} Retomada após falha: cada página é salva ao terminar.${r.retomadas?` ${r.retomadas} retomada(s) até agora, sem perder páginas.`:''}</p></div>
+   <div class="c"><div class="ch"><h3>Envios recentes</h3><a href="#enviar" class="small" style="font-weight:700">Ver todos</a></div>${r.recentes.length?r.recentes.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div>`,{pendencias:r.revisao},r.ativos.length>0];
 };
 // Estimativa pelo ritmo até agora (inclui a espera na fila e a primeira página, que carrega o OCR).
 function restante(e){if(!e.feitas||e.feitas>=e.total||!e.criado_em)return '';
@@ -232,11 +232,11 @@ const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div cl
 
 V.enviar=async()=>{
   const es=await api(`/api/ws/${S.ws}/envios`);
-  return [`<div class="head"><div><h1>Enviar documentos</h1><p>Mande as notas fiscais (XML da NFS-e ou PDF) junto com os contratos e aditivos, do jeito que estiverem: tudo junto, fora de ordem, digitalizado ou foto. O XML é lido na hora; os PDFs são separados e lidos página a página.</p></div>
+  return [`<div class="head"><div><h1>Enviar documentos</h1><p>Mande lotes de imagens do jeito que estiverem: tudo junto, fora de ordem, digitalizado ou foto. A Concilia descobre onde cada documento começa e termina, classifica e lê o texto.</p></div>
   <div class="actions"><button class="btn ghost" id="exemplo">${ic('zap')}Carregar lote de exemplo</button></div></div>
-  <div class="c" style="display:grid;gap:14px"><label class="drop" id="drop"><span class="bigic">${ic('enviar')}</span><b style="font-size:18px">Arraste os arquivos para cá</b><span class="muted">ou <u style="color:var(--tinta);font-weight:700">escolha no computador</u></span><span class="small muted">XML da NFS-e, PDF, foto (JPG/PNG), TIFF ou ZIP · vários de uma vez</span>
+  <div class="c" style="display:grid;gap:14px"><label class="drop" id="drop"><span class="bigic">${ic('enviar')}</span><b style="font-size:18px">Arraste os arquivos para cá</b><span class="muted">ou <u style="color:var(--tinta);font-weight:700">escolha no computador</u></span><span class="small muted">TIFF, PDF, foto (JPG/PNG) ou ZIP · arquivos grandes, vários de uma vez</span>
   <input type="file" id="files" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.zip,.bmp,.webp" style="position:absolute;width:1px;height:1px;opacity:0"></label><p class="small muted" id="upmsg"></p>
-  <p class="small muted">O lote de exemplo é fictício: 7 fornecedores, contratos de 9 páginas, aditivos e 21 notas no leiaute nacional da NFS-e, com 6 problemas escondidos para a Concilia encontrar.</p></div>
+  <p class="small muted">O lote de exemplo é fictício: cerca de 110 páginas digitalizadas (notas fiscais, contratos e aditivos misturados), com algumas folhas tortas e borradas para mostrar a revisão humana.</p></div>
   <div class="c"><div class="ch"><h3>Seus envios</h3><span class="small muted">Se algo falhar no meio, a Concilia continua da última página salva.</span></div>${es.length?es.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda. Arraste arquivos acima ou use o lote de exemplo.</p>'}</div>`,null,es.some(e=>['fila','processando','falhou','recebendo'].includes(e.status))];
 };
 
@@ -256,14 +256,14 @@ V.envio=async(id)=>{
   ${e.total?`<div class="c"><div class="ch"><div><h3>Onde cada documento começa e termina</h3><p class="small muted">A borda escura marca a primeira página de cada documento. Clique numa página para ampliar.</p></div>
   <div class="legend"><span><i style="background:var(--confere)"></i>Confiança alta</span><span><i style="background:var(--media)"></i>Média</span><span><i style="background:var(--ambar)"></i>Vai para você confirmar</span></div></div>
   ${docs.length?`<div class="strip">${docs.map(grp).join('')}</div>`:soltas.length?`<div class="strip">${soltas.map(p=>`<div class="grp"><div class="pages">${th(p)}</div><div class="gl"><b>${esc(p.tipo)}</b><span class="muted">pág. ${p.n} · ${p.conf}%</span></div></div>`).join('')}</div>`:`<p class="muted">${e.total?'As páginas aparecem aqui conforme são lidas.':'Este envio só tinha XML: nenhuma página para separar.'}</p>`}</div>`:''}
-  ${notasCard}
+  
   <div class="grid g2"><div class="c"><h3 style="margin-bottom:10px">Como a IA decidiu</h3>${sinais.length?`<ul style="margin:0;padding-left:18px;display:grid;gap:6px" class="small">${sinais.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:`<p class="muted">${e.total?'Aparece quando as páginas forem lidas.':'O XML da NFS-e já vem estruturado: os campos são lidos direto, sem OCR e sem adivinhação.'}</p>`}</div>
   <div class="c"><h3 style="margin-bottom:10px">Histórico do envio</h3>${d.eventos.map(v=>`<div class="ev"><time>${esc(v.quando.slice(11,19))}</time><span>${esc(v.texto)}</span></div>`).join('')}</div></div>`,null,ativo];
 };
 
 V.pendencias=async()=>{
   const r=await api(`/api/ws/${S.ws}/pendencias`);const L=r.pendencias;
-  if(!L.length)return[`<div class="head"><div><h1>Dúvidas da leitura</h1></div></div><div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>Tudo certo por agora</h2><p class="muted">Quando a IA não tiver certeza (abaixo de ${r.limiar}%) de que tipo é um documento ou onde ele termina, ele aparece aqui para você decidir antes de entrar na conferência.</p><a class="btn" href="#divergencias">Ver divergências</a></div>`,0];
+  if(!L.length)return[`<div class="head"><div><h1>Revisão humana</h1></div></div><div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>Tudo certo por agora</h2><p class="muted">Quando a IA não tiver certeza (abaixo de ${r.limiar}%) de que tipo é um documento ou onde ele termina, ele aparece aqui para você decidir antes de entrar na conferência.</p><a class="btn" href="#documentos">Ver documentos</a></div>`,0];
   if(S.q>=L.length)S.q=0;const d=L[S.q];
   const imgs=[...d.vizinhas.filter(v=>v.n<d.pag_ini),...d.paginas,...d.vizinhas.filter(v=>v.n>d.pag_fim)];
   const fora=v=>v.n<d.pag_ini||v.n>d.pag_fim;
@@ -284,7 +284,7 @@ V.pendencias=async()=>{
     resp=c.slice(0,3).map((t,i)=>[i===0&&t===d.tipo?`Sim, é ${t}`:`É ${t}`,{acao:'confirmar',tipo:t}]);
   }
   const temAnterior=d.vizinhas.some(v=>v.n<d.pag_ini);
-  return [`<div class="head"><div><h1>Dúvidas da leitura</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar. Depois da sua resposta, o documento entra na conferência e sua resposta vira exemplo para as próximas.</p></div></div>
+  return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#documentos" style="font-weight:700;text-decoration:none">← Documentos</a></p><h1>Revisão humana</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar. Depois da sua resposta, o documento entra na conferência e sua resposta vira exemplo para as próximas.</p></div></div>
   <div class="qwrap"><div class="qcard"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small muted num">Pergunta ${S.q+1} de ${L.length} · envio #${d.envio_id}</span>${conf(d.conf)}</div>
   <div style="display:grid;gap:6px"><h2>${titulo}</h2><p class="small muted">${esc(d.empresa||'Empresa não identificada')} · páginas ${d.pag_ini}–${d.pag_fim}</p></div>
   ${d.duvida==='integridade'?`<div style="background:var(--erro-fundo);color:var(--erro);border-radius:12px;padding:12px 14px;display:grid;gap:4px">${d.sinais.filter(s=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(s)).map(s=>`<b class="small">${esc(s)}.</b>`).join('')}<span class="small">Um contrato incompleto ou com página trocada não deve ser usado para conferir notas. Peça a via completa ou aceite se tiver certeza.</span></div>`:''}
@@ -318,10 +318,20 @@ V.documentos=async()=>{
    ${d.aviso?`<p class="small" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:10px 12px;border-radius:10px">${esc(d.aviso)}</p>`:''}
    <div><p class="small muted" style="margin-bottom:6px">Texto reconhecido (pesquisável)</p><div class="ocr">${txt}</div></div>
    ${d.protegidos&&!(S.revelado&&S.revelado.id===d.id)?`<form id="revelar" class="actions" data-id="${d.id}"><span class="small muted">${ic('shield')} ${d.protegidos} dado(s) protegido(s).</span><input class="inp" id="motivo" placeholder="Motivo para ver (fica registrado)" style="flex:1;min-width:200px"><button class="btn light sm">Ver dados</button></form><p class="err" id="reverr"></p>`:''}</div></div></div>`;}catch(e){S.doc=null}}
-  return [`<div class="head"><div><h1>Documentos</h1><p>Cada documento que veio em PDF ou imagem, separado e classificado, com o texto pesquisável e os campos lidos para a conferência.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=documentos">${ic('download')}Baixar lista (Excel)</a></div></div>
+  const porTipo={};docs.forEach(d=>(porTipo[d.tipo]=porTipo[d.tipo]||[]).push(d));
+  const nRev=docs.filter(d=>d.status==='revisao').length;
+  const sit=d=>d.status==='confirmado'?chip('ok',d.decisao?'Pronto · revisado':'Pronto'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia');
+  const pasta=([tipo,L])=>`<details class="c" ${S.pasta===tipo?'open':''} data-pasta="${esc(tipo)}"><summary style="cursor:pointer;display:flex;align-items:center;gap:12px;list-style:none"><span class="doci">${ic('documentos')}</span><b style="flex:1">${esc(tipo)}</b><span class="small muted num">${L.length} documento(s)${L.some(d=>d.status==='revisao')?' · '+L.filter(d=>d.status==='revisao').length+' para revisar':''}</span>${ic('chev')}</summary>
+   <div class="tablewrap" style="margin-top:12px"><table><thead><tr><th>Empresa</th><th>Envio</th><th>Páginas</th><th>Confiança</th><th>Situação</th><th></th></tr></thead><tbody>
+   ${L.map(d=>`<tr><td>${esc(d.empresa||'—')}${d.aviso?`<br><span class="small" style="color:var(--ambar-texto)">${esc(d.aviso)}</span>`:''}</td><td class="num">#${d.envio_id}</td><td class="num">${d.pag_ini}–${d.pag_fim}</td><td>${conf(d.conf)}</td><td>${sit(d)}</td>
+    <td><div class="actions" style="flex-wrap:nowrap"><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button>${d.status==='confirmado'?`<a class="btn light sm" href="/api/docs/${d.id}/pdf" title="PDF pesquisável">${ic('download')}PDF</a>`:''}</div></td></tr>`).join('')}</tbody></table></div></details>`;
+  return [`<div class="head"><div><h1>Documentos</h1><p>O retorno: tudo o que foi enviado, separado e organizado em pastas por tipo, com o texto pesquisável.</p></div>
+  <div class="actions">${docs.some(d=>d.status==='confirmado')?`<a class="btn" href="/api/ws/${S.ws}/documentos.zip">${ic('download')}Baixar tudo (ZIP)</a>`:''}</div></div>
+  ${nRev?`<div class="c task hl" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px;display:grid;gap:4px"><div class="eb">${ic('pendencias')}Precisam de você</div><p>${nRev} documento(s) com confiança baixa ficam fora das pastas prontas até uma pessoa confirmar.</p></div><a class="btn white" href="#pendencias">Revisar agora ${ic('arrow')}</a></div>`:''}
+  <form class="c" id="fbusca" style="display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px">${ic('busca')}<input id="q" class="inp" style="border:0;font-size:16px" value="${esc(S.busq||'')}" placeholder="Buscar dentro dos documentos (ex.: limpeza, CTR-002, 10/2026)" aria-label="Buscar dentro dos documentos"><button class="btn">Buscar</button></form><div id="results" class="grid"></div>
   ${viewer}
-  ${docs.length?`<div class="c"><div class="ch"><h3>Todos os documentos</h3><span class="small muted">${docs.length} no total</span></div><div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Empresa</th><th>Envio</th><th>Páginas</th><th>Confiança</th><th>Situação</th><th></th></tr></thead><tbody>
-   ${docs.map(d=>`<tr><td><b>${esc(d.tipo)}</b>${d.aviso?`<br><span class="small" style="color:var(--ambar-texto)">${esc(d.aviso)}</span>`:''}</td><td>${esc(d.empresa||'—')}</td><td class="num">#${d.envio_id}</td><td class="num">${d.pag_ini}–${d.pag_fim}</td><td>${conf(d.conf)}</td><td>${d.status==='confirmado'?chip('ok',d.decisao?'Confirmado por você':'Confirmado'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia')}</td><td><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`:`<div class="c empty"><h3>Nenhum documento ainda</h3><p class="muted">Contratos, aditivos e notas em PDF aparecem aqui depois de separados. Notas em XML vão direto para Notas fiscais.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
+  ${docs.length?Object.entries(porTipo).sort((a,b)=>b[1].length-a[1].length).map(pasta).join('')
+   :`<div class="c empty"><span class="bigic">${ic('documentos')}</span><h3>Nenhum documento ainda</h3><p class="muted">Envie um lote e os documentos aparecem aqui, separados e organizados por tipo.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
 };
 
 V['novo-cliente']=async()=>{S.menu=false;return [`<div class="head"><div><h1>Novo cliente</h1><p>Cada empresa atendida pela Bernhoeft tem um espaço separado: fornecedores, contratos, notas e regras próprios. Ninguém de um cliente vê os dados de outro.</p></div></div>
@@ -451,7 +461,7 @@ V.acerto=async()=>{
 V.entrar=async()=>[`<div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;background:#fff;border-radius:28px;box-shadow:0 20px 60px rgba(47,107,255,.14);padding:14px;min-height:calc(100vh - 32px)" class="login">
   <div style="border-radius:20px;padding:34px;display:flex;flex-direction:column;justify-content:space-between;color:#fff;background:radial-gradient(70% 55% at 25% 78%,#0A1A6B 0%,transparent 72%),radial-gradient(55% 60% at 80% 15%,#8FB4FF 0%,transparent 70%),linear-gradient(165deg,#9CC3FF 0%,#2F6BFF 50%,#1D47B8 100%);min-height:300px">
    <div style="display:flex;align-items:center;gap:10px">${MARK(42)}<b style="font-size:22px">concilia AI</b></div>
-   <div style="display:grid;gap:14px"><h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;line-height:1.15">Cada nota fiscal conferida com o contrato, sem trabalho manual.</h2><p style="opacity:.9">Acesso da equipe Bernhoeft.</p></div></div>
+   <div style="display:grid;gap:14px"><h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;line-height:1.15">Lotes de documentos separados, classificados e pesquisáveis, sem trabalho manual.</h2><p style="opacity:.9">Acesso da equipe Bernhoeft.</p></div></div>
   <div style="display:flex;align-items:center;justify-content:center;padding:32px 20px"><form id="login" style="width:100%;max-width:360px;display:grid;gap:14px" novalidate>${MARK(30)}<h1 style="font-size:32px;font-weight:800">Entrar</h1>
    <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Usuário<input class="inp" name="usuario" autocomplete="username" placeholder="admin, revisor ou operador"></label>
    <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Senha<input class="inp" name="senha" type="password" autocomplete="current-password"></label>
@@ -491,7 +501,7 @@ async function render(){
     const foco=document.activeElement&&document.activeElement.id;
     document.getElementById('root').innerHTML=shell(h,inner,cont);
     if(foco&&document.getElementById(foco)&&foco!=='wsbtn')document.getElementById(foco).focus();
-    if(h==='busca'&&S.busq)buscar();
+    if((h==='busca'||h==='documentos')&&S.busq)buscar();
     if(vivo)S.timer=setTimeout(render,1500);
   }catch(e){document.getElementById('root').innerHTML=shell(h,`<div class="c empty"><h3>Não foi possível carregar</h3><p class="muted">${esc(e.message)}. Confira se o programa está aberto (iniciar.bat).</p></div>`,{});}
 }
@@ -546,7 +556,7 @@ document.addEventListener('submit',async ev=>{ev.preventDefault();const f=ev.tar
   if(f.id==='novotipo'){const fd=Object.fromEntries(new FormData(f));fd.exigido=!!fd.exigido;try{await post(`/api/ws/${S.ws}/tipos`,fd);toast('Tipo adicionado. Vale para os próximos envios.');render();}catch(e){document.getElementById('tipoerr').textContent=e.message}}
 });
 document.addEventListener('keydown',ev=>{
-  if(ev.target.id==='topq'&&ev.key==='Enter'){S.busq=ev.target.value;location.hash='#busca';render();return}
+  if(ev.target.id==='topq'&&ev.key==='Enter'){S.busq=ev.target.value;location.hash='#documentos';render();return}
   if(ev.key==='Escape'){document.querySelector('.zoom')?.remove();if(S.menu){S.menu=false;render()}}
   if(location.hash==='#pendencias'&&/^[1-4]$/.test(ev.key)&&!/INPUT|SELECT/.test(ev.target.tagName)){document.querySelectorAll('.answers .ans')[+ev.key-1]?.click()}
 });
@@ -554,6 +564,8 @@ document.addEventListener('dragover',ev=>{const d=ev.target.closest&&ev.target.c
 document.addEventListener('dragleave',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d)d.classList.remove('over')});
 document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d){ev.preventDefault();enviarArquivos(ev.dataTransfer.files)}});
 window.addEventListener('hashchange',render);
+// Lembra a pasta aberta em Documentos entre uma atualização e outra da tela.
+document.addEventListener('toggle',ev=>{const p=ev.target.dataset&&ev.target.dataset.pasta;if(p!==undefined&&ev.target.open)S.pasta=p;},true);
 async function iniciar(){S.estado=await api('/api/estado');S.usuario=S.estado.usuario;S.clientes=S.estado.clientes;
   if(!S.usuario){render();return}
   let w=null;try{w=localStorage.getItem('ws')}catch(e){}S.ws=S.clientes.some(c=>c.id===w)?w:S.clientes[0].id;
