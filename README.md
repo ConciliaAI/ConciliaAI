@@ -31,9 +31,8 @@ Requisitos: Docker Desktop aberto, WSL 2 e acesso à internet para a primeira co
 3. Abra o CMD na pasta nova e execute:
 
 ```cmd
-cd C:\Users\Leonardo\Downloads\Concilia_AI_MVP_Essencial\concilia-ai
 docker compose up --build -d
-docker compose ps
+docker compose pss
 ```
 
 4. Abra **http://localhost:5173**. Entre com o login e a senha configurados no `.env` (`admin` ou `revisor` para operações de revisão).
