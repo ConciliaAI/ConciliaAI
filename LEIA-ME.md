@@ -28,7 +28,7 @@ Na primeira vez ele instala o que precisa (alguns minutos, precisa de internet).
 | revisor | revisor123 | enviar, decidir pendências, ver dados protegidos |
 | operador | operador123 | enviar e consultar |
 
-Para trocar as senhas, coloque no `.env`: `CONCILIA_SENHA_ADMIN=...` (vale na primeira execução; depois, apague a pasta `dados`).
+Para trocar as senhas, coloque no `.env`: `CONCILIA_SENHA_ADMIN=...` (vale ao reabrir o sistema). Troque sempre antes de compartilhar um link público.
 
 ## Demonstração rápida (lote fictício)
 
@@ -77,3 +77,13 @@ Gere a pasta `casos-de-teste/` (todos os arquivos dos mesmos fornecedores fictí
 | `06` a `09` (XML) | Nota reenviada (não duplica), mesmo número, valor acima, fornecedor sem contrato |
 
 O roteiro completo e o resultado esperado de cada um ficam em `casos-de-teste/LEIA-ME.txt`. O 01 leva uns 6 segundos por página: processe antes da apresentação e mostre ao vivo só os arquivos pequenos.
+
+## Link para outras pessoas acessarem
+
+Com o sistema aberto, rode num segundo terminal:
+
+```cmd
+.externos\cloudflared.exe tunnel --no-autoupdate --url http://127.0.0.1:8000
+```
+
+Ele mostra um endereço `https://….trycloudflare.com`. O link funciona enquanto o notebook e os dois programas estiverem abertos e muda a cada vez. Antes, troque as senhas no `.env`. O `cloudflared.exe` oficial fica em github.com/cloudflare/cloudflared (versão Windows amd64).

@@ -53,9 +53,13 @@ def criar_usuarios_padrao():
     padrao = {"admin": ("Administrador", "admin123"), "revisor": ("Revisora", "revisor123"),
               "operador": ("Operador", "operador123")}
     for usuario, (nome, senha) in padrao.items():
-        if not db.q("SELECT 1 FROM usuarios WHERE usuario=?", (usuario,)):
-            senha = os.environ.get(f"CONCILIA_SENHA_{usuario.upper()}", "").strip() or senha
-            db.x("INSERT INTO usuarios VALUES(?,?,?,?)", (usuario, nome, usuario, hash_senha(senha)))
+        do_env = os.environ.get(f"CONCILIA_SENHA_{usuario.upper()}", "").strip()
+        atual = db.q("SELECT senha_hash FROM usuarios WHERE usuario=?", (usuario,), um=True)
+        if not atual:
+            db.x("INSERT INTO usuarios VALUES(?,?,?,?)", (usuario, nome, usuario, hash_senha(do_env or senha)))
+        elif do_env and not confere_senha(do_env, atual["senha_hash"]):
+            # Senha trocada no .env: vale na próxima vez que o sistema abrir (antes, só valia num banco novo).
+            db.x("UPDATE usuarios SET senha_hash=? WHERE usuario=?", (hash_senha(do_env), usuario))
 
 
 def _assinar(dados: dict) -> str:
