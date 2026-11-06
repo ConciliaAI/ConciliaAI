@@ -1,0 +1,40 @@
+{
+  "documents": [
+    {
+      "file": "contratos/CTR-001.pdf",
+      "start_page": 1,
+      "end_page": 2
+    },
+    {
+      "file": "notas_pdf/NF-001-01.pdf",
+      "start_page": 3,
+      "end_page": 4
+    },
+    {
+      "file": "aditivos/ADT-001.pdf",
+      "start_page": 5,
+      "end_page": 6
+    },
+    {
+      "file": "contratos/CTR-002.pdf",
+      "start_page": 7,
+      "end_page": 8
+    },
+    {
+      "file": "notas_pdf/NF-002-01.pdf",
+      "start_page": 9,
+      "end_page": 10
+    },
+    {
+      "file": "contratos/CTR-003.pdf",
+      "start_page": 11,
+      "end_page": 12
+    },
+    {
+      "file": "notas_pdf/NF-003-01.pdf",
+      "start_page": 13,
+      "end_page": 14
+    }
+  ],
+  "note": "PDF sintético, duas primeiras páginas de cada documento"
+}
