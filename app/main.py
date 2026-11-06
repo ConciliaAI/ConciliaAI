@@ -283,12 +283,25 @@ def imagem(pid: int, largura: int = 0, revelar: int = 0):
     if not p or not p["img"]:
         raise HTTPException(404, "Página ainda não processada")
     cats = [] if revelar else _cats(p["ws"])
+    # A tela do envio se atualiza a cada 1,5 s: sem guardar a imagem pronta, o servidor redesenharia
+    # cada miniatura toda vez, disputando o processador com o OCR. Versão revelada não é guardada.
+    import hashlib
+    cache = None
+    if not revelar:
+        chave = hashlib.sha1(json.dumps([sorted(cats), p["sensiveis"] or ""]).encode()).hexdigest()[:10]
+        cache = config.DADOS / "miniaturas" / f"{pid}_{largura}_{chave}.jpg"
+        if cache.exists():
+            return Response(cache.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
     im = anonimizar.mascarar_imagem(p["img"], _j(p["linhas"], []), cats, _j(p["sensiveis"], []))
     if largura:
         im.thumbnail((largura, largura * 2))
     buf = io.BytesIO()
-    im.save(buf, "PNG")
-    return Response(buf.getvalue(), media_type="image/png", headers={"Cache-Control": "no-store"})
+    im.convert("RGB").save(buf, "JPEG", quality=82)
+    if cache:
+        cache.parent.mkdir(exist_ok=True)
+        cache.write_bytes(buf.getvalue())
+        return Response(buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
+    return Response(buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 # ------------------------------------------------------------------ pendências (dúvidas da leitura)
@@ -626,9 +639,11 @@ def excluir_documento(request: Request, did: int):
     d = _doc(did)
     pags = db.q("SELECT id, img FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ?", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
     for p in pags:
-        if p["img"]:
+        arquivos = [Path(p["img"])] if p["img"] else []
+        arquivos += list((config.DADOS / "miniaturas").glob(f"{p['id']}_*.jpg"))
+        for arq in arquivos:
             try:
-                Path(p["img"]).unlink(missing_ok=True)
+                arq.unlink(missing_ok=True)
             except OSError:
                 pass
     db.x("""UPDATE paginas SET status='excluida', img=NULL, texto=NULL, linhas=NULL, sensiveis=NULL, doc_id=NULL

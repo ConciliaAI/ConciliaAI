@@ -110,6 +110,10 @@ class Trabalhador(threading.Thread):
         self.acordar = threading.Event()
 
     def run(self):
+        try:
+            ocr.aquecer()
+        except Exception:
+            pass  # sem o aquecimento, o modelo carrega na primeira página
         # Envios que estavam no meio quando o programa fechou: retomar de onde pararam.
         for e in db.q("SELECT * FROM envios WHERE status='processando'"):
             db.x("UPDATE envios SET status='fila', retomadas=retomadas+1 WHERE id=?", (e["id"],))
