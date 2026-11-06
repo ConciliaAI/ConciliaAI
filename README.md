@@ -26,7 +26,7 @@ A conciliação sinaliza discrepâncias; **não determina ilegalidade ou erro tr
 
 Requisitos: Docker Desktop aberto, WSL 2 e acesso à internet para a primeira compilação.
 
-1. **Atualize sua cópia sem perder o `.env` e os dados persistidos.** Extraia o ZIP em uma **nova pasta**, por exemplo `C:\Users\Leonardo\Downloads\Concilia_AI_MVP_Essencial\concilia-ai`.
+1. **Atualize sua cópia sem perder o `.env` e os dados persistidos (ele não é guardado no repositorio).** Extraia o ZIP em uma **nova pasta**, por exemplo `C:\Users\Leonardo\Downloads\Concilia_AI_MVP_Essencial\concilia-ai`.
 2. Copie seu arquivo `.env` da Fase 3 para essa nova pasta. Se ainda não tiver um `.env`, use `copy .env.example .env` e configure suas senhas.
 3. Abra o CMD na pasta nova e execute:
 
