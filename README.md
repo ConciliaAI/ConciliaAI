@@ -50,6 +50,7 @@ O sistema não deve afirmar automaticamente que uma cobrança é ilegal ou indev
 | Status, progresso, confiança e texto por página | Implementado |
 | Detecção de início/fim e agrupamento de documentos | Implementado |
 | Classificação, revisão humana e busca no OCR | Implementado |
+| Leitura com o Claude (texto e imagem), opcional com `LLM_API_KEY` | Implementado |
 | Relatórios e indicadores de avaliação | Implementado |
 
 **Limites atuais do upload:** até **40 MB por arquivo** e **500 páginas por arquivo**. **XML e ZIP ainda não são aceitos no upload**, embora a Fase 2 gere XMLs didáticos para testes futuros. A Fase 3 **não produz PDF derivado pesquisável**: armazena o texto de cada página no banco de dados.
@@ -153,7 +154,24 @@ O `.env.example` é **somente um modelo**. Copie-o para `.env` e configure valor
 | `ADMIN_*`, `REVISOR_*`, `OPERADOR_*` | Contas de demonstração |
 | `VITE_API_URL` | URL da API acessada pelo navegador |
 | `CORS_ORIGINS` | Origem permitida do frontend |
-| `LLM_API_KEY` | Reservada para evolução futura; **não é exigida na Fase 3** |
+| `LLM_API_KEY` | Chave da API do Claude (Anthropic). Opcional: sem ela, vale só a leitura local |
+| `LLM_MODEL` | Opcional. Padrão `claude-sonnet-5-5`; também aceita `claude-opus-5-5` e `claude-haiku-5-5` |
+
+### Leitura com o Claude (chave da API)
+
+Com `LLM_API_KEY` preenchida no `.env`, a análise do lote (`POST /batches/{id}/analyze`) passa pelo Claude depois do OCR:
+
+1. As regras locais separam os documentos e dão um primeiro palpite de tipo e campos.
+2. O Claude confere o tipo e extrai os campos (contrato, CNPJs, objeto, valor, vigência, número da nota) com a **página e o trecho** de onde tirou cada valor.
+3. Páginas que o OCR quase não leu são enviadas como **imagem** (até 6 por documento).
+4. Se o Claude e as regras discordarem do tipo, ou se a página foi lida só pela imagem, o documento vai para **revisão humana**.
+5. Sem chave, sem internet ou com erro na API, o sistema segue só com a leitura local.
+
+**Como configurar:** peça a chave ao responsável do projeto (ou crie a sua em <https://console.anthropic.com>), abra o `.env` e cole depois de `LLM_API_KEY=`. Depois recrie os containers: `docker compose up -d --force-recreate api worker`.
+
+> **Nunca coloque a chave no `.env.example`, no README ou em qualquer arquivo do GitHub.** O repositório é público: uma chave publicada é usada por terceiros e cancelada automaticamente. Compartilhe por um canal privado.
+
+**Custo medido** (lote de demonstração, Sonnet 5.5): cerca de **US$ 0,014 por documento** e 5 s por documento. Mudando `LLM_MODEL`: Opus 5.5 ≈ US$ 0,025 (mais forte) e Haiku 5.5 ≈ US$ 0,0007 (mais barato, acerto ainda não medido).
 
 **Atenção às credenciais relacionadas:** se alterar `POSTGRES_PASSWORD`, atualize também a senha embutida em `DATABASE_URL`. Se alterar `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, mantenha `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` coerentes. Defina um `JWT_SECRET` longo e aleatório.
 
