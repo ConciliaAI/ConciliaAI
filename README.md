@@ -60,18 +60,18 @@ Cada cliente da Bernhoeft é um espaço separado, com seus fornecedores (cadastr
 
 ## Resultado medido
 
-Lote fictício gerado com gabarito: 8 fornecedores, **124 páginas num TIFF só de imagem** (contratos de 9 páginas, aditivos e notas misturados; ~6% das folhas tortas, borradas e apagadas) + 24 XML de NFS-e. Processado no notebook, sem a chave do Claude, em cerca de 5 minutos.
+Lote fictício gerado com gabarito: 8 fornecedores, **124 páginas num TIFF só de imagem** (contratos de 9 páginas, aditivos e notas misturados; ~6% das folhas tortas, borradas e apagadas) + 24 XML de NFS-e. Processado no notebook, sem a chave do Claude, em cerca de 5 minutos (OCR local, ~2 s por página).
 
 | Medida | Resultado |
 |---|---|
-| Início e fim dos documentos (F1) | 98,5% |
-| Documentos inteiros certos (páginas + tipo) | 94% |
-| Páginas com o tipo certo | 100% |
-| Enviados para revisão humana | 15% (as folhas ruins) |
+| Início e fim dos documentos (F1) | 97% |
+| Documentos inteiros certos (páginas + tipo) | 88% |
+| Páginas com o tipo certo | 93% |
+| Enviados para revisão humana | 16% (as folhas ruins) |
 | Acerto do que foi aprovado sem revisão | 100% |
-| Notas com problema encontradas | 6 de 6, com a regra certa |
+| Notas com problema encontradas | 5 de 6, sem alarme falso (a 6ª esperava o contrato sair da revisão) |
 
-Os dados sintéticos são mais fáceis que documentos reais: os números servem para comparar versões e mostrar o fluxo, não como promessa de acerto. A tela **Acerto da IA** refaz essa medição com um lote novo.
+Tudo o que o sistema errou foi para a revisão humana: nada errado foi aprovado sozinho. Os dados sintéticos são mais fáceis que documentos reais: os números servem para comparar versões e mostrar o fluxo, não como promessa de acerto. A tela **Acerto da IA** refaz essa medição com um lote novo.
 
 ## Como foi feito
 
