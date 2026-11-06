@@ -590,7 +590,14 @@ def reconciliar(request: Request, ws: str):
 @app.get("/api/ws/{ws}/documentos")
 def documentos(ws: str):
     cats = _cats(ws)
-    return [_doc_publico(d, cats) for d in db.q("SELECT * FROM docs WHERE ws=? ORDER BY id DESC", (ws,))]
+    limiar = int(db.get_config(ws)["limiar"])
+    out = []
+    for d in db.q("SELECT * FROM docs WHERE ws=? ORDER BY id DESC", (ws,)):
+        doc = _doc_publico(d, cats, com_paginas=True)
+        doc["limiar"] = limiar
+        doc["total_paginas"] = len(doc["paginas"])
+        out.append(doc)
+    return out
 
 
 @app.get("/api/docs/{did}")
