@@ -1,6 +1,6 @@
 # Concilia AI
 
-**Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory**
+**Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory (desafio proposto pela Bernhoeft)**
 
 A Concilia AI recebe lotes grandes de documentos digitalizados e misturados, descobre onde cada documento começa e termina, agrupa as páginas, classifica o tipo, deixa o texto pesquisável (OCR) e manda para revisão humana o que não tem certeza. O foco é o documento que mais pesa na gestão de terceiros: a **nota fiscal de serviço (NFS-e)**, conferida contra o contrato do fornecedor.
 
