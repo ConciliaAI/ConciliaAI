@@ -1,6 +1,6 @@
 # Concilia AI
 
-**Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory · proposto pela Bernhoeft**
+**Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory**
 
 A Concilia AI recebe lotes grandes de documentos digitalizados e misturados, descobre onde cada documento começa e termina, agrupa as páginas, classifica o tipo, deixa o texto pesquisável (OCR) e manda para revisão humana o que não tem certeza. O foco é o documento que mais pesa na gestão de terceiros: a **nota fiscal de serviço (NFS-e)**, conferida contra o contrato do fornecedor.
 
@@ -56,7 +56,7 @@ Roteiro da demonstração em **[LEIA-ME.md](LEIA-ME.md)**.
 4. A equipe **aprova** (com justificativa) ou **rejeita** cada divergência, e pode **avisar o fornecedor** com uma mensagem pronta para o e-mail cadastrado.
 5. Tudo vira **planilha** (divergências, notas, fornecedores, decisões, avisos) e fica na **trilha de decisões**.
 
-Cada cliente da Bernhoeft é um espaço separado, com seus fornecedores (cadastrados à mão ou pelo CNPJ dos documentos), contratos e notas.
+Cada empresa cliente é um espaço separado, com seus fornecedores (cadastrados à mão ou pelo CNPJ dos documentos), contratos e notas.
 
 ## Resultado medido
 
@@ -94,7 +94,7 @@ Testes: `.venv\Scripts\python.exe -m pytest tests -q`
 
 ## Limites (o que este MVP ainda não é)
 
-- **Validado com dados fictícios.** Próximo passo: piloto com documentos reais da Bernhoeft.
+- **Validado com dados fictícios.** Próximo passo: piloto com documentos reais de um cliente.
 - Login, banco SQLite e segurança são de demonstração, não de produção. Sem criptografia do banco nem política de retenção.
 - Com o Claude ligado, as páginas vão para a API da Anthropic antes de serem anonimizadas; em produção isso exige contrato de tratamento de dados (LGPD).
 - O XML de exemplo imita o leiaute nacional; falta validar com o XSD oficial e com notas reais.
@@ -106,7 +106,6 @@ Testes: `.venv\Scripts\python.exe -m pytest tests -q`
 - Buscar as notas automaticamente no Ambiente de Dados Nacional da NFS-e pelo CNPJ do tomador.
 - Portal para o fornecedor enviar os próprios documentos.
 - Conferir retenções (ISS, INSS) e boletins de medição.
-- Integração com o Contract Web da Bernhoeft.
 
 ## Outras pastas
 
