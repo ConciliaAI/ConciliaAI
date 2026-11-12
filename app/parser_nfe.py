@@ -5,26 +5,14 @@ pag, cobr, infAdic e protocolo, mantendo trilha dos campos principais.
 """
 from .fiscal_xml_comum import (
     XMLFiscalErro, abrir, unico, filho, filhos, texto, decimal,
-    guardar, guardar_decimal, protocolo, resultado_base, identificador, chave_status, local
+    guardar, guardar_decimal, protocolo, resultado_base, identificador, chave_status, local, serializar_no
 )
 
 
 def _grupos_tributos(imposto):
-    saida = {}
-    if imposto is None:
-        return saida
-    for grupo in imposto:
-        nome = local(grupo.tag)
-        valores = {}
-        for variante in grupo:
-            if len(variante):
-                valores[local(variante.tag)] = {local(c.tag): (c.text or "").strip()
-                                               for c in variante if c.text is not None}
-            elif variante.text is not None:
-                valores[local(variante.tag)] = variante.text.strip()
-        if valores:
-            saida[nome] = valores
-    return saida
+    # Preserva campos novos do leiaute (inclusive IBS/CBS e IS) sem
+    # pressupor que os tributos tenham só dois níveis XML.
+    return {local(grupo.tag): serializar_no(grupo) for grupo in imposto} if imposto is not None else {}
 
 
 def _ler_nfe(conteudo: bytes, esperado: str):
@@ -70,6 +58,10 @@ def _ler_nfe(conteudo: bytes, esperado: str):
             ("icms_st", "vST"), ("ipi", "vIPI"), ("pis", "vPIS"),
             ("cofins", "vCOFINS"), ("tributos_aproximados", "vTotTrib"),
             ("nota", "vNF"))}
+    campos["totais_complementares"] = {
+        local(e.tag): serializar_no(e) for e in filho(inf, "total")
+        if local(e.tag) != "ICMSTot"
+    } if filho(inf, "total") is not None else {}
     campos["valor_total"] = campos["totais"]["nota"]
     for det in filhos(inf, "det"):
         prod = filho(det, "prod")
