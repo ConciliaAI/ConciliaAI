@@ -253,7 +253,10 @@ def avaliacoes(ws: str):
 
 @app.get("/api/ws/{ws}/envios")
 def envios(ws: str):
-    return db.q("SELECT * FROM envios WHERE ws=? ORDER BY id DESC", (ws,))
+    # Com o resultado de cada envio (documentos separados e quantos ficaram para a revisão humana).
+    return db.q("""SELECT e.*, (SELECT COUNT(*) FROM docs d WHERE d.envio_id=e.id) documentos,
+                   (SELECT COUNT(*) FROM docs d WHERE d.envio_id=e.id AND d.status='revisao') duvidas
+                   FROM envios e WHERE e.ws=? ORDER BY e.id DESC""", (ws,))
 
 
 @app.get("/api/envios/{eid}")
@@ -284,6 +287,20 @@ def retomar(request: Request, eid: int):
     ok = pipeline.retomar_envio(eid, f"Retomado por {u['nome']}")
     trabalhador.acordar.set()
     return {"ok": ok}
+
+
+@app.post("/api/envios/{eid}/cancelar")
+def cancelar(request: Request, eid: int):
+    """Para a leitura de vez. As páginas já lidas ficam guardadas, mas o envio não vira documentos."""
+    u = auth.exigir(request, "operador")
+    e = db.q("SELECT * FROM envios WHERE id=?", (eid,), um=True)
+    if not e:
+        raise HTTPException(404, "Envio não encontrado")
+    if e["status"] not in ("fila", "processando", "pausado", "falhou"):
+        raise HTTPException(400, "Este envio já terminou e não pode ser cancelado.")
+    db.x("UPDATE envios SET status='cancelado', terminado_em=? WHERE id=?", (db.agora(), eid))
+    db.evento(eid, f"Cancelado por {u['nome']} na página {e['feitas'] + 1}.")
+    return {"ok": True}
 
 
 @app.post("/api/envios/{eid}/simular-falha")

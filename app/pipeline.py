@@ -161,7 +161,7 @@ class Trabalhador(threading.Thread):
 
     def falhou(self, eid, msg, automatico):
         e = db.q("SELECT * FROM envios WHERE id=?", (eid,), um=True)
-        db.x("UPDATE envios SET status='falhou', erro=? WHERE id=?", (msg, eid))
+        db.x("UPDATE envios SET status='falhou', erro=? WHERE id=? AND status!='cancelado'", (msg, eid))
         db.evento(eid, f"Falha na página {e['feitas'] + 1}: {msg}. As {e['feitas']} páginas anteriores estão salvas.")
         if automatico:
             def retomar():
@@ -186,6 +186,8 @@ class Trabalhador(threading.Thread):
             if estado["status"] == "pausado":
                 db.evento(eid, f"Pausado na página {p['n']}.")
                 return
+            if estado["status"] == "cancelado":
+                return  # o evento já foi registrado por quem cancelou
             if estado["falha_simulada"]:
                 db.x("UPDATE envios SET falha_simulada=0 WHERE id=?", (eid,))
                 raise FalhaSimulada("queda simulada de conexão")

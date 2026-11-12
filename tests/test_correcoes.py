@@ -136,3 +136,16 @@ def test_pagina_que_sempre_falha_e_pulada(cliente, monkeypatch):
     assert e["envio"]["status"] == "concluido"
     assert next(p for p in e["paginas"] if p["n"] == 1)["status"] == "erro"
     assert any("pulada" in ev["texto"] for ev in e["eventos"])
+
+
+def test_cancelar_envio_e_resultado_na_lista(cliente, envio):
+    entrar(cliente, "operador")
+    eid = db.x("INSERT INTO envios(ws, nome, origem, criado_em, status, total, feitas) VALUES(?,?,?,?, 'pausado', 10, 3)",
+               (WS, "pausado.pdf", "teste", db.agora()))
+    r = cliente.post(f"/api/envios/{eid}/cancelar")
+    assert r.status_code == 200, r.text
+    assert db.q("SELECT status FROM envios WHERE id=?", (eid,), um=True)["status"] == "cancelado"
+    assert cliente.post(f"/api/envios/{eid}/cancelar").status_code == 400  # já terminou
+    lista = {e["id"]: e for e in cliente.get(f"/api/ws/{WS}/envios").json()}
+    assert lista[envio["contrato"]["envio_id"]]["documentos"] >= 1
+    assert "duvidas" in lista[eid]
