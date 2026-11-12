@@ -108,7 +108,8 @@ def test_nfce_consumidor_pagamento_qrcode():
 
 
 def test_cte_modal_referencia_tributo_partes():
-    r = ler_cte(xml_cte())
+    assert detectar_modelo(xml_cte()) == "57"
+    r = interpretar(xml_cte())
     assert r["tipo"] == "cte"
     assert r["campos"]["modal_rodoviario"]["rntrc"] == "12345678"
     assert r["campos"]["remetente"]["nome"] == "REMETENTE"
