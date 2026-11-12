@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from io import BytesIO
 
 import fitz
-from PIL import Image, ImageOps
 import pytesseract
+from PIL import Image, ImageOps
 from pytesseract import Output
 
 ALLOWED_TYPES = {

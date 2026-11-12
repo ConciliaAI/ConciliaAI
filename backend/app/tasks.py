@@ -1,6 +1,7 @@
 """Celery: uma tarefa idempotente por página, com persistência de erros."""
 from celery import Celery
-from sqlalchemy import func, select
+from sqlalchemy import select
+
 from app.config import get_settings
 from app.database import SessionLocal
 from app.document_processing import extract_page

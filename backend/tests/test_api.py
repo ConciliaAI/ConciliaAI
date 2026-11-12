@@ -1,5 +1,5 @@
-from io import BytesIO
 import fitz
+
 from app import main
 
 

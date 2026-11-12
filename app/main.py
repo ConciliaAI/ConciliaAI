@@ -4,12 +4,25 @@ import io
 import json
 import re
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from urllib.parse import quote
 
 import pymupdf as fitz
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import analise, anonimizar, auth, avaliacao, conciliacao, config, db, fiscal, pipeline, seed
+from . import (
+    analise,
+    anonimizar,
+    auth,
+    avaliacao,
+    conciliacao,
+    config,
+    db,
+    fiscal,
+    pipeline,
+    seed,
+)
 from .fiscal import brl, fmt_cnpj, fmt_data
 
 trabalhador = pipeline.Trabalhador()
@@ -42,14 +55,15 @@ async def exigir_login(request: Request, chamar):
 
 @app.post("/api/login")
 def login(corpo: dict):
-    token, u = auth.entrar(corpo.get("usuario"), corpo.get("senha"))
+    token, u = auth.entrar(corpo.get("usuario"), corpo.get("senha"))  # valida tipos e tentativas
     r = JSONResponse(u)
     r.set_cookie(auth.COOKIE, token, max_age=auth.DURACAO, httponly=True, samesite="lax")
     return r
 
 
 @app.post("/api/sair")
-def sair():
+def sair(request: Request):
+    auth.sair(request)
     r = JSONResponse({"ok": True})
     r.delete_cookie(auth.COOKIE)
     return r
@@ -222,7 +236,10 @@ def nova_avaliacao(request: Request, ws: str, corpo: dict | None = None):
     _ws(ws)
     u = auth.exigir(request, "admin")
     corpo = corpo or {}
-    fornecedores = max(7, min(20, int(corpo.get("fornecedores", 8))))
+    try:
+        fornecedores = max(7, min(20, int(corpo.get("fornecedores", 8))))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Informe o número de fornecedores (de 7 a 20).") from None
     return _lote_sintetico(ws, u, "Avaliação com gabarito", fornecedores, bool(corpo.get("digitalizar", True)))
 
 
@@ -277,11 +294,21 @@ def simular_falha(request: Request, eid: int):
 
 
 # ------------------------------------------------------------------ páginas
+REVELAR_MINUTOS = 30  # depois de pedir com motivo, o revisor vê as imagens sem máscara por este tempo
+
+
 @app.get("/api/paginas/{pid}/imagem")
-def imagem(pid: int, largura: int = 0, revelar: int = 0):
+def imagem(request: Request, pid: int, largura: int = 0, revelar: int = 0):
     p = db.q("SELECT p.*, e.ws FROM paginas p JOIN envios e ON e.id=p.envio_id WHERE p.id=?", (pid,), um=True)
     if not p or not p["img"]:
         raise HTTPException(404, "Página ainda não processada")
+    if revelar:
+        # Imagem sem máscara só para revisor que registrou o motivo deste documento há pouco (POST /revelar).
+        u = auth.exigir(request, "revisor")
+        desde = (datetime.now() - timedelta(minutes=REVELAR_MINUTOS)).strftime("%Y-%m-%d %H:%M:%S")
+        if not p["doc_id"] or not db.q("SELECT 1 FROM acessos WHERE doc_id=? AND usuario=? AND quando>=?",
+                                       (p["doc_id"], u["nome"], desde)):
+            raise HTTPException(403, "Para ver os dados protegidos, informe o motivo no documento.")
     cats = [] if revelar else _cats(p["ws"])
     # A tela do envio se atualiza a cada 1,5 s: sem guardar a imagem pronta, o servidor redesenharia
     # cada miniatura toda vez, disputando o processador com o OCR. Versão revelada não é guardada.
@@ -334,12 +361,25 @@ def decisao(request: Request, did: int, corpo: dict):
     return resultado
 
 
+def _limpar_extraidos(did: int):
+    """Tira da conferência o que foi lido deste documento: notas em PDF (e suas divergências), contratos e
+    aditivos. Notas vindas do XML continuam, só perdem o vínculo com o PDF."""
+    for nota in db.q("SELECT id FROM notas WHERE doc_id=? AND origem='pdf'", (did,)):
+        db.x("DELETE FROM divergencias WHERE nota_id=?", (nota["id"],))
+        db.x("DELETE FROM notas WHERE id=?", (nota["id"],))
+    db.x("UPDATE notas SET doc_id=NULL WHERE doc_id=?", (did,))
+    db.x("DELETE FROM contratos WHERE doc_id=?", (did,))
+    db.x("DELETE FROM aditivos WHERE doc_id=?", (did,))
+
+
 def _decidir(did: int, corpo: dict):
     d = _doc(did)
     acao = corpo.get("acao")
     agora = db.agora()
     if acao == "confirmar":
         tipo = corpo.get("tipo") or d["tipo"]
+        if tipo != d["tipo"]:
+            _limpar_extraidos(did)  # ex.: era Contrato e virou Aditivo: o contrato lido antes não vale mais
         db.x("UPDATE docs SET tipo=?, status='confirmado', decisao=?, decidido_em=?, dados=NULL WHERE id=?",
              (tipo, f"Confirmado como {tipo}", agora, did))
         pipeline.aprender(d["ws"], tipo, did)
@@ -369,6 +409,7 @@ def _decidir(did: int, corpo: dict):
         db.x("UPDATE paginas SET inicio=0 WHERE envio_id=? AND n=?", (d["envio_id"], d["pag_ini"]))
         db.x("UPDATE docs SET pag_fim=?, status='confirmado', decisao=?, decidido_em=?, dados=NULL WHERE id=?",
              (d["pag_fim"], f"Juntado com as páginas {d['pag_ini']}–{d['pag_fim']}", agora, ant["id"]))
+        _limpar_extraidos(did)
         db.x("DELETE FROM busca WHERE doc_id=?", (did,))
         db.x("DELETE FROM docs WHERE id=?", (did,))
         pipeline.reindexar_doc(ant["id"])
@@ -512,7 +553,7 @@ def nota_xml(nid: int):
     if not n or not n["xml"]:
         raise HTTPException(404, "Esta nota não veio por XML")
     return Response(n["xml"], media_type="application/xml",
-                    headers={"Content-Disposition": f'attachment; filename="NFSe-{n["numero"]}.xml"'})
+                    headers={"Content-Disposition": _anexo(f"NFSe-{n['numero']}.xml")})
 
 
 @app.get("/api/ws/{ws}/contratos")
@@ -648,13 +689,7 @@ def excluir_documento(request: Request, did: int):
                 pass
     db.x("""UPDATE paginas SET status='excluida', img=NULL, texto=NULL, linhas=NULL, sensiveis=NULL, doc_id=NULL
             WHERE envio_id=? AND n BETWEEN ? AND ?""", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
-    # O que foi lido deste documento também sai da conferência (notas vindas do XML continuam: só perdem o PDF).
-    for nota in db.q("SELECT id FROM notas WHERE doc_id=? AND origem='pdf'", (did,)):
-        db.x("DELETE FROM divergencias WHERE nota_id=?", (nota["id"],))
-        db.x("DELETE FROM notas WHERE id=?", (nota["id"],))
-    db.x("UPDATE notas SET doc_id=NULL WHERE doc_id=?", (did,))
-    db.x("DELETE FROM contratos WHERE doc_id=?", (did,))
-    db.x("DELETE FROM aditivos WHERE doc_id=?", (did,))
+    _limpar_extraidos(did)
     db.x("DELETE FROM busca WHERE doc_id=?", (did,))
     db.x("DELETE FROM docs WHERE id=?", (did,))
     db.trilha(d["ws"], u["nome"], f"excluiu o documento #{did} ({d['tipo']}, envio #{d['envio_id']}, páginas {d['pag_ini']}–{d['pag_fim']})")
@@ -674,6 +709,13 @@ def revelar(request: Request, did: int, corpo: dict):
          (d["ws"], did, db.agora(), motivo, u["nome"]))
     pags = db.q("SELECT texto FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ? ORDER BY n", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
     return {"texto": "\n\n".join(p["texto"] or "" for p in pags), "cpf": d["cpf"]}
+
+
+def _anexo(nome: str) -> str:
+    """Content-Disposition que aceita acento e qualquer caractere vindo do XML ou do OCR
+    (o cabeçalho só aceita latin-1: um nome como “Serviços Ltda” derrubava o download)."""
+    simples = re.sub(r"[^A-Za-z0-9._-]+", "_", nome)
+    return f"attachment; filename=\"{simples}\"; filename*=UTF-8''{quote(nome)}"
 
 
 def _nome_arquivo(d) -> str:
@@ -698,7 +740,7 @@ def baixar_tudo(ws: str):
 def pdf_pesquisavel(did: int):
     d = _doc(did)
     return Response(_pdf_doc(d), media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="{_nome_arquivo(d)}.pdf"'})
+                    headers={"Content-Disposition": _anexo(f"{_nome_arquivo(d)}.pdf")})
 
 
 def _pdf_doc(d) -> bytes:
@@ -739,7 +781,9 @@ def busca(ws: str, q: str = ""):
     consulta = " AND ".join(f'"{t}"*' for t in termos)
     cats = _cats(ws)
     try:
-        linhas = db.q("""SELECT doc_id, snippet(busca, 2, '[[', ']]', ' … ', 24) trecho FROM busca
+        # Trecho sem marcadores: a máscara roda no texto limpo (marcadores no meio de um CPF ou e-mail
+        # impediam o reconhecimento) e o destaque é aplicado só depois, no texto já mascarado.
+        linhas = db.q("""SELECT doc_id, snippet(busca, 2, '', '', ' … ', 24) trecho FROM busca
                          WHERE busca MATCH ? AND ws=? ORDER BY rank LIMIT 30""", (consulta, ws))
     except Exception:
         return []
@@ -749,17 +793,35 @@ def busca(ws: str, q: str = ""):
         if not d:
             continue
         item = _doc_publico(d, cats)
-        item["trecho"] = anonimizar.mascarar_texto(r["trecho"], cats, _j(d["sensiveis"], []))
+        item["trecho"] = _destacar(anonimizar.mascarar_texto(r["trecho"], cats, _j(d["sensiveis"], [])), termos)
         out.append(item)
     return out
 
 
+def _destacar(texto: str, termos: list[str]) -> str:
+    """Marca com [[ ]] as palavras que começam por um dos termos buscados (a tela troca por <mark>)."""
+    def marcar(m):
+        palavra = m.group(0)
+        return f"[[{palavra}]]" if any(analise.norm(palavra).startswith(t) for t in termos) else palavra
+    return re.sub(r"\w+", marcar, texto)
+
+
 # ------------------------------------------------------------------ relatórios
+class _CsvSeguro:
+    """Escreve o CSV neutralizando fórmulas: texto vindo de nota ou contrato que comece com = + - @ seria
+    executado pelo Excel ao abrir a planilha (ex.: =HYPERLINK(...))."""
+    def __init__(self, wr):
+        self.wr = wr
+
+    def writerow(self, linha):
+        self.wr.writerow(["'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v for v in linha])
+
+
 @app.get("/api/ws/{ws}/relatorio.csv")
 def relatorio(ws: str, tipo: str = "divergencias"):
     w = _ws(ws)
     buf = io.StringIO()
-    wr = csv.writer(buf, delimiter=";")
+    wr = _CsvSeguro(csv.writer(buf, delimiter=";"))
     if tipo == "divergencias":
         wr.writerow(["Nota", "Prestador", "CNPJ", "Emissão", "Valor da nota", "Contrato", "Regra", "Gravidade",
                      "O que aconteceu", "Esperado", "Encontrado", "Situação", "Decidido por", "Quando", "Comentário"])
@@ -817,10 +879,15 @@ def salvar_config(request: Request, ws: str, corpo: dict):
     for k, v in corpo.items():
         if k in ("cpf", "banco", "saude", "endereco", "contato", "usar_claude"):
             db.set_config(ws, k, "1" if v in (True, 1, "1") else "0")
-        elif k == "limiar":
-            db.set_config(ws, k, max(40, min(99, int(v))))
-        elif k == "tolerancia":
-            db.set_config(ws, k, max(0.0, min(20.0, float(v))))
+        elif k in ("limiar", "tolerancia"):
+            try:
+                n = float(str(v).replace(",", "."))
+            except (TypeError, ValueError):
+                raise HTTPException(400, f"Valor inválido para {k}: use um número.") from None
+            if k == "limiar":
+                db.set_config(ws, k, max(40, min(99, int(n))))
+            else:
+                db.set_config(ws, k, max(0.0, min(20.0, n)))
     if "tolerancia" in corpo:
         conciliacao.conciliar(ws)
     return db.get_config(ws)

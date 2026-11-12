@@ -1,8 +1,9 @@
 import time
 
 import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError
 from botocore.config import Config
+from botocore.exceptions import ClientError, EndpointConnectionError
+
 from app.config import get_settings
 
 

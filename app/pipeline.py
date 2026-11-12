@@ -28,6 +28,29 @@ def importar_xml(eid: int, ws: str, caminho: Path, nome: str) -> bool:
 
 # ------------------------------------------------------------------ envio novo
 MAX_PAGINAS = config.MAX_PAGINAS  # por arquivo (CONCILIA_MAX_PAGINAS no .env)
+MAX_BYTES = config.MAX_MB * 1024 * 1024  # por arquivo, também para cada arquivo de dentro de um ZIP
+MAX_ZIP_TOTAL = 4 * MAX_BYTES  # soma do que sai de um ZIP (protege contra "zip bomb")
+
+
+def _abrir_zip(caminho: Path, pasta: Path, i: int) -> list[Path]:
+    """Extrai os arquivos aceitos de um ZIP, lendo com limite de tamanho (o tamanho declarado no ZIP pode mentir)."""
+    saida, total = [], 0
+    with zipfile.ZipFile(caminho) as z:
+        for j, info in enumerate(sorted(z.infolist(), key=lambda k: k.filename)):
+            if info.is_dir() or not info.filename.lower().endswith(EXTS + (".xml",)):
+                continue
+            with z.open(info) as f:
+                conteudo = f.read(MAX_BYTES + 1)
+            if len(conteudo) > MAX_BYTES:
+                raise ValueError(f"“{Path(info.filename).name}” passa de {config.MAX_MB} MB descompactado")
+            total += len(conteudo)
+            if total > MAX_ZIP_TOTAL:
+                raise ValueError(f"o conteúdo descompactado passa de {MAX_ZIP_TOTAL // (1024 * 1024)} MB")
+            nome_z = "".join(c if c.isalnum() or c in "._-" else "_" for c in Path(info.filename).name)
+            destino = pasta / f"{i:03d}_{j:03d}_{nome_z}"
+            destino.write_bytes(conteudo)
+            saida.append(destino)
+    return saida
 
 
 def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario: str | None = None,
@@ -49,14 +72,15 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
         caminho = pasta / seguro
         caminho.write_bytes(conteudo)
         if seguro.lower().endswith(".zip"):
-            with zipfile.ZipFile(caminho) as z:
-                for j, info in enumerate(sorted(z.infolist(), key=lambda k: k.filename)):
-                    if info.is_dir() or not info.filename.lower().endswith(EXTS + (".xml",)):
-                        continue
-                    nome_z = "".join(c if c.isalnum() or c in "._-" else "_" for c in Path(info.filename).name)
-                    destino = pasta / f"{i:03d}_{j:03d}_{nome_z}"
-                    destino.write_bytes(z.read(info))
-                    (xmls if nome_z.lower().endswith(".xml") else salvos).append(destino)
+            try:
+                extraidos = _abrir_zip(caminho, pasta, i)
+            except (zipfile.BadZipFile, ValueError, OSError) as erro:
+                # Sem isso o envio ficava preso em "recebendo" e o mesmo arquivo não podia ser reenviado.
+                db.x("DELETE FROM arquivos WHERE envio_id=? AND sha256=?", (eid, digest))
+                db.evento(eid, f"ZIP ignorado: {nome_arq} ({erro if isinstance(erro, ValueError) else 'arquivo corrompido ou não é ZIP'})")
+                continue
+            for destino in extraidos:
+                (xmls if destino.name.lower().endswith(".xml") else salvos).append(destino)
         elif seguro.lower().endswith(".xml"):
             xmls.append(caminho)
         elif seguro.lower().endswith(EXTS):
@@ -104,10 +128,14 @@ class FalhaSimulada(Exception):
     pass
 
 
+TENTATIVAS = 3  # falhas seguidas na mesma página antes de pulá-la
+
+
 class Trabalhador(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
         self.acordar = threading.Event()
+        self.tentativas = {}  # (envio, página) -> falhas seguidas ao ler a página
 
     def run(self):
         try:
@@ -163,8 +191,24 @@ class Trabalhador(threading.Thread):
                 raise FalhaSimulada("queda simulada de conexão")
             anterior = db.q("SELECT tipo, pessoa, cpf FROM paginas WHERE envio_id=? AND n=?", (eid, p["n"] - 1), um=True)
             png = str(PAGINAS / f"{eid}_{p['n']:04d}.png")
-            larg, alt, texto, linhas, fonte = ocr.renderizar(p["arquivo"], p["indice"], p["origem_tipo"], png)
-            r = analise.analisar(png, texto, tipos, anterior, exemplos, usar_claude)
+            try:
+                larg, alt, texto, linhas, fonte = ocr.renderizar(p["arquivo"], p["indice"], p["origem_tipo"], png)
+                r = analise.analisar(png, texto, tipos, anterior, exemplos, usar_claude)
+            except Exception as erro:
+                # Falha passageira (ex.: rede): sobe, e a retomada automática tenta de novo. Se a mesma página
+                # falhar TENTATIVAS vezes, ela é pulada; antes o envio ficava em falhou → fila para sempre.
+                chave = (eid, p["n"])
+                self.tentativas[chave] = self.tentativas.get(chave, 0) + 1
+                if self.tentativas[chave] < TENTATIVAS:
+                    raise
+                del self.tentativas[chave]
+                motivo = f"{type(erro).__name__}: {erro}"[:300]
+                db.x("UPDATE paginas SET status='erro', sinais=? WHERE id=?",
+                     (json.dumps([f"Não foi possível ler esta página ({motivo})"], ensure_ascii=False), p["id"]))
+                db.x("UPDATE envios SET feitas=(SELECT COUNT(*) FROM paginas WHERE envio_id=? AND status IN ('feita','erro')) WHERE id=?",
+                     (eid, eid))
+                db.evento(eid, f"Página {p['n']} pulada depois de {TENTATIVAS} tentativas ({motivo}). As demais continuam.")
+                continue
             db.x("""UPDATE paginas SET status='feita', img=?, largura=?, altura=?, texto=?, linhas=?, fonte_texto=?,
                     tipo=?, conf=?, inicio=?, sinais=?, candidatos=?, pessoa=?, cpf=?, empresa=?, sensiveis=?, motor=?
                     WHERE id=?""",
@@ -172,7 +216,7 @@ class Trabalhador(threading.Thread):
                   int(r["inicio"]), json.dumps(r["sinais"], ensure_ascii=False),
                   json.dumps(r["candidatos"], ensure_ascii=False), r["pessoa"], r["cpf"], r["empresa"],
                   json.dumps(r["sensiveis"], ensure_ascii=False), r["motor"], p["id"]))
-            db.x("UPDATE envios SET feitas=(SELECT COUNT(*) FROM paginas WHERE envio_id=? AND status='feita') WHERE id=?",
+            db.x("UPDATE envios SET feitas=(SELECT COUNT(*) FROM paginas WHERE envio_id=? AND status IN ('feita','erro')) WHERE id=?",
                  (eid, eid))
         agrupar(eid)
         conciliacao.extrair_envio(eid)

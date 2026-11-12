@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS exemplos(id INTEGER PRIMARY KEY, ws TEXT, tipo TEXT, 
 CREATE TABLE IF NOT EXISTS acessos(id INTEGER PRIMARY KEY, ws TEXT, doc_id INT, quando TEXT, motivo TEXT, usuario TEXT);
 CREATE TABLE IF NOT EXISTS arquivos(id INTEGER PRIMARY KEY, ws TEXT, sha256 TEXT, envio_id INT, nome TEXT);
 CREATE TABLE IF NOT EXISTS usuarios(usuario TEXT PRIMARY KEY, nome TEXT, perfil TEXT, senha_hash TEXT);
+CREATE TABLE IF NOT EXISTS sessoes_encerradas(sid TEXT PRIMARY KEY, exp REAL);
 -- Conciliação: a nota fiscal é o centro; contratos e aditivos são a referência.
 CREATE TABLE IF NOT EXISTS fornecedores(
   id INTEGER PRIMARY KEY, ws TEXT, cnpj TEXT, nome TEXT, criado_em TEXT, UNIQUE(ws, cnpj));

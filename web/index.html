@@ -160,7 +160,7 @@ download:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',arrow:
 chev:'M6 9l6 6 6-6',refresh:'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',play:'M7 4l13 8-13 8z',pause:'M7 4h3v16H7zM14 4h3v16h-3z',plus:'M12 5v14M5 12h14',shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',zap:'M13 2 3 14h9l-1 8 10-12h-9z'};
 const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
 const MARK=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13" fill="#2F6BFF"/><rect x="12" y="15.5" width="24" height="6" rx="3" fill="#fff"/><rect x="12" y="26.5" width="24" height="6" rx="3" fill="#fff"/></svg>`;
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const prot=s=>esc(s).replace(/⟦([^⟧]+)⟧/g,'<span class="pm">$1</span>');
 const cc=c=>c>=95?'var(--confere)':c>=75?'var(--media)':'var(--ambar)';
 const cw=c=>c>=95?'Alta':c>=75?'Média':'Baixa';
@@ -290,10 +290,10 @@ V.pendencias=async()=>{
   ${d.duvida==='integridade'?`<div style="background:var(--erro-fundo);color:var(--erro);border-radius:12px;padding:12px 14px;display:grid;gap:4px">${d.sinais.filter(s=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(s)).map(s=>`<b class="small">${esc(s)}.</b>`).join('')}<span class="small">Um contrato incompleto ou com página trocada não deve ser usado para conferir notas. Peça a via completa ou aceite se tiver certeza.</span></div>`:''}
   <div class="qpages">${imgs.map(p=>`<div class="qp ${fora(p)?'viz':''}"><img src="/api/paginas/${p.id}/imagem?largura=420" alt="Página ${p.n}" data-zoom="${p.id}"><small>pág. ${p.n}${fora(p)?' (outro documento)':''}</small></div>`).join('')}</div>
   ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode responder as dúvidas.</div>`:''}
-  <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec='${JSON.stringify(x[1])}'><span>${x[0]}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
+  <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec="${esc(JSON.stringify(x[1]))}" data-did="${d.id}"><span>${esc(x[0])}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
   ${d.duvida==='fronteira'&&d.paginas.length>1?`<p class="small muted">Dica: uma folha ilegível ou em branco no meio de um contrato normalmente continua o mesmo documento. Só separe se a página tiver outro título, outro fornecedor ou recomeçar a numeração (“1 de …”).</p>`:''}
-  <div class="actions">${d.duvida==='fronteira'&&S.outrasPags&&S.outrasPags.length?`<select class="inp" id="outrapag" style="max-width:260px" aria-label="Começa outro em outra página"><option value="">Começa outro em outra página…</option>${S.outrasPags.map(n=>`<option value="${n}">Página ${n}</option>`).join('')}</select>`:''}<select class="inp" id="outrotipo" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
-  ${temAnterior?`<button class="btn light sm" data-dec='{"acao":"juntar"}'>Juntar com o anterior</button>`:''}<button class="btn light sm" data-dec='{"acao":"reprocessar"}'>${ic('refresh')}Ler de novo</button><button class="btn light sm" data-dec='{"acao":"pedir"}'>Pedir nova cópia</button></div>
+  <div class="actions">${d.duvida==='fronteira'&&S.outrasPags&&S.outrasPags.length?`<select class="inp" id="outrapag" data-did="${d.id}" style="max-width:260px" aria-label="Começa outro em outra página"><option value="">Começa outro em outra página…</option>${S.outrasPags.map(n=>`<option value="${n}">Página ${n}</option>`).join('')}</select>`:''}<select class="inp" id="outrotipo" data-did="${d.id}" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+  ${temAnterior?`<button class="btn light sm" data-dec='{"acao":"juntar"}' data-did="${d.id}">Juntar com o anterior</button>`:''}<button class="btn light sm" data-dec='{"acao":"reprocessar"}' data-did="${d.id}">${ic('refresh')}Ler de novo</button><button class="btn light sm" data-dec='{"acao":"pedir"}' data-did="${d.id}">Pedir nova cópia</button></div>
   <details class="why"><summary>Por que estou vendo isso?</summary><ul>${d.sinais.map(s=>`<li>${esc(s)}</li>`).join('')}<li>Ponto mais fraco: ${esc(d.motivo)}</li></ul></details></div>
   <div class="c" style="display:grid;gap:8px;align-content:start"><h3>Fila de revisão</h3>${L.map((x,i)=>`<div class="li" style="cursor:pointer;${i===S.q?'opacity:.5':''}" data-q="${i}"><span class="doci warn">${ic('pendencias')}</span><div class="t"><b>${esc(x.tipo)}</b><span>${cw(x.conf)} ${x.conf}% · ${esc(x.empresa||'empresa não identificada')}</span></div></div>`).join('')}</div></div>`,L.length];
 };
@@ -549,8 +549,8 @@ document.addEventListener('click',async ev=>{
   if(t.dataset.ws){S.ws=t.dataset.ws;S.menu=false;S.q=0;S.doc=null;S.nota=null;S.revelado=null;try{localStorage.setItem('ws',S.ws)}catch(e){}toast(`Agora você está vendo o cliente ${W().nome}`);render();return}
   if(t.dataset.zoom){const z=document.createElement('div');z.className='zoom';z.innerHTML=`<img src="/api/paginas/${t.dataset.zoom}/imagem" alt="Página ampliada">`;document.body.appendChild(z);return}
   if(t.dataset.acao){const id=location.hash.split('-')[1];await post(`/api/envios/${id}/${t.dataset.acao}`);toast({pausar:'Pausado. Nada se perde.',retomar:'Retomando da próxima página.','simular-falha':'Queda simulada. Veja a retomada automática.'}[t.dataset.acao]);render();return}
-  if(t.dataset.dec){const L=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias;const d=L[S.q];if(!d)return;
-    t.disabled=true;try{const r=await post(`/api/docs/${d.id}/decisao`,JSON.parse(t.dataset.dec));toast(r.msg);}catch(e){toast(e.message)}render();return}
+  if(t.dataset.dec){const did=+t.dataset.did;if(!did)return;
+    t.disabled=true;try{const r=await post(`/api/docs/${did}/decisao`,JSON.parse(t.dataset.dec));toast(r.msg);}catch(e){toast(e.message)}render();return}
   if(t.dataset.q){S.q=+t.dataset.q;render();return}
   if(t.dataset.doc){S.doc=+t.dataset.doc;S.revelado=null;if(location.hash!=='#documentos')location.hash='#documentos';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
   if(t.hasAttribute('data-fechar')){S.doc=null;S.nota=null;S.revelado=null;render();return}
@@ -562,8 +562,8 @@ document.addEventListener('change',async ev=>{
   if(ev.target.dataset.cfg){await post(`/api/ws/${S.ws}/config`,{[ev.target.dataset.cfg]:ev.target.checked?1:0});toast(ev.target.checked?'Ativado':'Desativado');if(ev.target.dataset.cfg==='usar_claude'){S.cfgClaude=ev.target.checked?'1':'0';render();}}
   if(ev.target.id==='limiar'){await post(`/api/ws/${S.ws}/config`,{limiar:ev.target.value});toast(`Limite de revisão: ${ev.target.value}%`)}
   if(ev.target.id==='tolerancia'){try{await post(`/api/ws/${S.ws}/config`,{tolerancia:ev.target.value});toast(`Tolerância de valor: ${ev.target.value}%. Conferência refeita.`)}catch(e){toast(e.message)}}
-  if(ev.target.id==='outrapag'&&ev.target.value){const d=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias[S.q];try{const r=await post(`/api/docs/${d.id}/decisao`,{acao:'dividir',pagina:+ev.target.value});toast(r.msg)}catch(e){toast(e.message)}render();}
-  if(ev.target.id==='outrotipo'&&ev.target.value){const d=(await api(`/api/ws/${S.ws}/pendencias`)).pendencias[S.q];const r=await post(`/api/docs/${d.id}/decisao`,{acao:'confirmar',tipo:ev.target.value});toast(r.msg);render();}
+  if(ev.target.id==='outrapag'&&ev.target.value){const did=+ev.target.dataset.did;try{const r=await post(`/api/docs/${did}/decisao`,{acao:'dividir',pagina:+ev.target.value});toast(r.msg)}catch(e){toast(e.message)}render();}
+  if(ev.target.id==='outrotipo'&&ev.target.value){const did=+ev.target.dataset.did;try{const r=await post(`/api/docs/${did}/decisao`,{acao:'confirmar',tipo:ev.target.value});toast(r.msg)}catch(e){toast(e.message)}render();}
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='limiar')document.getElementById('vlim').textContent=ev.target.value;if(ev.target.id==='tolerancia')document.getElementById('vtol').textContent=ev.target.value;});
 document.addEventListener('submit',async ev=>{ev.preventDefault();const f=ev.target;

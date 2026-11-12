@@ -5,6 +5,7 @@ e o valor encontrado. A IA só ajuda a ler os documentos. Quem decide é a pesso
 """
 import json
 import re
+import threading
 
 from . import analise, db, fiscal
 from .fiscal import TIPO_ADITIVO, TIPO_CONTRATO, TIPO_NOTA, brl, fmt_cnpj, fmt_data
@@ -246,8 +247,18 @@ def avaliar_nota(nota: dict, contratos: list, aditivos: list, notas: list, toler
     return achados, c, obs
 
 
+_conciliando = threading.Lock()
+
+
 def conciliar(ws: str) -> dict:
-    """Refaz o cruzamento de todas as notas do cliente. Decisões humanas já tomadas são mantidas."""
+    """Refaz o cruzamento de todas as notas do cliente. Decisões humanas já tomadas são mantidas.
+    Uma conferência por vez: duas ao mesmo tempo (o trabalhador terminando um envio enquanto um revisor
+    decide) liam as mesmas divergências e gravavam a mesma regra duas vezes."""
+    with _conciliando:
+        return _conciliar(ws)
+
+
+def _conciliar(ws: str) -> dict:
     contratos = db.q("SELECT * FROM contratos WHERE ws=?", (ws,))
     aditivos = db.q("SELECT * FROM aditivos WHERE ws=?", (ws,))
     notas = db.q("SELECT * FROM notas WHERE ws=? ORDER BY id", (ws,))
@@ -267,7 +278,14 @@ def conciliar(ws: str) -> dict:
             achados = [a for a in achados if a[0] != "SEM_CONTRATO"]
             esperando = True
             obs = "Contrato ainda não confirmado: há um documento deste fornecedor na Revisão humana. A nota é conferida depois da confirmação."
-        existentes = {d["regra"]: d for d in db.q("SELECT * FROM divergencias WHERE nota_id=?", (nota["id"],))}
+        existentes = {}
+        # Decididas primeiro: se a mesma regra ficou gravada duas vezes (conferências simultâneas em versões
+        # antigas), vale a que já tem decisão humana e a cópia aberta sai.
+        for d in db.q("SELECT * FROM divergencias WHERE nota_id=? ORDER BY status='aberta', id", (nota["id"],)):
+            if d["regra"] not in existentes:
+                existentes[d["regra"]] = d
+            elif d["status"] == "aberta":
+                db.x("DELETE FROM divergencias WHERE id=?", (d["id"],))
         vistas = set()
         for regra, msg, esperado, encontrado in achados:
             vistas.add(regra)

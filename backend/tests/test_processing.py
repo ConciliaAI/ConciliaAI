@@ -1,7 +1,9 @@
 from io import BytesIO
+
 import fitz
 import pytest
 from PIL import Image
+
 from app.document_processing import count_pages, extract_page
 
 

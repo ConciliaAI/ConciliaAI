@@ -19,8 +19,8 @@ def _ocr():
 
 def aquecer():
     """Carrega o modelo de OCR antes do primeiro envio (economiza ~3 s na primeira página)."""
-    from PIL import Image
     import numpy as np
+    from PIL import Image
     _ocr()(np.array(Image.new("RGB", (64, 64), "white")), use_cls=False)
 
 
