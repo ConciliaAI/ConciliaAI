@@ -17,8 +17,10 @@ Plataforma que recebe lotes digitalizados grandes e misturados (TIFF multipágin
 
 ## Como abrir
 
-Dê dois cliques em **iniciar.bat**. O navegador abre em http://127.0.0.1:8000.
-Na primeira vez ele instala o que precisa (alguns minutos, precisa de internet).
+- **Linux:** Execute `./iniciar.sh` no terminal (veja o [Protocolo Linux](docs/PROTOCOLO_LINUX.md)).
+- **Windows:** Dê dois cliques em **`iniciar.bat`**.
+
+O navegador abre em http://127.0.0.1:8000. Na primeira vez ele instala o que precisa (alguns minutos, precisa de internet).
 
 ## Contas de demonstração
 
@@ -63,7 +65,11 @@ Com a chave, cada página é lida pelo Claude (`claude-opus-5-5`) olhando **a im
 
 Gere a pasta `casos-de-teste/` (todos os arquivos dos mesmos fornecedores fictícios):
 
-```cmd
+```bash
+# Linux:
+.venv/bin/python ferramentas/gerar_casos_teste.py
+
+# Windows:
 .venv\Scripts\python.exe ferramentas\gerar_casos_teste.py
 ```
 
@@ -92,7 +98,11 @@ Ele mostra um endereço `https://….trycloudflare.com`. O link funciona enquant
 
 Com a chave no `.env` (`ANTHROPIC_API_KEY=...`), rode:
 
-```cmd
+```bash
+# Linux:
+.venv/bin/python ferramentas/medir_custo_ia.py --paginas 10 --modelos opus,sonnet,haiku --dolar 5.40
+
+# Windows:
 .venv\Scripts\python.exe ferramentas\medir_custo_ia.py --paginas 10 --modelos opus,sonnet,haiku --dolar 5.40
 ```
 

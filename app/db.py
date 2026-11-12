@@ -84,6 +84,34 @@ CREATE TABLE IF NOT EXISTS avisos(
   assunto TEXT, corpo TEXT, usuario TEXT, quando TEXT);
 CREATE INDEX IF NOT EXISTS i_notas ON notas(ws, cnpj_prestador, numero);
 CREATE INDEX IF NOT EXISTS i_div ON divergencias(ws, status);
+-- Integrações ERP: credenciais técnicas isoladas por workspace.
+CREATE TABLE IF NOT EXISTS integracoes(
+  id INTEGER PRIMARY KEY,
+  nome TEXT NOT NULL,
+  ws TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  token_prefix TEXT NOT NULL,
+  permissoes TEXT NOT NULL DEFAULT '[]',
+  ativa INTEGER NOT NULL DEFAULT 1,
+  criada_em TEXT NOT NULL,
+  expira_em TEXT,
+  revogada_em TEXT,
+  ultimo_acesso TEXT,
+  FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS i_integracoes_ws ON integracoes(ws, ativa);
+CREATE TABLE IF NOT EXISTS integracao_eventos(
+  id INTEGER PRIMARY KEY,
+  integracao_id INTEGER,
+  ws TEXT NOT NULL,
+  acao TEXT NOT NULL,
+  endpoint TEXT,
+  status INTEGER,
+  quando TEXT NOT NULL,
+  FOREIGN KEY(integracao_id) REFERENCES integracoes(id) ON DELETE SET NULL,
+  FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS i_integracao_eventos_ws ON integracao_eventos(ws, quando);
 """
 with _lock:
     _con.executescript(SCHEMA)
@@ -92,7 +120,11 @@ with _lock:
                            ("acessos", "usuario TEXT"), ("docs", "dados TEXT"), ("docs", "aviso TEXT"),
                            ("envios", "notas_xml INT DEFAULT 0"), ("workspaces", "cnpj TEXT"),
                            ("fornecedores", "email TEXT"), ("fornecedores", "telefone TEXT"),
-                           ("fornecedores", "responsavel TEXT"), ("fornecedores", "cadastro TEXT DEFAULT 'documento'")):
+                           ("fornecedores", "responsavel TEXT"), ("fornecedores", "cadastro TEXT DEFAULT 'documento'"),
+                           ("docs", "subtipo TEXT"), ("docs", "subtipo_pontos INTEGER"),
+                           ("docs", "subtipo_evidencias TEXT"), ("docs", "subtipo_alternativas TEXT"),
+                           ("docs", "subtipo_revisao INTEGER DEFAULT 1"),
+                           ("docs", "subtipo_manual INTEGER DEFAULT 0")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:

@@ -109,6 +109,17 @@ export default function Documento({ id, perfil, aoMudar }) {
     }
   }
 
+  async function corrigirSubtipo(subtipo) {
+    try {
+      const r = await api.post(`/api/docs/${id}/decisao`, { acao: 'corrigir_subtipo', subtipo })
+      setAviso({ texto: r.msg })
+      await carregar()
+      aoMudar?.()
+    } catch (e) {
+      setAviso({ texto: e.message, erro: true })
+    }
+  }
+
   async function excluir() {
     if (!confirmarExcluir) { setConfirmarExcluir(true); setTimeout(() => setConfirmarExcluir(false), 4000); return }
     try {
@@ -202,6 +213,36 @@ export default function Documento({ id, perfil, aoMudar }) {
               {doc.conf >= doc.limiar ? `Acima de ${doc.limiar}%, não precisa de revisão.` : `Abaixo de ${doc.limiar}%: uma pessoa confirma antes de o documento entrar na conferência.`}
             </p>
             {doc.status === 'revisao' && <a href="#revisao" className="mt-3 inline-block text-sm font-bold text-tinta hover:underline">Confirmar na Revisão humana →</a>}
+          </section>
+
+          <section className="rounded-2xl border border-borda p-5">
+            <h2 className="text-[0.9375rem] font-bold">Identificação documental</h2>
+            <p className="mt-2 text-sm font-semibold">{doc.subtipo_rotulo || 'Não identificado'}</p>
+            <p className="mt-1 text-xs text-apoio">
+              {doc.subtipo_manual ? 'Corrigido por revisor' :
+                doc.subtipo_revisao ? 'Identificação complementar precisa de conferência' :
+                'Identificação por regras documentais'}
+              {doc.subtipo_pontos != null ? ` · Pontuação heurística ${doc.subtipo_pontos} (não é acurácia)` : ''}
+            </p>
+            {(doc.subtipo_evidencias || []).length > 0 && (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-apoio">
+                {doc.subtipo_evidencias.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+            {podeDecidir && (
+              <label className="mt-3 grid gap-1 text-xs font-semibold">
+                Corrigir subtipo
+                <select value={doc.subtipo || 'nao_identificado'} onChange={(e) => corrigirSubtipo(e.target.value)}
+                        className="rounded-xl border border-borda bg-white p-2 text-sm">
+                  {Object.entries({
+                    nfse: 'NFS-e', danfe: 'DANFE / NF-e', nfce: 'NFC-e', cte: 'CT-e / DACTE',
+                    contrato: 'Contrato', aditivo: 'Aditivo', distrato: 'Distrato',
+                    boleto: 'Boleto', comprovante_pagamento: 'Comprovante de pagamento',
+                    recibo: 'Recibo', nao_identificado: 'Não identificado',
+                  }).map(([v, rotulo]) => <option key={v} value={v}>{rotulo}</option>)}
+                </select>
+              </label>
+            )}
           </section>
 
           <section className="rounded-2xl border border-borda p-5">

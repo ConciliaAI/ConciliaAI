@@ -88,6 +88,11 @@ def test_fluxo_completo(cliente):
         ("Contrato de prestação de serviços", 1, 2), ("Nota fiscal de serviço", 3, 3)]
     contrato = next(d for d in docs if d["tipo"].startswith("Contrato"))
     assert contrato["dados"]["campos"]["valor_mensal"] == 4000.0
+    # A identificação complementar deve acompanhar o upload real de um PDF misto.
+    nota_pdf = next(d for d in docs if d["tipo"] == "Nota fiscal de serviço")
+    assert contrato["subtipo"] == "contrato"
+    assert nota_pdf["subtipo"] == "nfse"
+    assert contrato["subtipo_evidencias"] and nota_pdf["subtipo_evidencias"]
 
     # Conciliação: a nota do PDF bate; a do XML cobra a mais; a terceira não tem contrato.
     notas = {n["numero"]: n for n in cliente.get("/api/ws/horizonte/notas").json()}

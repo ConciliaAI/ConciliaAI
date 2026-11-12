@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import BlocoScanner from '../components/BlocoScanner'
+import CapturaDocumento from '../components/CapturaDocumento'
 import Icone from '../components/Icone'
 import { curto, DUVIDA, nomeDocumento, pasta } from '../documentos'
 
@@ -36,10 +37,11 @@ function Indicador({ titulo, valor, detalhe, destaque, href, cor }) {
 }
 
 // Pasta do Figma (252x124 com a aba): aba no alto à esquerda, com a borda direita inclinada.
-function Pasta({ tipo, quantidade, destaque }) {
+function Pasta({ tipo, quantidade, destaque, selecionada, aoAbrir }) {
   const cor = destaque ? 'bg-confere' : 'bg-nevoa'
   return (
-    <div className="relative h-[7.75rem] pt-[1.125rem]">
+    <button type="button" onClick={aoAbrir} aria-pressed={selecionada} aria-label={`Abrir pasta ${tipo}, ${quantidade} documento(s)`}
+            className={`relative h-[7.75rem] w-full pt-[1.125rem] text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-confere ${selecionada ? "ring-2 ring-confere rounded-2xl" : ""}`}>
       <span className={`absolute top-0 left-0 h-[1.375rem] w-[46%] rounded-tl-xl ${cor} [clip-path:polygon(0_0,84%_0,100%_100%,0_100%)]`} />
       <div className={`relative flex h-full flex-col rounded-2xl rounded-tl-none px-5 pt-5 ${cor} ${destaque ? 'text-white' : ''}`}>
         <div className="flex items-start justify-between">
@@ -49,7 +51,7 @@ function Pasta({ tipo, quantidade, destaque }) {
         <p className="mt-1 truncate font-titulo text-lg font-bold">{tipo}</p>
         <p className={`text-[0.8125rem] ${destaque ? 'text-white/80' : 'text-apoio'}`}>{quantidade} documento{quantidade === 1 ? '' : 's'}</p>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -70,7 +72,9 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [scannerAberto, setScannerAberto] = useState(false)
   const [filtro, setFiltro] = useState('')
+  const [tipoPasta, setTipoPasta] = useState(null)
 
   const carregar = useCallback(async () => {
     try {
@@ -136,6 +140,12 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
   const ultimo = visao.recentes?.[0]
   const aguardando = resumo.notas - resumo.conciliadas - resumo.divergentes - resumo.rejeitadas
   const tipos = visao.tipos.filter((t) => t.tipo !== 'Não identificado').slice(0, 4)
+  const documentosVisiveis = documentos.filter((d) => (!filtro || d.status === filtro) && (!tipoPasta || d.tipo === tipoPasta))
+
+  function abrirPasta(tipo) {
+    setTipoPasta(tipo)
+    document.getElementById('lista-documentos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     // Distâncias do Figma: cabeçalho → scanner 21, scanner → números 24, números → pastas 28, pastas → tabela 28.
@@ -158,13 +168,20 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
 
       <div className="mt-5" />
       <BlocoScanner enviando={enviando} aoEnviarArquivos={enviarArquivos}
-                    aoEscanear={() => setAviso('O scanner está em desenvolvimento. Por enquanto, use “Enviar arquivo” com a foto ou o PDF da nota.')} />
+                    aoEscanear={() => setScannerAberto(true)} />
       {aviso && (
         <p className="mt-3 flex items-start justify-between gap-4 rounded-xl bg-nevoa px-4 py-3 text-sm text-tinta" role="status">
           {aviso}
           <button onClick={() => setAviso('')} aria-label="Fechar aviso"><Icone nome="fechar" className="size-4" /></button>
         </p>
       )}
+
+      <CapturaDocumento
+        aberto={scannerAberto}
+        aoFechar={() => setScannerAberto(false)}
+        aoCapturar={(arquivo) => enviarArquivos([arquivo])}
+        enviando={enviando}
+      />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Indicador destaque titulo="Páginas lidas" valor={visao.paginas} detalhe={`${visao.documentos} documentos separados`} href="#documentos" />
@@ -181,16 +198,24 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
         <section className="mt-7 grid gap-[0.9375rem]">
           <h2 className="text-xl leading-[1.25] font-bold">Pastas por tipo</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {tipos.map((t, i) => <Pasta key={t.tipo} tipo={pasta(t.tipo)} quantidade={t.c} destaque={i === 0} />)}
+            {tipos.map((t, i) => <Pasta key={t.tipo} tipo={pasta(t.tipo)} quantidade={t.c} destaque={i === 0}
+                                    selecionada={tipoPasta === t.tipo} aoAbrir={() => abrirPasta(t.tipo)} />)}
           </div>
         </section>
       )}
 
       {/* Figma: tabela 712 + painel 328, espaço 16, os dois com 384 de altura. */}
       <div className="mt-7 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_20.5rem]">
-        <section className="min-w-0 rounded-2xl border border-borda px-6 pt-4 pb-3 xl:min-h-[24rem]">
+        <section id="lista-documentos" className="min-w-0 scroll-mt-4 rounded-2xl border border-borda px-6 pt-4 pb-3 xl:min-h-[24rem]">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold">Todos os documentos</h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-bold">{tipoPasta ? pasta(tipoPasta) : 'Todos os documentos'}</h2>
+              {tipoPasta && <button type="button" onClick={() => setTipoPasta(null)}
+                                   className="rounded-full border border-confere px-3 py-1 text-xs font-bold text-confere hover:bg-nevoa">
+                Ver todos os documentos
+              </button>}
+              <span className="text-xs text-apoio">{documentosVisiveis.length} resultado(s)</span>
+            </div>
             <label className="relative flex h-8 items-center gap-2 rounded-full bg-papel px-4 text-sm font-bold">
               <Icone nome="filtro" className="size-4" />{FILTROS.find((x) => x[0] === filtro)?.[1] || 'Filtrar'}
               <select value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Filtrar documentos"
@@ -199,8 +224,8 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
               </select>
             </label>
           </div>
-          {documentos.length === 0 ? (
-            <p className="py-6 text-sm text-apoio">Os documentos aparecem aqui depois do primeiro envio.</p>
+          {documentosVisiveis.length === 0 ? (
+            <p className="py-6 text-sm text-apoio">{documentos.length === 0 ? "Os documentos aparecem aqui depois do primeiro envio." : "Nenhum documento corresponde a esta pasta e aos filtros selecionados."}</p>
           ) : (
             <div className="mt-3 overflow-x-auto">
               {/* Colunas do Figma (664 de largura): documento 288, tipo 120, páginas 80, confiança 88, status 88. */}
@@ -214,7 +239,7 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {documentos.filter((d) => !filtro || d.status === filtro).slice(0, 6).map((d) => {
+                  {documentosVisiveis.map((d) => {
                     const [rotulo, cor] = SITUACAO[d.status] || [d.status, 'bg-papel text-apoio']
                     return (
                       <tr key={d.id} className={`h-12 border-t border-borda ${d.status === 'revisao' ? 'bg-nevoa/60' : ''}`}>
