@@ -1,5 +1,5 @@
 /* Concilia AI · cores e fontes
-   No <head>: <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap"> */
+   No <head>: <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600&display=swap"> */
 
 :root {
   /* Paleta */
@@ -22,8 +22,9 @@
   --status-revisao: var(--azul-noite);
 
   /* Tipografia */
-  --fonte: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --peso-texto: 500;
+  --fonte-titulo: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fonte: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* texto */
+  --peso-texto: 400;
   --peso-subtitulo: 700;
   --peso-titulo: 800;
   --espacamento-titulo: -0.035em;
@@ -35,4 +36,4 @@ body {
   font-family: var(--fonte);
   font-weight: var(--peso-texto);
 }
-h1, h2, h3 { font-weight: var(--peso-titulo); letter-spacing: var(--espacamento-titulo); }
+h1, h2, h3 { font-family: var(--fonte-titulo); font-weight: var(--peso-titulo); letter-spacing: var(--espacamento-titulo); }

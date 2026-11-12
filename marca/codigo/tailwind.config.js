@@ -14,10 +14,11 @@ module.exports = {
         borda: '#E1E5EE',
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        titulo: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       fontWeight: {
-        texto: '500',
+        texto: '400',
         subtitulo: '700',
         titulo: '800',
       },

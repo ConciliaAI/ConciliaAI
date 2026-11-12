@@ -25,3 +25,6 @@ casos-de-teste/
 
 # Programas externos baixados (ex.: cloudflared)
 .externos/
+
+# Apresentação do hackathon (vídeos e pitch): só local, fora do GitHub
+apresentacao/
