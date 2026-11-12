@@ -219,6 +219,14 @@ function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
             {r.precisaMotivo && pedindoMotivo ? 'Confirmar rejeição' : r.rotulo}
           </button>
         ))}
+        {item.tipoItem === 'documento' && item.subtipo_revisao && !item.subtipo_manual &&
+          item.subtipo && item.subtipo !== 'nao_identificado' && (
+          <button disabled={ocupado}
+                  onClick={() => aoDecidir(item, { acao: 'corrigir_subtipo', subtipo: item.subtipo })}
+                  className="h-[2.875rem] rounded-full border-2 border-confere px-4 text-sm font-bold text-tinta disabled:opacity-50">
+            Confirmar subtipo identificado
+          </button>
+        )}
         {item.tipoItem === 'documento' && (
           <select value="" onChange={(e) => { const v = e.target.value; if (v) aoDecidir(item, JSON.parse(v)) }} aria-label="Outra resposta"
                   className="h-[2.875rem] rounded-full border border-borda bg-white px-4 text-sm font-semibold text-apoio">
