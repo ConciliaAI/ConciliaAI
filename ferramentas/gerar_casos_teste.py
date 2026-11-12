@@ -3,7 +3,10 @@
 Todos os documentos são dos MESMOS fornecedores (mesma semente do gerador), para mostrar que a Concilia
 relaciona notas, contratos e problemas entre envios diferentes.
 
-Uso:  .venv\\Scripts\\python.exe ferramentas\\gerar_casos_teste.py [fornecedores]   (padrão: 20 -> ~300 páginas)
+Uso:
+  Linux:   .venv/bin/python ferramentas/gerar_casos_teste.py [fornecedores]
+  Windows: .venv\Scripts\python.exe ferramentas\gerar_casos_teste.py [fornecedores]
+  (padrão: 20 -> ~300 páginas)
 """
 import io
 import json

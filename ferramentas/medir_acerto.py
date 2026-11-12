@@ -1,6 +1,8 @@
 """Gera um lote sintético com gabarito, processa e mostra o acerto da IA (servidor precisa estar aberto).
 
-Uso:  .venv\\Scripts\\python.exe ferramentas\\medir_acerto.py [fornecedores]
+Uso:
+  Linux:   .venv/bin/python ferramentas/medir_acerto.py [fornecedores]
+  Windows: .venv\Scripts\python.exe ferramentas\medir_acerto.py [fornecedores]
 """
 import http.cookiejar
 import json
