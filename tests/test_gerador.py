@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import sys
 import fitz
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from generate_synthetic_batch import synthetic_cnpj, cnpj_valid, generate
 
 

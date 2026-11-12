@@ -106,7 +106,3 @@ Testes: `.venv\Scripts\python.exe -m pytest tests -q`
 - Buscar as notas automaticamente no Ambiente de Dados Nacional da NFS-e pelo CNPJ do tomador.
 - Portal para o fornecedor enviar os próprios documentos.
 - Conferir retenções (ISS, INSS) e boletins de medição.
-
-## Outras pastas
-
-`backend/`, `frontend/` e `compose.yaml` são o protótipo inicial em Docker (PostgreSQL, Celery, React; fases 1 a 3). Não são usados na demonstração.

@@ -1,6 +1,6 @@
 """Mede o acerto da IA comparando um envio com o gabarito (ground_truth.json) do gerador sintético.
 
-O gerador é o de scripts/generate_synthetic_batch.py (criado na versão Docker do projeto). Ele monta um
+O gerador é o de scripts/generate_synthetic_batch.py. Ele monta um
 PDF com documentos embaralhados e guarda, para cada página, a qual documento e tipo ela pertence.
 """
 import importlib.util

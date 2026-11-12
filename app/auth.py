@@ -1,4 +1,4 @@
-"""Login com perfis (admin, revisor, operador), inspirado na versão Docker do projeto.
+"""Login com perfis (admin, revisor, operador).
 
 - Senhas guardadas com PBKDF2-SHA256 e sal.
 - Sessão em cookie HttpOnly assinado com HMAC (também vale para imagens e downloads).
