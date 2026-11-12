@@ -6,7 +6,7 @@ import time
 import zipfile
 from pathlib import Path
 
-from . import analise, conciliacao, config, db, fiscal, ocr
+from . import analise, conciliacao, config, db, fiscal, ocr, roteador_fiscal
 from .classificacao_subtipos import identificar_subtipo, TIPO_COMPATIVEL
 from .config import ENVIOS, PAGINAS
 
@@ -14,17 +14,43 @@ EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
 
 
 def importar_xml(eid: int, ws: str, caminho: Path, nome: str) -> bool:
-    """Lê uma NFS-e em XML e grava a nota na hora (o XML não passa por OCR)."""
+    """Despacha XML fiscal pela família e persiste o resultado sem OCR.
+
+    NFS-e continua na tabela notas e no parser fiscal legado.
+    NF-e, NFC-e e CT-e ficam em documentos_fiscais, sem contaminação da conciliação de serviços.
+    """
     conteudo = caminho.read_bytes()
     try:
-        nota = fiscal.ler_nfse_xml(conteudo)
+        fiscal_dados = roteador_fiscal.interpretar(conteudo)
+        if fiscal_dados is None:
+            nota = fiscal.ler_nfse_xml(conteudo)
+            _, nova = conciliacao.salvar_nota(
+                ws, nota, "xml", eid, xml=conteudo.decode("utf-8", "replace"))
+            if not nova:
+                db.evento(eid, f"Nota NFS-e {nota['numero']} ({nome}) já cadastrada: dados atualizados.")
+            return True
+        campos = fiscal_dados["campos"]
+        import hashlib
+        sha = hashlib.sha256(conteudo).hexdigest()
+        tipo = fiscal_dados["tipo"]
+        versao = fiscal_dados["versao"]
+        emissor = (campos.get("emitente") or {}).get("nome")
+        destinatario = (campos.get("destinatario") or {}).get("nome")
+        db.x("""INSERT OR IGNORE INTO documentos_fiscais
+                (ws, envio_id, nome_arquivo, caminho_xml, sha256, modelo, tipo,
+                 versao, numero, chave, emissao, emissor, destinatario, dados, criado_em)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+             (ws, eid, nome, str(caminho), sha, fiscal_dados["modelo"], tipo,
+              versao, campos.get("numero"), campos.get("chave_acesso"), campos.get("emissao"),
+              emissor, destinatario,
+              json.dumps(fiscal_dados, ensure_ascii=False), db.agora()))
+        db.evento(eid, f"XML {tipo.upper()} modelo {fiscal_dados['modelo']} interpretado: {nome}"
+                       + (f" ({len(fiscal_dados['avisos'])} advertência(s))"
+                          if fiscal_dados["avisos"] else ""))
+        return True
     except ValueError as erro:
         db.evento(eid, f"XML ignorado: {nome} ({erro})")
         return False
-    _, nova = conciliacao.salvar_nota(ws, nota, "xml", eid, xml=conteudo.decode("utf-8", "replace"))
-    if not nova:
-        db.evento(eid, f"Nota {nota['numero']} ({nome}) já estava cadastrada: dados atualizados.")
-    return True
 
 
 # ------------------------------------------------------------------ envio novo
@@ -89,7 +115,7 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
     n_xml = sum(importar_xml(eid, ws, x, x.name[4:]) for x in xmls)
     if n_xml:
         db.x("UPDATE envios SET notas_xml=? WHERE id=?", (n_xml, eid))
-        db.evento(eid, f"{n_xml} nota(s) fiscal(is) lida(s) direto do XML, sem OCR.")
+        db.evento(eid, f"{n_xml} documento(s) fiscal(is) lido(s) diretamente do XML, sem OCR.")
     n = 0
     for arq in salvos:
         try:

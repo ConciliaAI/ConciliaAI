@@ -84,6 +84,14 @@ CREATE TABLE IF NOT EXISTS avisos(
   assunto TEXT, corpo TEXT, usuario TEXT, quando TEXT);
 CREATE INDEX IF NOT EXISTS i_notas ON notas(ws, cnpj_prestador, numero);
 CREATE INDEX IF NOT EXISTS i_div ON divergencias(ws, status);
+CREATE TABLE IF NOT EXISTS documentos_fiscais (
+  id INTEGER PRIMARY KEY, ws TEXT NOT NULL, envio_id INT NOT NULL,
+  nome_arquivo TEXT, caminho_xml TEXT, sha256 TEXT NOT NULL,
+  modelo TEXT NOT NULL, tipo TEXT NOT NULL, versao TEXT,
+  numero TEXT, chave TEXT, emissao TEXT, emissor TEXT, destinatario TEXT,
+  dados TEXT NOT NULL, criado_em TEXT NOT NULL,
+  UNIQUE(ws, sha256));
+CREATE INDEX IF NOT EXISTS i_fiscais_ws ON documentos_fiscais(ws, modelo, id);
 """
 with _lock:
     _con.executescript(SCHEMA)
