@@ -40,6 +40,31 @@ def texto(no, caminho: str) -> str | None:
     return (el.text or "").strip() or None if el is not None else None
 
 
+
+def serializar_no(no):
+    """Conserva estruturas XML variáveis, inclusive novos grupos tributários.
+
+    Elementos repetidos se tornam listas; atributos ficam em @atributos.
+    """
+    if no is None:
+        return None
+    if len(no) == 0:
+        return (no.text or "").strip() if no.text is not None else None
+    valores = {}
+    if no.attrib:
+        valores["@atributos"] = dict(no.attrib)
+    for elemento in no:
+        nome = local(elemento.tag)
+        valor = serializar_no(elemento)
+        if nome not in valores:
+            valores[nome] = valor
+        elif isinstance(valores[nome], list):
+            valores[nome].append(valor)
+        else:
+            valores[nome] = [valores[nome], valor]
+    return valores
+
+
 def decimal(no, caminho: str) -> str | None:
     v = texto(no, caminho)
     if v is None:
