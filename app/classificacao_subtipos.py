@@ -91,8 +91,14 @@ def identificar_subtipo(texto: str) -> dict:
     conteudo = normalizar((texto or "")[:20000])
     encontrados = []
     for subtipo, sinais in SINAIS.items():
-        evidencias = [(peso, descricao) for expressao, peso, descricao in sinais
-                      if re.search(expressao, conteudo)]
+        evidencias = []
+        for expressao, peso, descricao in sinais:
+            encontrado = re.search(expressao, conteudo)
+            if encontrado:
+                # Títulos no início do documento têm mais força do que
+                # referências incidentais no corpo (ex.: contrato cita aditivo).
+                bonus_titulo = 4 if encontrado.start() < 180 and peso >= 5 else 0
+                evidencias.append((peso + bonus_titulo, descricao))
         if evidencias:
             encontrados.append((sum(peso for peso, _ in evidencias),
                                 subtipo, [descricao for _, descricao in evidencias]))
