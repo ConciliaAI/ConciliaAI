@@ -22,6 +22,31 @@ Dê dois cliques em **`iniciar.bat`**. Na primeira vez ele instala tudo (precisa
 
 Roteiro da demonstração em **[LEIA-ME.md](LEIA-ME.md)**.
 
+### Front novo (React + Tailwind), em construção
+
+As telas estão sendo refeitas em `frontend/` (Vite, React, Tailwind, JavaScript), seguindo os layouts do Figma. Ele usa a mesma API da plataforma, então abra a plataforma primeiro (porta 8000) e depois:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abre em http://localhost:5173.
+
+| Tela | O que faz |
+|---|---|
+| Login | Entrada com o painel da marca e a prévia do dashboard |
+| Documentos (dashboard) | Bloco do scanner logo no topo, números do lote, pastas por tipo, tabela com filtro e exclusão, fila "Precisam de você" |
+| Enviar documentos | Arrastar o lote, progresso página a página com miniaturas, pausar, retomar e cancelar, histórico com o resultado de cada envio |
+| Revisão humana | Uma fila só com as dúvidas da leitura e as divergências nota × contrato; páginas lado a lado, respostas com atalhos 1, 2 e 3 |
+| Documento | Página do documento, divergência com os valores, confiança da leitura e campos lidos; aprovar, rejeitar, baixar PDF e excluir |
+| Busca | Busca no texto de todos os documentos, com os dados protegidos mascarados |
+
+Contratos, Relatórios, Configurações e Ajuda ainda abrem na versão atual, em http://127.0.0.1:8000. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px).
+
+O scanner é feito por outra pessoa do time: o botão "Escanear agora" já existe no dashboard (`frontend/src/components/BlocoScanner.jsx`, propriedade `aoEscanear`) e é ali que ele se liga.
+
 ## Requisitos do Desafio 3
 
 | Capacidade mínima | Como funciona | Onde ver |
