@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 
 from . import analise, conciliacao, config, db, fiscal, ocr
+from .classificacao_subtipos import identificar_subtipo, TIPO_COMPATIVEL
 from .config import ENVIOS, PAGINAS
 
 EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
@@ -280,6 +281,34 @@ def integridade(pags: list[dict], todas: list[dict] | None = None) -> list[str]:
     return problemas
 
 
+def atualizar_subtipo(did: int, forcar: bool = False) -> dict | None:
+    """Calcula o subtipo para o documento inteiro; preserva correção humana."""
+    doc = db.q("SELECT envio_id, pag_ini, pag_fim, tipo, subtipo_manual FROM docs WHERE id=?",
+               (did,), um=True)
+    if not doc:
+        return None
+    if doc["subtipo_manual"] and not forcar:
+        return None
+    paginas = db.q("""SELECT texto FROM paginas WHERE envio_id=?
+                       AND n BETWEEN ? AND ? AND status='feita' ORDER BY n""",
+                   (doc["envio_id"], doc["pag_ini"], doc["pag_fim"]))
+    texto = "\n".join(p["texto"] or "" for p in paginas)
+    resultado = identificar_subtipo(texto)
+    # Divergência entre a classificação existente e o subtipo exige revisão,
+    # mas não interrompe a conciliação atual.
+    esperado = TIPO_COMPATIVEL.get(resultado["subtipo"])
+    if esperado and doc["tipo"] not in (esperado, "Não identificado"):
+        resultado["revisao_necessaria"] = True
+        resultado["evidencias"].append("Divergência em relação ao tipo principal: " + doc["tipo"])
+    db.x("""UPDATE docs SET subtipo=?, subtipo_pontos=?, subtipo_evidencias=?,
+           subtipo_alternativas=?, subtipo_revisao=?, subtipo_manual=0 WHERE id=?""",
+         (resultado["subtipo"], resultado["pontuacao"],
+          json.dumps(resultado["evidencias"], ensure_ascii=False),
+          json.dumps(resultado["alternativas"], ensure_ascii=False),
+          int(resultado["revisao_necessaria"]), did))
+    return resultado
+
+
 def _doc_de_paginas(eid, ws, pags, limiar, todas=None):
     tipo = pags[0]["tipo"]
     confs = [p["conf"] for p in pags]
@@ -313,6 +342,7 @@ def _doc_de_paginas(eid, ws, pags, limiar, todas=None):
     db.x("UPDATE paginas SET doc_id=? WHERE envio_id=? AND n BETWEEN ? AND ?", (did, eid, pags[0]["n"], pags[-1]["n"]))
     texto = "\n".join(p["texto"] or "" for p in pags)
     db.x("INSERT INTO busca(doc_id, ws, texto) VALUES(?,?,?)", (did, ws, texto))
+    atualizar_subtipo(did)
     return did
 
 
@@ -340,6 +370,7 @@ def reindexar_doc(did):
     db.x("DELETE FROM busca WHERE doc_id=?", (did,))
     db.x("INSERT INTO busca(doc_id, ws, texto) VALUES(?,?,?)", (did, d["ws"], "\n".join(p["texto"] or "" for p in pags)))
     db.x("UPDATE paginas SET doc_id=? WHERE envio_id=? AND n BETWEEN ? AND ?", (did, d["envio_id"], d["pag_ini"], d["pag_fim"]))
+    atualizar_subtipo(did, forcar=True)
 
 
 def aprender(ws, tipo, did):

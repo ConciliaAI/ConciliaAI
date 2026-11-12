@@ -92,7 +92,11 @@ with _lock:
                            ("acessos", "usuario TEXT"), ("docs", "dados TEXT"), ("docs", "aviso TEXT"),
                            ("envios", "notas_xml INT DEFAULT 0"), ("workspaces", "cnpj TEXT"),
                            ("fornecedores", "email TEXT"), ("fornecedores", "telefone TEXT"),
-                           ("fornecedores", "responsavel TEXT"), ("fornecedores", "cadastro TEXT DEFAULT 'documento'")):
+                           ("fornecedores", "responsavel TEXT"), ("fornecedores", "cadastro TEXT DEFAULT 'documento'"),
+                           ("docs", "subtipo TEXT"), ("docs", "subtipo_pontos INTEGER"),
+                           ("docs", "subtipo_evidencias TEXT"), ("docs", "subtipo_alternativas TEXT"),
+                           ("docs", "subtipo_revisao INTEGER DEFAULT 1"),
+                           ("docs", "subtipo_manual INTEGER DEFAULT 0")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:

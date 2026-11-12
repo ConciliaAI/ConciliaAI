@@ -189,6 +189,15 @@ function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
         {grandes.map(([pg, legenda], i) => <Pagina key={i} pagina={pg} legenda={legenda} destaque={i === 1} />)}
       </div>
 
+      {item.tipoItem === 'documento' && (
+        <div className="mt-3 rounded-xl bg-papel p-3 text-xs text-apoio">
+          <b>Subtipo identificado:</b> {item.subtipo_rotulo || 'Não identificado'}
+          {item.subtipo_revisao && !item.subtipo_manual ? ' · conferir identificação' : ''}
+          {(item.subtipo_evidencias || []).length > 0 && (
+            <p className="mt-1">Evidências: {item.subtipo_evidencias.join('; ')}</p>
+          )}
+        </div>
+      )}
       <p className="mt-4 text-[0.8125rem] text-apoio">{p.rodape}</p>
 
       {pedindoMotivo && (
@@ -214,6 +223,16 @@ function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
           <select value="" onChange={(e) => { const v = e.target.value; if (v) aoDecidir(item, JSON.parse(v)) }} aria-label="Outra resposta"
                   className="h-[2.875rem] rounded-full border border-borda bg-white px-4 text-sm font-semibold text-apoio">
             <option value="">Outra resposta…</option>
+            {Object.entries({
+              nfse: 'NFS-e', danfe: 'DANFE / NF-e', nfce: 'NFC-e', cte: 'CT-e',
+              contrato: 'Contrato', aditivo: 'Aditivo', distrato: 'Distrato',
+              boleto: 'Boleto', comprovante_pagamento: 'Comprovante',
+              recibo: 'Recibo', nao_identificado: 'Não identificado',
+            }).map(([subtipo, rotulo]) => (
+              <option key={subtipo} value={JSON.stringify({ acao: 'corrigir_subtipo', subtipo })}>
+                Corrigir subtipo: {rotulo}
+              </option>
+            ))}
             {item.vizinhas?.some((v) => v.n < item.pag_ini) && <option value={JSON.stringify({ acao: 'juntar' })}>Juntar com o documento anterior</option>}
             <option value={JSON.stringify({ acao: 'pedir' })}>Pedir nova cópia</option>
             <option value={JSON.stringify({ acao: 'reprocessar' })}>Ler de novo</option>

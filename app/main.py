@@ -11,6 +11,8 @@ import pymupdf as fitz
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from .classificacao_subtipos import SUBTIPOS, ROTULOS_SUBTIPOS
+
 from . import (
     analise,
     anonimizar,
@@ -101,6 +103,13 @@ def _doc_publico(d, cats, com_paginas=False):
     out["cpf"] = anonimizar.mascarar_texto(d["cpf"] or "", cats) if d["cpf"] else None
     out["sinais"] = _j(d["sinais"], [])
     out["candidatos"] = _j(d["candidatos"], [])
+    out["subtipo"] = d.get("subtipo") or "nao_identificado"
+    out["subtipo_rotulo"] = ROTULOS_SUBTIPOS.get(out["subtipo"], "Não identificado")
+    out["subtipo_pontos"] = d.get("subtipo_pontos")
+    out["subtipo_evidencias"] = _j(d.get("subtipo_evidencias"), [])
+    out["subtipo_alternativas"] = _j(d.get("subtipo_alternativas"), [])
+    out["subtipo_revisao"] = bool(d.get("subtipo_revisao", 1))
+    out["subtipo_manual"] = bool(d.get("subtipo_manual"))
     out["dados"] = _j(d.get("dados"), None)
     out["aviso"] = d.get("aviso")
     if com_paginas:
@@ -353,14 +362,15 @@ def imagem(request: Request, pid: int, largura: int = 0, revelar: int = 0):
 def pendencias(ws: str):
     cats = _cats(ws)
     out = []
-    for d in db.q("SELECT * FROM docs WHERE ws=? AND status='revisao' ORDER BY id", (ws,)):
+    for d in db.q("SELECT * FROM docs WHERE ws=? AND (status='revisao' OR (subtipo_revisao=1 AND subtipo_manual=0)) ORDER BY id", (ws,)):
         doc = _doc_publico(d, cats, com_paginas=True)
         # Mostra uma página antes e uma depois para decidir fronteiras.
         doc["vizinhas"] = db.q("SELECT id, n, tipo, doc_id FROM paginas WHERE envio_id=? AND n IN (?,?) ORDER BY n",
                                (d["envio_id"], d["pag_ini"] - 1, d["pag_fim"] + 1))
         out.append(doc)
     tipos = [t["nome"] for t in db.tipos_ws(ws)]
-    return {"pendencias": out, "tipos": tipos, "limiar": int(db.get_config(ws)["limiar"])}
+    return {"pendencias": out, "tipos": tipos, "subtipos": ROTULOS_SUBTIPOS,
+            "limiar": int(db.get_config(ws)["limiar"])}
 
 
 @app.post("/api/docs/{did}/decisao")
@@ -393,12 +403,26 @@ def _decidir(did: int, corpo: dict):
     d = _doc(did)
     acao = corpo.get("acao")
     agora = db.agora()
+    if acao == "corrigir_subtipo":
+        subtipo = corpo.get("subtipo")
+        if subtipo not in SUBTIPOS:
+            raise HTTPException(400, "Subtipo inválido")
+        # Atualização de subtipo é independente da aprovação do documento,
+        # que continua sujeita aos fluxos normais de revisão.
+        db.x("""UPDATE docs SET subtipo=?, subtipo_pontos=NULL, subtipo_evidencias=?,
+               subtipo_alternativas='[]', subtipo_revisao=0, subtipo_manual=1
+               WHERE id=?""",
+             (subtipo, json.dumps(["Subtipo corrigido por revisão humana"], ensure_ascii=False), did))
+        db.trilha(d["ws"], "revisor", f"corrigiu o subtipo do documento #{did}: {d.get('subtipo') or '-'} → {subtipo}")
+        return {"ok": True, "msg": f"Subtipo registrado: {ROTULOS_SUBTIPOS[subtipo]}."}
     if acao == "confirmar":
         tipo = corpo.get("tipo") or d["tipo"]
         if tipo != d["tipo"]:
             _limpar_extraidos(did)  # ex.: era Contrato e virou Aditivo: o contrato lido antes não vale mais
         db.x("UPDATE docs SET tipo=?, status='confirmado', decisao=?, decidido_em=?, dados=NULL WHERE id=?",
              (tipo, f"Confirmado como {tipo}", agora, did))
+        if tipo != d["tipo"]:
+            pipeline.atualizar_subtipo(did, forcar=True)
         pipeline.aprender(d["ws"], tipo, did)
         return {"ok": True, "msg": f"Confirmado como {tipo}."}
     if acao == "dividir":
@@ -455,6 +479,7 @@ def _decidir(did: int, corpo: dict):
         db.x("UPDATE docs SET tipo=?, conf=?, status=?, sinais=?, candidatos=?, decisao=?, dados=NULL WHERE id=?",
              (primeira["tipo"], conf, status, json.dumps(primeira["sinais"], ensure_ascii=False),
               json.dumps(primeira["candidatos"], ensure_ascii=False), "Reprocessado", did))
+        pipeline.atualizar_subtipo(did)
         msg = "Reprocessado. Continua precisando de você." if status == "revisao" else f"Reprocessado: {primeira['tipo']}, confiança {conf}%."
         return {"ok": True, "msg": msg}
     raise HTTPException(400, "Ação desconhecida")
