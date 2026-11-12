@@ -8,8 +8,13 @@ from .validador_xsd import validar_xsd
 
 def detectar_modelo(conteudo: bytes):
     raiz = abrir(conteudo)
-    nfes = [e for e in raiz.iter() if local(e.tag) == "infNFe"]
-    ctes = [e for e in raiz.iter() if local(e.tag) == "infCte"]
+    # CT-e pode conter <infNFe> como REFERÊNCIA em infDoc/infNFe.
+    # Só reconhecemos documentos principais quando infNFe é filho direto
+    # de <NFe> e infCte é filho direto de <CTe>.
+    nfes = [e for pai in raiz.iter() if local(pai.tag) == "NFe"
+            for e in pai if local(e.tag) == "infNFe"]
+    ctes = [e for pai in raiz.iter() if local(pai.tag) == "CTe"
+            for e in pai if local(e.tag) == "infCte"]
     if nfes and ctes:
         raise XMLFiscalErro("XML contém múltiplas famílias de documentos fiscais")
     if len(nfes) > 1 or len(ctes) > 1:
