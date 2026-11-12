@@ -166,3 +166,34 @@ def test_importacao_xml_e_api_lista_e_detalhes():
         assert detalhe.status_code == 200
         assert detalhe.json()["campos"]["valor_total"] == "20.00"
         assert detalhe.json()["itens"][0]["codigo"] == "P01"
+
+
+@pytest.mark.parametrize("modelo,nome,conteudo", [
+    ("65", "nfce_teste.xml", xml_nfe("65")),
+    ("57", "cte_teste.xml", xml_cte()),
+])
+def test_integracao_api_demais_modelos(modelo, nome, conteudo):
+    from app.main import app
+    from fastapi.testclient import TestClient
+    with TestClient(app) as c:
+        login = c.post("/api/login", json={"usuario": "operador", "senha": "operador123"})
+        assert login.status_code == 200
+        post = c.post("/api/ws/marazul/envios", files=[("arquivos", (nome, conteudo, "application/xml"))])
+        assert post.status_code == 200, post.text
+        envio = post.json()
+        assert envio["status"] == "concluido", envio
+        detalhe_envio = c.get(f"/api/envios/{envio['id']}").json()
+        assert any(d["modelo"] == modelo for d in detalhe_envio["fiscais"])
+        lista = c.get("/api/ws/marazul/documentos-fiscais", params={"modelo": modelo})
+        assert lista.status_code == 200
+        doc = next(d for d in lista.json() if d["envio_id"] == envio["id"])
+        item = c.get(f"/api/documentos-fiscais/{doc['id']}").json()
+        assert item["modelo"] == modelo
+        assert item["protocolo"]["codigo"] == "100"
+
+
+def test_xsd_nao_configurado_nao_simula_aprovacao(monkeypatch):
+    from app.validador_xsd import validar_xsd
+    monkeypatch.delenv("CONCILIA_XSD_DIR", raising=False)
+    resultado = validar_xsd(xml_nfe("55"), "55", "4.00")
+    assert resultado["xsd"] == "nao_executada"
