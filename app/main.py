@@ -834,6 +834,30 @@ class _CsvSeguro:
         self.wr.writerow(["'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v for v in linha])
 
 
+@app.get("/api/ws/{ws}/relatorios")
+def relatorios(ws: str, mes: str = ""):
+    """Números da tela Relatórios: notas conferidas no mês (pela data de emissão) e divergências por regra."""
+    _ws(ws)
+    contagem = {r["m"]: r["c"] for r in db.q("""SELECT substr(data_emissao,1,7) m, COUNT(*) c FROM notas
+                                                 WHERE ws=? AND data_emissao IS NOT NULL GROUP BY m""", (ws,)) if r["m"]}
+    meses = sorted(contagem, reverse=True)
+    if mes not in meses:
+        # Sem mês escolhido: o mês com mais notas (uma nota solta com data errada não vira o mês da tela).
+        mes = max(meses, key=lambda m: (contagem[m], m)) if meses else ""
+    por_status = {r["status"]: r["c"] for r in db.q(
+        "SELECT status, COUNT(*) c FROM notas WHERE ws=? AND substr(data_emissao,1,7)=? GROUP BY status", (ws, mes))}
+    por_regra = {r["regra"]: r["c"] for r in db.q(
+        """SELECT d.regra, COUNT(*) c FROM divergencias d JOIN notas n ON n.id=d.nota_id
+           WHERE d.ws=? AND substr(n.data_emissao,1,7)=? GROUP BY d.regra""", (ws, mes))}
+    return {"meses": meses, "mes": mes,
+            "notas": {"total": sum(por_status.values()),
+                      "sem_divergencia": por_status.get("conciliada", 0) + por_status.get("aprovada", 0),
+                      "com_divergencia": por_status.get("divergente", 0) + por_status.get("rejeitada", 0),
+                      "aguardando_contrato": por_status.get("pendente", 0)},
+            "regras": [{"regra": k, "titulo": t, "severidade": s, "total": por_regra.get(k, 0)}
+                       for k, (t, s) in conciliacao.REGRAS.items()]}
+
+
 @app.get("/api/ws/{ws}/relatorio.csv")
 def relatorio(ws: str, tipo: str = "divergencias"):
     w = _ws(ws)

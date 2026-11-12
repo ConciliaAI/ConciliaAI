@@ -42,8 +42,9 @@ Abre em http://localhost:5173.
 | Revisão humana | Uma fila só com as dúvidas da leitura e as divergências nota × contrato; páginas lado a lado, respostas com atalhos 1, 2 e 3 |
 | Documento | Página do documento, divergência com os valores, confiança da leitura e campos lidos; aprovar, rejeitar, baixar PDF e excluir |
 | Busca | Busca no texto de todos os documentos, com os dados protegidos mascarados |
+| Relatórios | Notas conferidas no mês (gráfico por situação), divergências por regra e as planilhas para baixar em CSV |
 
-Contratos, Relatórios, Configurações e Ajuda ainda abrem na versão atual, em http://127.0.0.1:8000. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px).
+Contratos, Configurações e Ajuda ainda abrem na versão atual, em http://127.0.0.1:8000. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px).
 
 O scanner é feito por outra pessoa do time: o botão "Escanear agora" já existe no dashboard (`frontend/src/components/BlocoScanner.jsx`, propriedade `aoEscanear`) e é ali que ele se liga.
 
