@@ -9,6 +9,7 @@ import EmMigracao from './pages/EmMigracao'
 import Enviar from './pages/Enviar'
 import Revisao from './pages/Revisao'
 import Documento from './pages/Documento'
+import Fiscais from './pages/Fiscais'
 import Login from './pages/Login'
 
 function rotaAtual() {
@@ -75,6 +76,8 @@ export default function App() {
   else if (rota.startsWith('documento-')) pagina = <Documento key={rota} id={+rota.split('-')[1]} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
   else if (rota === 'revisao') pagina = <Revisao ws={ws} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
   else if (rota === 'enviar') pagina = <Enviar ws={ws} aoMudar={atualizarContagens} />
+  else if (rota === 'fiscais') pagina = <Fiscais ws={ws} />
+  else if (rota.startsWith('fiscal-')) pagina = <Fiscais ws={ws} id={+rota.split('-')[1]} />
   else if (rota === 'busca') pagina = <Busca ws={ws} termo={busca} />
   else {
     const item = MENU.find((m) => m.id === rota)
