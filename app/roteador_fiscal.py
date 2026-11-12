@@ -3,6 +3,7 @@ from .fiscal_xml_comum import XMLFiscalErro, abrir, unico, filho, texto, local
 from .parser_nfe import ler_nfe
 from .parser_nfce import ler_nfce
 from .parser_cte import ler_cte
+from .validador_xsd import validar_xsd
 
 
 def detectar_modelo(conteudo: bytes):
@@ -22,12 +23,10 @@ def detectar_modelo(conteudo: bytes):
 
 def interpretar(conteudo: bytes):
     modelo = detectar_modelo(conteudo)
-    if modelo == "55":
-        return ler_nfe(conteudo)
-    if modelo == "65":
-        return ler_nfce(conteudo)
-    if modelo == "57":
-        return ler_cte(conteudo)
+    if modelo in ("55", "65", "57"):
+        resultado = {"55": ler_nfe, "65": ler_nfce, "57": ler_cte}[modelo](conteudo)
+        resultado["validacao"].update(validar_xsd(conteudo, modelo, resultado["versao"]))
+        return resultado
     if modelo == "nfse_ou_desconhecido":
         return None  # conserva exatamente o parser de NFS-e existente
     raise XMLFiscalErro(f"Modelo fiscal não suportado: {modelo}")
