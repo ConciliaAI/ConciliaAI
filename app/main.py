@@ -378,6 +378,8 @@ def decisao(request: Request, did: int, corpo: dict):
     u = auth.exigir(request, "revisor")
     ws = _doc(did)["ws"]
     resultado = _decidir(did, corpo)
+    if corpo.get("acao") == "corrigir_subtipo":
+        db.trilha(ws, u["nome"], f"corrigiu o subtipo do documento #{did} para {corpo.get('subtipo')}")
     if db.q("SELECT 1 FROM docs WHERE id=?", (did,)):
         db.x("UPDATE docs SET decidido_por=? WHERE id=?", (u["nome"], did))
     # Documento confirmado: lê os campos e refaz o cruzamento com as notas.
@@ -413,7 +415,6 @@ def _decidir(did: int, corpo: dict):
                subtipo_alternativas='[]', subtipo_revisao=0, subtipo_manual=1
                WHERE id=?""",
              (subtipo, json.dumps(["Subtipo corrigido por revisão humana"], ensure_ascii=False), did))
-        db.trilha(d["ws"], "revisor", f"corrigiu o subtipo do documento #{did}: {d.get('subtipo') or '-'} → {subtipo}")
         return {"ok": True, "msg": f"Subtipo registrado: {ROTULOS_SUBTIPOS[subtipo]}."}
     if acao == "confirmar":
         tipo = corpo.get("tipo") or d["tipo"]
