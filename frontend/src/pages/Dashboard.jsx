@@ -5,6 +5,8 @@ import CapturaDocumento from '../components/CapturaDocumento'
 import Icone from '../components/Icone'
 import { curto, DUVIDA, nomeDocumento, pasta } from '../documentos'
 
+const POR_VEZ = 100
+
 const SITUACAO = {
   confirmado: ['Pronto', 'bg-nevoa text-tinta'],
   revisao: ['Revisão', 'bg-ambar-fundo text-ambar-texto'],
@@ -75,6 +77,8 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
   const [scannerAberto, setScannerAberto] = useState(false)
   const [filtro, setFiltro] = useState('')
   const [tipoPasta, setTipoPasta] = useState(null)
+  // A conta pode ter até 100 mil documentos: a tabela desenha 100 por vez e rola por dentro.
+  const [quantos, setQuantos] = useState(POR_VEZ)
 
   const carregar = useCallback(async () => {
     try {
@@ -144,6 +148,7 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
 
   function abrirPasta(tipo) {
     setTipoPasta(tipo)
+    setQuantos(POR_VEZ)
     document.getElementById('lista-documentos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -210,7 +215,7 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-bold">{tipoPasta ? pasta(tipoPasta) : 'Todos os documentos'}</h2>
-              {tipoPasta && <button type="button" onClick={() => setTipoPasta(null)}
+              {tipoPasta && <button type="button" onClick={() => { setTipoPasta(null); setQuantos(POR_VEZ) }}
                                    className="rounded-full border border-confere px-3 py-1 text-xs font-bold text-confere hover:bg-nevoa">
                 Ver todos os documentos
               </button>}
@@ -218,7 +223,7 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
             </div>
             <label className="relative flex h-8 items-center gap-2 rounded-full bg-papel px-4 text-sm font-bold">
               <Icone nome="filtro" className="size-4" />{FILTROS.find((x) => x[0] === filtro)?.[1] || 'Filtrar'}
-              <select value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Filtrar documentos"
+              <select value={filtro} onChange={(e) => { setFiltro(e.target.value); setQuantos(POR_VEZ) }} aria-label="Filtrar documentos"
                       className="absolute inset-0 cursor-pointer opacity-0">
                 {FILTROS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
               </select>
@@ -227,19 +232,19 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
           {documentosVisiveis.length === 0 ? (
             <p className="py-6 text-sm text-apoio">{documentos.length === 0 ? "Os documentos aparecem aqui depois do primeiro envio." : "Nenhum documento corresponde a esta pasta e aos filtros selecionados."}</p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
+            <div className="mt-3 max-h-[19rem] overflow-auto overscroll-contain [scrollbar-width:thin]">
               {/* Colunas do Figma (664 de largura): documento 288, tipo 120, páginas 80, confiança 88, status 88. */}
               <table className="w-full min-w-[37.5rem] table-fixed text-[0.8125rem]">
                 <colgroup><col className="w-[40%]" /><col className="w-[16%]" /><col className="w-[11%]" /><col className="w-[12.5%]" /><col className="w-[13.5%]" />{podeExcluir && <col className="w-[7%]" />}</colgroup>
                 <thead>
-                  <tr className="h-9 text-left text-[0.6875rem] tracking-[0.04em] whitespace-nowrap text-suave uppercase">
+                  <tr className="sticky top-0 z-10 h-9 bg-white text-left text-[0.6875rem] tracking-[0.04em] whitespace-nowrap text-suave uppercase">
                     <th className="pr-4 font-bold">Documento</th><th className="pr-4 font-bold">Tipo</th>
                     <th className="pr-4 font-bold">Páginas</th><th className="pr-4 font-bold">Confiança</th><th className="font-bold">Status</th>
                     {podeExcluir && <th><span className="sr-only">Ações</span></th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {documentosVisiveis.map((d) => {
+                  {documentosVisiveis.slice(0, quantos).map((d) => {
                     const [rotulo, cor] = SITUACAO[d.status] || [d.status, 'bg-papel text-apoio']
                     return (
                       <tr key={d.id} className={`h-12 border-t border-borda ${d.status === 'revisao' ? 'bg-nevoa/60' : ''}`}>
@@ -270,6 +275,12 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
                   })}
                 </tbody>
               </table>
+              {documentosVisiveis.length > quantos && (
+                <button type="button" onClick={() => setQuantos((q) => q + POR_VEZ)}
+                        className="my-2 w-full rounded-xl border border-borda py-2 text-sm font-bold text-tinta hover:bg-nevoa">
+                  Mostrar mais {Math.min(POR_VEZ, documentosVisiveis.length - quantos)} de {documentosVisiveis.length - quantos} restantes
+                </button>
+              )}
             </div>
           )}
         </section>
