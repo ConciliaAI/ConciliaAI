@@ -11,9 +11,20 @@ dist/
 # Gerador de dados: arquivos de demonstração locais
 data/
 
-.env
-*.db
-__pycache__/
-.pytest_cache/
-node_modules/
-dist/
+# Plataforma (app/ + web/)
+.venv/
+dados/
+dados-*/
+exemplos/
+rascunhos/
+.claude/
+concilia-ai-marca/
+
+# Casos de teste gerados por ferramentas/gerar_casos_teste.py
+casos-de-teste/
+
+# Programas externos baixados (ex.: cloudflared)
+.externos/
+
+# Apresentação do hackathon (vídeos e pitch): só local, fora do GitHub
+apresentacao/

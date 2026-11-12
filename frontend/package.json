@@ -1,10 +1,25 @@
 {
-  "name": "concilia-ai-frontend",
+  "name": "frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.0",
   "type": "module",
-  "scripts": {"dev": "vite", "build": "vite build", "preview": "vite preview"},
-  "dependencies": {"@vitejs/plugin-react": "^4.4.1", "vite": "^6.3.2", "react": "^19.0.0", "react-dom": "^19.0.0", "tailwindcss": "^3.4.17"},
-  "overrides": {"electron-to-chromium": "1.5.467"},
-  "devDependencies": {"autoprefixer": "^10.4.21", "postcss": "^8.5.3"}
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.90.0",
+    "vite": "^8.3.6"
+  }
 }

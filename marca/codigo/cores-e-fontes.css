@@ -1,0 +1,39 @@
+/* Concilia AI · cores e fontes
+   No <head>: <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter:wght@400;500;600&display=swap"> */
+
+:root {
+  /* Paleta */
+  --azul-noite: #0F1E3D;    /* fundos escuros, títulos, logo */
+  --azul-confere: #2F6BFF;  /* símbolo, botões, status conciliado */
+  --azul-tinta: #1D47B8;    /* texto azul no fundo claro, links */
+  --ambar: #F5B700;         /* divergências, alertas, destaques */
+  --nevoa: #E9EFFD;         /* fundos de seções e cards */
+  --papel: #F7F8FA;         /* fundo principal */
+
+  /* Apoio */
+  --texto-apoio: #44506A;
+  --borda: #E1E5EE;
+  --ambar-fundo: #FFF4D1;
+  --ambar-texto: #7A5A00;
+
+  /* Status */
+  --status-conciliado: var(--azul-confere);
+  --status-divergencia: var(--ambar);
+  --status-revisao: var(--azul-noite);
+
+  /* Tipografia */
+  --fonte-titulo: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fonte: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; /* texto */
+  --peso-texto: 400;
+  --peso-subtitulo: 700;
+  --peso-titulo: 800;
+  --espacamento-titulo: -0.035em;
+}
+
+body {
+  background: var(--papel);
+  color: var(--azul-noite);
+  font-family: var(--fonte);
+  font-weight: var(--peso-texto);
+}
+h1, h2, h3 { font-family: var(--fonte-titulo); font-weight: var(--peso-titulo); letter-spacing: var(--espacamento-titulo); }
