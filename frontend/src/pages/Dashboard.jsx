@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import BlocoScanner from '../components/BlocoScanner'
+import CapturaDocumento from '../components/CapturaDocumento'
 import Icone from '../components/Icone'
 import { curto, DUVIDA, nomeDocumento, pasta } from '../documentos'
 
@@ -70,6 +71,7 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [scannerAberto, setScannerAberto] = useState(false)
   const [filtro, setFiltro] = useState('')
 
   const carregar = useCallback(async () => {
@@ -158,13 +160,20 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
 
       <div className="mt-5" />
       <BlocoScanner enviando={enviando} aoEnviarArquivos={enviarArquivos}
-                    aoEscanear={() => setAviso('O scanner está em desenvolvimento. Por enquanto, use “Enviar arquivo” com a foto ou o PDF da nota.')} />
+                    aoEscanear={() => setScannerAberto(true)} />
       {aviso && (
         <p className="mt-3 flex items-start justify-between gap-4 rounded-xl bg-nevoa px-4 py-3 text-sm text-tinta" role="status">
           {aviso}
           <button onClick={() => setAviso('')} aria-label="Fechar aviso"><Icone nome="fechar" className="size-4" /></button>
         </p>
       )}
+
+      <CapturaDocumento
+        aberto={scannerAberto}
+        aoFechar={() => setScannerAberto(false)}
+        aoCapturar={(arquivo) => enviarArquivos([arquivo])}
+        enviando={enviando}
+      />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Indicador destaque titulo="Páginas lidas" valor={visao.paginas} detalhe={`${visao.documentos} documentos separados`} href="#documentos" />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
+import CapturaDocumento from '../components/CapturaDocumento'
 import Icone from '../components/Icone'
 
 // Envio ainda em andamento (a tela se atualiza sozinha enquanto houver um).
@@ -139,6 +140,7 @@ export default function Enviar({ ws, aoMudar }) {
   const [detalhe, setDetalhe] = useState(null)
   const [arrastando, setArrastando] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const [capturaAberta, setCapturaAberta] = useState(false)
   const [aviso, setAviso] = useState(null) // { texto, erro }
   const [restante, setRestante] = useState(null) // segundos até terminar
   const entrada = useRef(null)
@@ -217,13 +219,32 @@ export default function Enviar({ ws, aoMudar }) {
           <span className="grid size-[4.5rem] place-items-center rounded-full bg-nevoa text-confere"><Icone nome="enviar" className="size-6" /></span>
           <span className="mt-4 font-titulo text-[1.375rem] font-bold">{enviando ? 'Enviando…' : arrastando ? 'Pode soltar' : 'Arraste o lote para cá'}</span>
           <span className="mt-1 text-sm text-apoio">Do jeito que saiu do scanner: misturado, fora de ordem e num arquivo só.</span>
-          <span className="mt-5 grid h-[2.875rem] w-[11.25rem] place-items-center rounded-full bg-confere text-sm font-bold text-white">Escolher arquivos</span>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCapturaAberta(true) }}
+              className="flex h-[2.875rem] items-center gap-2 rounded-full bg-noite px-5 text-sm font-bold text-white transition hover:bg-black active:scale-95 shadow-sm"
+            >
+              <Icone nome="camera" className="size-4" />
+              Tirar foto do documento
+            </button>
+            <span className="grid h-[2.875rem] w-[11.25rem] place-items-center rounded-full bg-confere text-sm font-bold text-white transition hover:bg-[#2559e0]">
+              Escolher arquivos
+            </span>
+          </div>
           <span className="mt-4 flex flex-wrap justify-center gap-2">
             {FORMATOS.map((f) => <span key={f} className="rounded-full border border-borda px-3 py-1 text-xs text-apoio">{f}</span>)}
           </span>
           <input ref={entrada} type="file" multiple accept={ACEITOS} className="sr-only" disabled={enviando}
                  onChange={(e) => { enviar(e.target.files); e.target.value = '' }} />
         </label>
+
+        <CapturaDocumento
+          aberto={capturaAberta}
+          aoFechar={() => setCapturaAberta(false)}
+          aoCapturar={(arquivo) => enviar([arquivo])}
+          enviando={enviando}
+        />
 
         <aside className="rounded-2xl bg-noite p-6 text-white">
           <h2 className="text-lg font-bold">Como o lote é lido</h2>
