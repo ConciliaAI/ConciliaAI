@@ -24,6 +24,7 @@ from . import (
     seed,
 )
 from .fiscal import brl, fmt_cnpj, fmt_data
+from .integrations.admin import router as integracoes_router
 
 trabalhador = pipeline.Trabalhador()
 MAX_MB = config.MAX_MB  # por arquivo (CONCILIA_MAX_MB no .env); lotes digitalizados costumam ter dezenas de MB
@@ -41,6 +42,7 @@ async def vida(app):
 
 
 app = FastAPI(title="Concilia AI", lifespan=vida)
+app.include_router(integracoes_router)
 
 
 @app.middleware("http")
