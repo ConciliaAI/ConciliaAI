@@ -6,7 +6,8 @@ que a própria API informa em cada resposta (usage). O custo sai desses tokens x
 Precisa de ANTHROPIC_API_KEY no .env. Cada página é uma chamada paga (centavos).
 
 Uso:
-  .venv\\Scripts\\python.exe ferramentas\\medir_custo_ia.py [arquivo] [--paginas 10] [--modelos opus,sonnet,haiku] [--dolar 5.40]
+  Linux:   .venv/bin/python ferramentas/medir_custo_ia.py [arquivo] [--paginas 10] [--modelos opus,sonnet,haiku] [--dolar 5.40]
+  Windows: .venv\Scripts\python.exe ferramentas\medir_custo_ia.py [arquivo] [--paginas 10] [--modelos opus,sonnet,haiku] [--dolar 5.40]
 
 Padrão: as 10 primeiras páginas do lote digitalizado de casos-de-teste, só no modelo do sistema (Opus 5.5).
 """
@@ -45,7 +46,7 @@ def main():
         sys.exit("Sem ANTHROPIC_API_KEY. Coloque a chave no arquivo .env e rode de novo.")
     arquivo = a.arquivo or next(iter(sorted((config.BASE / "casos-de-teste").glob("01-*.tif"))), None)
     if not arquivo:
-        sys.exit("Informe um arquivo ou gere os casos: .venv\\Scripts\\python.exe ferramentas\\gerar_casos_teste.py")
+        sys.exit("Informe um arquivo ou gere os casos: python ferramentas/gerar_casos_teste.py")
     tipos = [{"nome": n, "titulos": t, "palavras": p} for n, (t, p) in seed.TIPOS.items()]
 
     # 1) OCR local das páginas (grátis), uma vez só.

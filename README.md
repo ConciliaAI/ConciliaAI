@@ -10,9 +10,12 @@ A Concilia AI recebe lotes grandes de documentos digitalizados e misturados, des
 
 Grandes empresas contratam dezenas de micro e pequenas empresas. Cada uma manda contratos, aditivos e notas fiscais, muitas vezes digitalizados, fora de ordem e num arquivo só. Alguém precisa separar, ler e conferir se o que foi cobrado bate com o que foi contratado. Desde 01/11/2026 (Resolução CGSN nº 191/2026, premissa da proposta), MEI e empresas do Simples emitem NFS-e só pelo Emissor Nacional: o XML padronizado facilita a conferência automática.
 
-## Como abrir (Windows)
+## Como abrir
 
-Dê dois cliques em **`iniciar.bat`**. Na primeira vez ele instala tudo (precisa de internet e Python 3.11+). O navegador abre em http://127.0.0.1:8000.
+- **Linux:** Execute `./iniciar.sh` no terminal (veja o [Protocolo detalhado para Linux](docs/PROTOCOLO_LINUX.md)).
+- **Windows:** Dê dois cliques em **`iniciar.bat`**.
+
+Na primeira vez ele instala tudo automaticamente (precisa de internet e Python 3.11+). O navegador abre em http://127.0.0.1:8000.
 
 | Usuário | Senha | Pode |
 |---|---|---|
@@ -115,7 +118,9 @@ web/index.html      as telas
 tests/              28 testes automáticos
 ```
 
-Testes: `.venv\Scripts\python.exe -m pytest tests -q`
+Testes:
+- **Linux:** `.venv/bin/pytest tests -q`
+- **Windows:** `.venv\Scripts\python.exe -m pytest tests -q`
 
 ## Limites (o que este MVP ainda não é)
 
