@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import EmMigracao from './pages/EmMigracao'
 import Enviar from './pages/Enviar'
 import Revisao from './pages/Revisao'
+import Documento from './pages/Documento'
 import Login from './pages/Login'
 
 function rotaAtual() {
@@ -71,6 +72,7 @@ export default function App() {
 
   let pagina
   if (rota === 'documentos') pagina = <Dashboard ws={ws} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
+  else if (rota.startsWith('documento-')) pagina = <Documento key={rota} id={+rota.split('-')[1]} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
   else if (rota === 'revisao') pagina = <Revisao ws={ws} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
   else if (rota === 'enviar') pagina = <Enviar ws={ws} aoMudar={atualizarContagens} />
   else if (rota === 'busca') pagina = <Busca ws={ws} termo={busca} />
