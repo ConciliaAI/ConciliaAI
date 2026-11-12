@@ -1,7 +1,7 @@
 
 # Concilia AI
 
-**Plataforma de inteligência documental e conciliação contratual**  
+**Plataforma de inteligência documental e conciliação contrato**  
 **Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory**
 
 > **Estado do projeto: Fase 3 (MVP em desenvolvimento).** A aplicação já oferece autenticação, lotes, upload de PDFs e imagens, processamento assíncrono por página e extração de texto com OCR. A segmentação automática, a classificação documental e a conciliação contratual ainda não estão implementadas.
