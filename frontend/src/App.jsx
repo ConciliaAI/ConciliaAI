@@ -4,6 +4,7 @@ import BarraTopo from './components/BarraTopo'
 import MenuLateral from './components/MenuLateral'
 import { MENU } from './menu'
 import Busca from './pages/Busca'
+import Dashboard from './pages/Dashboard'
 import EmMigracao from './pages/EmMigracao'
 import Login from './pages/Login'
 
@@ -67,7 +68,8 @@ export default function App() {
   if (!estado.usuario) return <Login aoEntrar={carregar} />
 
   let pagina
-  if (rota === 'busca') pagina = <Busca ws={ws} termo={busca} />
+  if (rota === 'documentos') pagina = <Dashboard ws={ws} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
+  else if (rota === 'busca') pagina = <Busca ws={ws} termo={busca} />
   else {
     const item = MENU.find((m) => m.id === rota)
     pagina = <EmMigracao titulo={item?.rotulo || (rota === 'config' ? 'Configurações' : 'Ajuda')} />
