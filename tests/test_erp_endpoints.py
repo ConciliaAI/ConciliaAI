@@ -53,7 +53,7 @@ def test_recebimento_e_consulta_de_envio(client):
         headers=headers,
         files={"arquivos": ("teste.pdf", b"nao e um pdf valido", "application/pdf")},
     )
-    assert recebido.status_code == 202, recebido.text
+    assert recebido.status_code == 422, recebido.text
     envio_id = recebido.json()["envio_id"]
 
     lista = client.get("/api/erp/v1/documents", headers=headers)
@@ -80,7 +80,7 @@ def test_integracao_nao_acessa_envio_de_outro_workspace(client):
         headers=headers_horizonte,
         files={"arquivos": ("teste.pdf", b"conteudo", "application/pdf")},
     )
-    assert recebido.status_code == 202, recebido.text
+    assert recebido.status_code == 422, recebido.text
     envio_id = recebido.json()["envio_id"]
 
     token_marazul = _integracao(client, workspace="marazul")
@@ -117,7 +117,7 @@ def test_listagem_e_detalhe_nao_expoem_erro_interno(client, status, codigo_esper
         headers=headers,
         files={"arquivos": ("teste.pdf", b"conteudo de teste", "application/pdf")},
     )
-    assert recebido.status_code == 202, recebido.text
+    assert recebido.status_code == 422, recebido.text
     envio_id = recebido.json()["envio_id"]
 
     detalhe_interno = (
@@ -145,3 +145,91 @@ def test_listagem_e_detalhe_nao_expoem_erro_interno(client, status, codigo_esper
         assert payload["erro_mensagem"]
         assert detalhe_interno not in str(payload)
         assert "/srv/conciliaai/private/" not in str(payload)
+
+
+@pytest.mark.parametrize(
+    ("resultado_pipeline", "status_http", "codigo_resultado"),
+    [
+        (
+            {
+                "status": "fila",
+                "documentos_aceitos": 1,
+                "documentos_xml": 0,
+                "arquivos_com_paginas": 1,
+                "paginas_enfileiradas": 2,
+                "arquivos_duplicados": 0,
+                "somente_duplicados": False,
+            },
+            202,
+            "ACCEPTED_FOR_PROCESSING",
+        ),
+        (
+            {
+                "status": "concluido",
+                "documentos_aceitos": 1,
+                "documentos_xml": 1,
+                "arquivos_com_paginas": 0,
+                "paginas_enfileiradas": 0,
+                "arquivos_duplicados": 0,
+                "somente_duplicados": False,
+            },
+            200,
+            "PROCESSED",
+        ),
+        (
+            {
+                "status": "recusado",
+                "documentos_aceitos": 0,
+                "documentos_xml": 0,
+                "arquivos_com_paginas": 0,
+                "paginas_enfileiradas": 0,
+                "arquivos_duplicados": 1,
+                "somente_duplicados": True,
+            },
+            409,
+            "DUPLICATE_DOCUMENT",
+        ),
+        (
+            {
+                "status": "recusado",
+                "documentos_aceitos": 0,
+                "documentos_xml": 0,
+                "arquivos_com_paginas": 0,
+                "paginas_enfileiradas": 0,
+                "arquivos_duplicados": 0,
+                "somente_duplicados": False,
+            },
+            422,
+            "NO_ACCEPTED_DOCUMENTS",
+        ),
+    ],
+)
+def test_recebimento_retorna_status_real_do_pipeline(
+    client, monkeypatch, resultado_pipeline, status_http, codigo_resultado
+):
+    token = _integracao(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    envio_id = db.x(
+        """INSERT INTO envios(ws, nome, origem, criado_em, status)
+           VALUES(?,?,?,?,?)""",
+        ("horizonte", "teste.pdf", "ERP: ERP endpoints", db.agora(),
+         resultado_pipeline["status"]),
+    )
+
+    resultado = {"envio_id": envio_id, **resultado_pipeline}
+
+    def pipeline_simulado(*args, **kwargs):
+        assert kwargs.get("retornar_detalhes") is True
+        return resultado
+
+    monkeypatch.setattr("app.integrations.erp.pipeline.criar_envio", pipeline_simulado)
+
+    response = client.post(
+        "/api/erp/v1/documents",
+        headers=headers,
+        files={"arquivos": ("teste.pdf", b"conteudo", "application/pdf")},
+    )
+
+    assert response.status_code == status_http, response.text
+    assert response.json()["resultado"] == codigo_resultado
+    assert response.json()["envio_id"] == envio_id
