@@ -32,19 +32,31 @@ def x(sql, args=()):
 
 
 def transacao(operacao):
-    """Executa várias instruções como uma única unidade atômica.
+    """Executa uma unidade atômica, inclusive quando chamada dentro de outra transação.
 
-    A função recebida recebe a conexão ativa. Se qualquer instrução falhar,
-    todas as alterações da operação são revertidas.
+    No nível externo usa BEGIN IMMEDIATE. Em chamadas aninhadas usa SAVEPOINT,
+    preservando a transação do chamador e revertendo apenas a operação interna.
     """
     with _lock:
+        aninhada = _con.in_transaction
+        ponto = "db_transacao_aninhada"
         try:
-            _con.execute("BEGIN IMMEDIATE")
+            if aninhada:
+                _con.execute(f"SAVEPOINT {ponto}")
+            else:
+                _con.execute("BEGIN IMMEDIATE")
             resultado = operacao(_con)
-            _con.commit()
+            if aninhada:
+                _con.execute(f"RELEASE SAVEPOINT {ponto}")
+            else:
+                _con.commit()
             return resultado
-        except Exception:
-            _con.rollback()
+        except BaseException:
+            if aninhada:
+                _con.execute(f"ROLLBACK TO SAVEPOINT {ponto}")
+                _con.execute(f"RELEASE SAVEPOINT {ponto}")
+            else:
+                _con.rollback()
             raise
 
 
