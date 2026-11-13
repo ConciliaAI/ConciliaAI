@@ -403,3 +403,71 @@ def test_schema_idempotente_e_aditivo(client):
     integracoes_depois = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
     assert tabelas == [{"name": "integracao_requisicoes"}]
     assert integracoes_depois == integracoes_antes
+
+
+
+def test_admin_pode_liberar_reserva_indeterminada_sem_envio(client):
+    token = _integracao(client)
+    integracao = db.q(
+        "SELECT id FROM integracoes WHERE token_hash=?",
+        (hash_token(token),),
+        um=True,
+    )
+    chave = "recuperacao-segura-01"
+    db.x(
+        """INSERT INTO integracao_requisicoes
+           (integracao_id, chave, fingerprint, status, criada_em, atualizada_em)
+           VALUES(?,?,?,'indeterminado',?,?)""",
+        (integracao["id"], chave, "fingerprint", db.agora(), db.agora()),
+    )
+
+    pendentes = client.get(f"/api/integracoes/{integracao['id']}/requisicoes")
+    assert pendentes.status_code == 200
+    assert any(item["chave"] == chave for item in pendentes.json())
+
+    liberada = client.post(
+        f"/api/integracoes/{integracao['id']}/requisicoes/{chave}/desbloquear"
+    )
+    assert liberada.status_code == 200, liberada.text
+    assert db.q(
+        "SELECT id FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
+        (integracao["id"], chave),
+        um=True,
+    ) is None
+    evento = db.q(
+        """SELECT acao FROM integracao_eventos
+           WHERE integracao_id=? ORDER BY id DESC LIMIT 1""",
+        (integracao["id"],),
+        um=True,
+    )
+    assert evento["acao"] == "idempotencia_desbloqueada_sem_envio"
+
+
+def test_admin_nao_pode_liberar_reserva_com_envio_associado(client):
+    token = _integracao(client)
+    integracao = db.q(
+        "SELECT id FROM integracoes WHERE token_hash=?",
+        (hash_token(token),),
+        um=True,
+    )
+    envio_id = db.x(
+        """INSERT INTO envios(ws, nome, origem, criado_em, status)
+           VALUES(?,?,?,?,?)""",
+        ("horizonte", "recuperacao.pdf", "ERP: ERP endpoints", db.agora(), "fila"),
+    )
+    chave = "recuperacao-com-envio-02"
+    db.x(
+        """INSERT INTO integracao_requisicoes
+           (integracao_id, chave, fingerprint, status, envio_id, criada_em, atualizada_em)
+           VALUES(?,?,?,'indeterminado',?,?,?)""",
+        (integracao["id"], chave, "fingerprint", envio_id, db.agora(), db.agora()),
+    )
+    response = client.post(
+        f"/api/integracoes/{integracao['id']}/requisicoes/{chave}/desbloquear"
+    )
+    assert response.status_code == 409
+    assert db.q(
+        "SELECT envio_id FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
+        (integracao["id"], chave),
+        um=True,
+    ) == {"envio_id": envio_id}
