@@ -6,6 +6,7 @@ exigir_integracao(<escopo>) e obtém o workspace exclusivamente da credencial.
 import hashlib
 import json
 import re
+from uuid import uuid4
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
@@ -130,6 +131,7 @@ async def receber_documentos(
         digest.update(conteudo)
     fingerprint = digest.hexdigest()
     agora = db.agora()
+    tentativa_id = uuid4().hex  # identidade imutável desta execução, mesmo após desbloqueio
 
     # BEGIN IMMEDIATE serializa reservas concorrentes antes de qualquer efeito no pipeline.
     def reservar(conn):
@@ -142,9 +144,9 @@ async def receber_documentos(
             return dict(existente), False
         conn.execute(
             """INSERT INTO integracao_requisicoes
-               (integracao_id, chave, fingerprint, status, criada_em, atualizada_em)
-               VALUES(?,?,?,'processando',?,?)""",
-            (integracao["id"], idempotency_key, fingerprint, agora, agora),
+               (integracao_id, chave, fingerprint, tentativa_id, status, criada_em, atualizada_em)
+               VALUES(?,?,?,?,'processando',?,?)""",
+            (integracao["id"], idempotency_key, fingerprint, tentativa_id, agora, agora),
         )
         conn.execute(
             """INSERT INTO integracao_eventos
@@ -178,8 +180,8 @@ async def receber_documentos(
     def vincular_envio(conn, envio_id):
         cur = conn.execute(
             """UPDATE integracao_requisicoes SET envio_id=?, atualizada_em=?
-               WHERE integracao_id=? AND chave=? AND status='processando'""",
-            (envio_id, db.agora(), integracao["id"], idempotency_key),
+               WHERE integracao_id=? AND chave=? AND tentativa_id=? AND status='processando'""",
+            (envio_id, db.agora(), integracao["id"], idempotency_key, tentativa_id),
         )
         if cur.rowcount != 1:
             raise RuntimeError("A reserva idempotente não pôde ser vinculada ao envio.")
@@ -233,9 +235,9 @@ async def receber_documentos(
                 """UPDATE integracao_requisicoes
                    SET status='concluido', envio_id=?, resposta_status=?,
                        resposta_json=?, atualizada_em=?
-                   WHERE integracao_id=? AND chave=? AND status='processando'""",
+                   WHERE integracao_id=? AND chave=? AND tentativa_id=? AND status='processando'""",
                 (envio_id, codigo_http, resposta_json, finalizado,
-                 integracao["id"], idempotency_key),
+                 integracao["id"], idempotency_key, tentativa_id),
             )
             if conn.execute("SELECT changes()").fetchone()[0] != 1:
                 raise RuntimeError("Não foi possível finalizar a reserva idempotente.")
@@ -253,12 +255,21 @@ async def receber_documentos(
         # Inclui cancelamento da tarefa: a chave continua bloqueada e rastreável.
         # Não liberar a chave: o pipeline pode ter persistido dados antes da falha.
         try:
-            db.x(
-                """UPDATE integracao_requisicoes SET status='indeterminado', atualizada_em=?
-                   WHERE integracao_id=? AND chave=? AND status='processando'""",
-                (db.agora(), integracao["id"], idempotency_key),
-            )
-            _auditar(integracao, request, "recebimento_indeterminado", 500)
+            def registrar_falha(conn):
+                cur = conn.execute(
+                    """UPDATE integracao_requisicoes SET status='indeterminado', atualizada_em=?
+                       WHERE integracao_id=? AND chave=? AND tentativa_id=? AND status='processando'""",
+                    (db.agora(), integracao["id"], idempotency_key, tentativa_id),
+                )
+                if cur.rowcount:
+                    conn.execute(
+                        """INSERT INTO integracao_eventos
+                           (integracao_id, ws, acao, endpoint, status, quando)
+                           VALUES(?,?,?,?,?,?)""",
+                        (integracao["id"], integracao["ws"], "recebimento_indeterminado",
+                         request.url.path, 500, db.agora()),
+                    )
+            db.transacao(registrar_falha)
         except Exception:
             pass
         raise

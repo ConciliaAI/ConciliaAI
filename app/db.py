@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS integracao_requisicoes(
   integracao_id INTEGER NOT NULL,
   chave TEXT NOT NULL,
   fingerprint TEXT NOT NULL,
+  tentativa_id TEXT,
   status TEXT NOT NULL DEFAULT 'processando'
     CHECK(status IN ('processando','indeterminado','concluido')),
   envio_id INTEGER,
@@ -205,7 +206,8 @@ with _lock:
                            ("docs", "subtipo_manual INTEGER DEFAULT 0"),
                            ("integracao_eventos", "ator_usuario TEXT"),
                            ("integracao_eventos", "ator_nome TEXT"),
-                           ("integracao_eventos", "ator_perfil TEXT")):
+                           ("integracao_eventos", "ator_perfil TEXT"),
+                           ("integracao_requisicoes", "tentativa_id TEXT")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:

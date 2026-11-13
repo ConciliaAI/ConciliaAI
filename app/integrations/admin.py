@@ -177,7 +177,7 @@ def listar_requisicoes(request: Request, integracao_id: int):
 def desbloquear_requisicao(
     request: Request, integracao_id: int, chave: str, corpo: dict | None = None
 ):
-    """Libera reserva sem envio; estado processando exige confirmação humana do encerramento do worker."""
+    """Libera apenas reserva indeterminada sem envio; nunca a execução ativa."""
     administrador = _administrador(request)
     integracao = db.q(
         "SELECT id, ws FROM integracoes WHERE id=?",
@@ -202,15 +202,11 @@ def desbloquear_requisicao(
             )
         if reserva["status"] == "indeterminado":
             acao = "idempotencia_desbloqueada_sem_envio"
-        elif (
-            reserva["status"] == "processando"
-            and (corpo or {}).get("confirmar_processamento_encerrado") is True
-        ):
-            acao = "idempotencia_desbloqueada_apos_confirmacao_operacional"
         else:
             raise HTTPException(
                 409,
-                "Para liberar uma reserva em processamento, confirme que a execução correspondente foi encerrada e que nenhum envio foi criado.",
+                "Reserva em processamento não pode ser desbloqueada por esta API. "
+                "Finalize ou interrompa o worker, investigue a operação e faça a reconciliação administrativa.",
             )
         conn.execute(
             "DELETE FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",

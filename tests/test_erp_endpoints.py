@@ -474,7 +474,7 @@ def test_admin_nao_pode_liberar_reserva_com_envio_associado(client):
 
 
 
-def test_admin_so_libera_processando_com_confirmacao_explicita(client):
+def test_admin_nao_libera_processando_mesmo_com_confirmacao(client):
     token = _integracao(client)
     integracao = db.q(
         "SELECT id FROM integracoes WHERE token_hash=?",
@@ -498,12 +498,12 @@ def test_admin_so_libera_processando_com_confirmacao_explicita(client):
         f"/api/integracoes/{integracao['id']}/requisicoes/{chave}/desbloquear",
         json={"confirmar_processamento_encerrado": True},
     )
-    assert confirmada.status_code == 200, confirmada.text
+    assert confirmada.status_code == 409, confirmada.text
     assert db.q(
         "SELECT id FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
         (integracao["id"], chave),
         um=True,
-    ) is None
+    ) is not None
 
 
 
