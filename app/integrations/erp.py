@@ -38,6 +38,9 @@ def _sanitizar_envio(envio: dict) -> dict:
     """Remove detalhes internos de erro antes de expor um envio à integração ERP."""
     resposta = dict(envio)
     erro_interno = resposta.pop("erro", None)
+    # Nomes de arquivos e origens são texto livre: podem conter CPF, dados pessoais ou caminhos.
+    resposta.pop("nome", None)
+    resposta.pop("origem", None)
 
     resposta["erro_codigo"] = None
     resposta["erro_mensagem"] = None
@@ -284,7 +287,7 @@ def listar_envios(
 ):
     """Lista envios do workspace da credencial, com paginação."""
     envios = db.q(
-        """SELECT id, nome, origem, criado_em, status, total, feitas, erro,
+        """SELECT id, criado_em, status, total, feitas, erro,
                   retomadas, motor, terminado_em, notas_xml
            FROM envios WHERE ws=? ORDER BY id DESC LIMIT ? OFFSET ?""",
         (integracao["ws"], limit, offset),
@@ -336,20 +339,20 @@ def consultar_resultados(
     _envio_do_workspace(envio_id, integracao["ws"])
 
     documentos = db.q(
-        """SELECT id, tipo, conf, pag_ini, pag_fim, empresa, status, criado_em,
+        """SELECT id, tipo, conf, pag_ini, pag_fim, status, criado_em,
                   subtipo, subtipo_revisao
            FROM docs WHERE envio_id=? AND ws=? ORDER BY id""",
         (envio_id, integracao["ws"]),
     )
     notas_nfse = db.q(
-        """SELECT id, numero, data_emissao, competencia, nome_prestador,
-                  descricao, valor, valor_liquido, status, origem
+        """SELECT id, numero, data_emissao, competencia,
+                  valor, valor_liquido, status, origem
            FROM notas WHERE envio_id=? AND ws=? ORDER BY id""",
         (envio_id, integracao["ws"]),
     )
     documentos_fiscais = db.q(
-        """SELECT id, nome_arquivo, modelo, tipo, versao, numero, chave,
-                  emissao, emissor, destinatario, criado_em
+        """SELECT id, modelo, tipo, versao, numero, chave,
+                  emissao, criado_em
            FROM documentos_fiscais WHERE envio_id=? AND ws=? ORDER BY id""",
         (envio_id, integracao["ws"]),
     )

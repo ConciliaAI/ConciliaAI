@@ -553,3 +553,179 @@ def test_falha_no_pipeline_bloqueia_reenvio_e_permite_reconciliacao(monkeypatch)
             f"/api/integracoes/{integracao['id']}/requisicoes/{headers['Idempotency-Key']}/desbloquear"
         )
         assert liberada.status_code == 200, liberada.text
+
+
+def test_erp_respostas_nao_expõem_metadados_de_texto_livre(client):
+    """Nomes de arquivos, empresa e descrição podem conter CPF e não são retornados."""
+    token = _integracao(client)
+    headers = _headers(token)
+    envio_id = db.x(
+        """INSERT INTO envios(ws, nome, origem, criado_em, status)
+           VALUES(?,?,?,?,?)""",
+        ("horizonte", "CPF 123.456.789-09.pdf", "origem com 12345678909", db.agora(), "fila"),
+    )
+    lista = client.get("/api/erp/v1/documents", headers=headers)
+    item = next(item for item in lista.json()["items"] if item["id"] == envio_id)
+    detalhe = client.get(f"/api/erp/v1/documents/{envio_id}", headers=headers)
+    resultados = client.get(f"/api/erp/v1/documents/{envio_id}/results", headers=headers)
+    assert lista.status_code == detalhe.status_code == resultados.status_code == 200
+    for resposta in (item, detalhe.json(), resultados.json()):
+        assert "12345678909" not in str(resposta)
+        assert "123.456.789-09" not in str(resposta)
+    assert "nome" not in item and "origem" not in item
+    assert "nome" not in detalhe.json() and "origem" not in detalhe.json()
+
+
+def test_duas_requisicoes_simultaneas_mesma_chave_executam_uma_vez(client, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    token = _integracao(client, permissoes=["documents:write"])
+    headers = _headers(token)
+    iniciado, liberar = Event(), Event()
+    chamadas = []
+    envio_id = db.x(
+        "INSERT INTO envios(ws, nome, origem, criado_em, status) VALUES(?,?,?,?,?)",
+        ("horizonte", "paralelo.pdf", "ERP", db.agora(), "fila"),
+    )
+
+    def pipeline_lento(*args, **kwargs):
+        chamadas.append(1)
+        iniciado.set()
+        assert liberar.wait(10), "pipeline bloqueado além do prazo do teste"
+        return {
+            "envio_id": envio_id, "status": "fila", "documentos_aceitos": 1,
+            "documentos_xml": 0, "arquivos_com_paginas": 1,
+            "paginas_enfileiradas": 1, "arquivos_duplicados": 0,
+            "somente_duplicados": False,
+        }
+
+    monkeypatch.setattr("app.integrations.erp.pipeline.criar_envio", pipeline_lento)
+    files = {"arquivos": ("paralelo.pdf", b"conteudo paralelo", "application/pdf")}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        primeira = executor.submit(
+            client.post, "/api/erp/v1/documents", headers=headers, files=files
+        )
+        try:
+            assert iniciado.wait(10), "primeira requisição não começou"
+            segunda = executor.submit(
+                client.post, "/api/erp/v1/documents", headers=headers, files=files
+            ).result(timeout=10)
+            assert segunda.status_code == 409, segunda.text
+        finally:
+            liberar.set()
+        assert primeira.result(timeout=10).status_code == 202
+    assert len(chamadas) == 1
+
+
+def test_execucao_antiga_nao_vincula_envio_a_tentativa_nova(monkeypatch):
+    """Fencing: callback anterior não pode vincular novo envio após liberação da chave."""
+    from fastapi.testclient import TestClient
+    with TestClient(app, raise_server_exceptions=False) as c:
+        token = _integracao(c, permissoes=["documents:write"])
+        headers = _headers(token)
+        chaves_anteriores = []
+
+        def pipeline_com_erro(*args, **kwargs):
+            chaves_anteriores.append(kwargs["ao_criar_envio"])
+            raise RuntimeError("falha antes da associação do envio")
+
+        monkeypatch.setattr("app.integrations.erp.pipeline.criar_envio", pipeline_com_erro)
+        arquivos = {"arquivos": ("tentativa.pdf", b"dados originais", "application/pdf")}
+        primeira = c.post("/api/erp/v1/documents", headers=headers, files=arquivos)
+        assert primeira.status_code == 500
+        integracao_id = db.q(
+            "SELECT id FROM integracoes WHERE token_hash=?", (hash_token(token),), um=True
+        )["id"]
+        anterior = db.q(
+            "SELECT tentativa_id, status FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
+            (integracao_id, headers["Idempotency-Key"]), um=True,
+        )
+        assert anterior["tentativa_id"] and anterior["status"] == "indeterminado"
+        liberada = c.post(
+            f"/api/integracoes/{integracao_id}/requisicoes/{headers['Idempotency-Key']}/desbloquear"
+        )
+        assert liberada.status_code == 200, liberada.text
+
+        def pipeline_novo(*args, **kwargs):
+            with pytest.raises(RuntimeError):
+                db.transacao(lambda conn: chaves_anteriores[0](conn, 99999))
+            def criar(conn):
+                cur = conn.execute(
+                    "INSERT INTO envios(ws, nome, origem, criado_em, status) VALUES(?,?,?,?,?)",
+                    ("horizonte", "tentativa-nova.pdf", "ERP", db.agora(), "fila"),
+                )
+                kwargs["ao_criar_envio"](conn, cur.lastrowid)
+                return cur.lastrowid
+            novo_envio = db.transacao(criar)
+            return {
+                "envio_id": novo_envio, "status": "fila", "documentos_aceitos": 1,
+                "documentos_xml": 0, "arquivos_com_paginas": 1,
+                "paginas_enfileiradas": 1, "arquivos_duplicados": 0,
+                "somente_duplicados": False,
+            }
+
+        monkeypatch.setattr("app.integrations.erp.pipeline.criar_envio", pipeline_novo)
+        segunda = c.post("/api/erp/v1/documents", headers=headers, files=arquivos)
+        assert segunda.status_code == 202, segunda.text
+        atual = db.q(
+            "SELECT tentativa_id, envio_id, status FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
+            (integracao_id, headers["Idempotency-Key"]), um=True,
+        )
+        assert atual["tentativa_id"] != anterior["tentativa_id"]
+        assert atual["envio_id"] == segunda.json()["envio_id"]
+        assert atual["status"] == "concluido"
+
+
+def test_falha_apos_vincular_envio_nao_permite_desbloqueio(monkeypatch):
+    from fastapi.testclient import TestClient
+    with TestClient(app, raise_server_exceptions=False) as c:
+        token = _integracao(c, permissoes=["documents:write"])
+        headers = _headers(token)
+        def pipeline_falha_apos_envio(*args, **kwargs):
+            def gravar(conn):
+                cur = conn.execute(
+                    "INSERT INTO envios(ws, nome, origem, criado_em, status) VALUES(?,?,?,?,?)",
+                    ("horizonte", "vinculado.pdf", "ERP", db.agora(), "recebendo"),
+                )
+                kwargs["ao_criar_envio"](conn, cur.lastrowid)
+                return cur.lastrowid
+            db.transacao(gravar)
+            raise RuntimeError("falha após vínculo")
+        monkeypatch.setattr("app.integrations.erp.pipeline.criar_envio", pipeline_falha_apos_envio)
+        arquivos = {"arquivos": ("vinculado.pdf", b"enviado", "application/pdf")}
+        resposta = c.post("/api/erp/v1/documents", headers=headers, files=arquivos)
+        assert resposta.status_code == 500
+        integracao_id = db.q(
+            "SELECT id FROM integracoes WHERE token_hash=?", (hash_token(token),), um=True
+        )["id"]
+        atual = db.q(
+            "SELECT status, envio_id FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
+            (integracao_id, headers["Idempotency-Key"]), um=True,
+        )
+        assert atual["status"] == "indeterminado" and atual["envio_id"]
+        assert c.post(
+            f"/api/integracoes/{integracao_id}/requisicoes/{headers['Idempotency-Key']}/desbloquear"
+        ).status_code == 409
+        assert c.post("/api/erp/v1/documents", headers=headers, files=arquivos).status_code == 409
+
+
+def test_reserva_processando_permanece_bloqueada_em_nova_sessao(client):
+    """Uma nova sessão do app não pode executar a mesma chave de reserva pendente."""
+    token = _integracao(client, permissoes=["documents:write"])
+    headers = _headers(token)
+    integracao_id = db.q(
+        "SELECT id FROM integracoes WHERE token_hash=?", (hash_token(token),), um=True
+    )["id"]
+    db.x(
+        """INSERT INTO integracao_requisicoes
+           (integracao_id, chave, fingerprint, tentativa_id, status, criada_em, atualizada_em)
+           VALUES(?,?,?,'antiga-tentativa','processando',?,?)""",
+        (integracao_id, headers["Idempotency-Key"], "fingerprint", db.agora(), db.agora()),
+    )
+    from fastapi.testclient import TestClient
+    with TestClient(app) as nova_sessao:
+        resposta = nova_sessao.post(
+            "/api/erp/v1/documents", headers=headers,
+            files={"arquivos": ("reinicio.pdf", b"conteudo", "application/pdf")},
+        )
+        assert resposta.status_code == 409
