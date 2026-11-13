@@ -133,7 +133,7 @@ def test_listagem_e_detalhe_nao_expoem_erro_interno(client, status, codigo_esper
     recebido = client.post(
         "/api/erp/v1/documents",
         headers=headers,
-        files={"arquivos": ("teste.pdf", b"conteudo de teste", "application/pdf")},
+        files={"arquivos": ("teste.pdf", f"conteudo de teste {status}".encode(), "application/pdf")},
     )
     assert recebido.status_code == 422, recebido.text
     envio_id = recebido.json()["envio_id"]
