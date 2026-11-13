@@ -175,6 +175,15 @@ async def receber_documentos(
             "O processamento anterior ficou indeterminado. A chave permanece bloqueada para evitar duplicidade; solicite reconciliação operacional.",
         )
 
+    def vincular_envio(conn, envio_id):
+        cur = conn.execute(
+            """UPDATE integracao_requisicoes SET envio_id=?, atualizada_em=?
+               WHERE integracao_id=? AND chave=? AND status='processando'""",
+            (envio_id, db.agora(), integracao["id"], idempotency_key),
+        )
+        if cur.rowcount != 1:
+            raise RuntimeError("A reserva idempotente não pôde ser vinculada ao envio.")
+
     try:
         resultado = await run_in_threadpool(
             pipeline.criar_envio,
@@ -183,6 +192,7 @@ async def receber_documentos(
             origem=f"ERP: {integracao['nome']}",
             usuario=f"integracao:{integracao['id']}",
             retornar_detalhes=True,
+            ao_criar_envio=vincular_envio,
         )
         envio_id = resultado["envio_id"]
         envio = _envio_do_workspace(envio_id, integracao["ws"])
