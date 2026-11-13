@@ -208,7 +208,7 @@ def test_xml_duplicado_nao_e_contado_como_novo(tmp_path):
     with TestClient(app) as c:
         assert c.post("/api/login", json={"usuario": "operador", "senha": "operador123"}).status_code == 200
         enviado = c.post("/api/ws/horizonte/envios", files=[(
-            "nfe_sem_duplicacao.xml", conteudo, "application/xml")])
+            "arquivos", ("nfe_sem_duplicacao.xml", conteudo, "application/xml"))])
         assert enviado.status_code == 200
         eid = enviado.json()["id"]
         antes = db.q("SELECT COUNT(*) AS n FROM documentos_fiscais WHERE ws=? AND envio_id=?",
