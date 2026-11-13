@@ -86,10 +86,22 @@ def _abrir_zip(caminho: Path, pasta: Path, i: int) -> list[Path]:
 
 
 def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario: str | None = None,
-                permitir_repetido: bool = False, retornar_detalhes: bool = False) -> int | dict:
+                permitir_repetido: bool = False, retornar_detalhes: bool = False,
+                ao_criar_envio=None) -> int | dict:
     nome = arquivos[0][0] if len(arquivos) == 1 else f"{len(arquivos)} arquivos"
-    eid = db.x("INSERT INTO envios(ws, nome, origem, criado_em, status, usuario) VALUES(?,?,?,?, 'recebendo', ?)",
-               (ws, nome, origem, db.agora(), usuario))
+
+    def criar_registro(conn):
+        cur = conn.execute(
+            "INSERT INTO envios(ws, nome, origem, criado_em, status, usuario) VALUES(?,?,?,?, 'recebendo', ?)",
+            (ws, nome, origem, db.agora(), usuario),
+        )
+        envio_id = cur.lastrowid
+        # O vínculo com a chave idempotente é confirmado na mesma transação do envio.
+        if ao_criar_envio is not None:
+            ao_criar_envio(conn, envio_id)
+        return envio_id
+
+    eid = db.transacao(criar_registro)
     pasta = ENVIOS / str(eid)
     pasta.mkdir(parents=True, exist_ok=True)
     salvos, xmls = [], []
