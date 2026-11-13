@@ -156,7 +156,7 @@ def test_recebimento_rejeita_extensao_nao_permitida(client):
 )
 def test_listagem_e_detalhe_nao_expoem_erro_interno(client, status, codigo_esperado):
     token = _integracao(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _headers(token)
     recebido = client.post(
         "/api/erp/v1/documents",
         headers=headers,
@@ -253,7 +253,7 @@ def test_recebimento_retorna_status_real_do_pipeline(
     client, monkeypatch, resultado_pipeline, status_http, codigo_resultado
 ):
     token = _integracao(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _headers(token)
     envio_id = db.x(
         """INSERT INTO envios(ws, nome, origem, criado_em, status)
            VALUES(?,?,?,?,?)""",
