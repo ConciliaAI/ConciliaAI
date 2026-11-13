@@ -1,6 +1,7 @@
 """Autenticação máquina a máquina para integrações ERP.
 
-Não reutiliza cookies/sessões humanas: cada credencial pertence a um único workspace.
+A autenticação valida a credencial; a decisão de escopo é auditada separadamente
+para que um 403 não seja registrado incorretamente como operação autorizada.
 """
 import json
 import re
@@ -15,8 +16,8 @@ from .security import hash_token, token_confere
 _RE_BEARER = re.compile(r"^Bearer ([A-Za-z0-9_-]+)$")
 
 
-def _agora_utc() -> datetime:
-    return datetime.now(timezone.utc)
+def _agora_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def autenticar_integracao(request: Request) -> dict:
@@ -46,19 +47,44 @@ def autenticar_integracao(request: Request) -> dict:
                 expira = expira.replace(tzinfo=timezone.utc)
         except ValueError:
             raise HTTPException(401, "Credencial de integração inválida.") from None
-        if expira <= _agora_utc():
+        if expira <= datetime.now(timezone.utc):
             raise HTTPException(401, "Credencial de integração expirada.")
 
-    db.x("UPDATE integracoes SET ultimo_acesso=? WHERE id=?", (_agora_utc().isoformat(), integracao["id"]))
-    db.x(
-        """INSERT INTO integracao_eventos(integracao_id, ws, acao, endpoint, status, quando)
-           VALUES(?,?,?,?,?,?)""",
-        (integracao["id"], integracao["ws"], "autenticacao", request.url.path, 200, _agora_utc().isoformat()),
-    )
     integracao["permissoes"] = json.loads(integracao["permissoes"] or "[]")
     return integracao
+
+
+def _registrar_decisao(integracao: dict, request: Request, acao: str, status: int) -> None:
+    """Registra decisão de acesso e último acesso na mesma transação SQLite."""
+    agora = _agora_utc()
+
+    def operacao(conn):
+        conn.execute(
+            "UPDATE integracoes SET ultimo_acesso=? WHERE id=?",
+            (agora, integracao["id"]),
+        )
+        conn.execute(
+            """INSERT INTO integracao_eventos
+               (integracao_id, ws, acao, endpoint, status, quando)
+               VALUES(?,?,?,?,?,?)""",
+            (integracao["id"], integracao["ws"], acao, request.url.path, status, agora),
+        )
+
+    db.transacao(operacao)
 
 
 def exigir_escopo(integracao: dict, escopo: str) -> None:
     if escopo not in integracao.get("permissoes", []):
         raise HTTPException(403, "A integração não possui permissão para esta operação.")
+
+
+def autorizar_integracao(request: Request, escopo: str) -> dict:
+    """Valida credencial e audita explicitamente autorização ou negativa de escopo."""
+    integracao = autenticar_integracao(request)
+    try:
+        exigir_escopo(integracao, escopo)
+    except HTTPException:
+        _registrar_decisao(integracao, request, "escopo_negado", 403)
+        raise
+    _registrar_decisao(integracao, request, "escopo_autorizado", 200)
+    return integracao

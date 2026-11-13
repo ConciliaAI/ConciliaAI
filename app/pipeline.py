@@ -86,17 +86,31 @@ def _abrir_zip(caminho: Path, pasta: Path, i: int) -> list[Path]:
 
 
 def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario: str | None = None,
-                permitir_repetido: bool = False) -> int:
+                permitir_repetido: bool = False, retornar_detalhes: bool = False,
+                ao_criar_envio=None) -> int | dict:
     nome = arquivos[0][0] if len(arquivos) == 1 else f"{len(arquivos)} arquivos"
-    eid = db.x("INSERT INTO envios(ws, nome, origem, criado_em, status, usuario) VALUES(?,?,?,?, 'recebendo', ?)",
-               (ws, nome, origem, db.agora(), usuario))
+
+    def criar_registro(conn):
+        cur = conn.execute(
+            "INSERT INTO envios(ws, nome, origem, criado_em, status, usuario) VALUES(?,?,?,?, 'recebendo', ?)",
+            (ws, nome, origem, db.agora(), usuario),
+        )
+        envio_id = cur.lastrowid
+        # O vínculo com a chave idempotente é confirmado na mesma transação do envio.
+        if ao_criar_envio is not None:
+            ao_criar_envio(conn, envio_id)
+        return envio_id
+
+    eid = db.transacao(criar_registro)
     pasta = ENVIOS / str(eid)
     pasta.mkdir(parents=True, exist_ok=True)
     salvos, xmls = [], []
+    arquivos_duplicados = 0
     for i, (nome_arq, conteudo) in enumerate(arquivos):
         digest = hashlib.sha256(conteudo).hexdigest()
         anterior = db.q("SELECT envio_id FROM arquivos WHERE ws=? AND sha256=?", (ws, digest), um=True)
         if anterior and not permitir_repetido:
+            arquivos_duplicados += 1
             db.evento(eid, f"“{nome_arq}” já foi enviado no envio #{anterior['envio_id']}. Ignorado para não duplicar.")
             continue
         db.x("INSERT INTO arquivos(ws, sha256, envio_id, nome) VALUES(?,?,?,?)", (ws, digest, eid, nome_arq))
@@ -122,6 +136,7 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
         db.x("UPDATE envios SET notas_xml=? WHERE id=?", (n_xml, eid))
         db.evento(eid, f"{n_xml} documento(s) fiscal(is) lido(s) diretamente do XML, sem OCR.")
     n = 0
+    arquivos_com_paginas = 0
     for arq in salvos:
         try:
             paginas = ocr.contar_paginas(str(arq))
@@ -134,6 +149,8 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
         if len(paginas) > MAX_PAGINAS:
             db.evento(eid, f"Arquivo ignorado: {arq.name[4:]} tem {len(paginas)} páginas (limite de {MAX_PAGINAS} por arquivo).")
             continue
+        if paginas:
+            arquivos_com_paginas += 1
         for idx, origem_t in paginas:
             n += 1
             db.x("INSERT INTO paginas(envio_id, n, arquivo, indice, origem_tipo) VALUES(?,?,?,?,?)",
@@ -152,7 +169,20 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
             # Os contratos deste envio ainda vão ser lidos: as notas ficam "Aguardando" e são conferidas
             # no fim do envio, para não aparecer "sem contrato" por alguns minutos.
             db.evento(eid, "As notas serão conferidas quando as páginas deste envio terminarem de ser lidas.")
-    return eid
+    if not retornar_detalhes:
+        return eid
+
+    documentos_aceitos = n_xml + arquivos_com_paginas
+    return {
+        "envio_id": eid,
+        "status": "concluido" if n == 0 and n_xml else ("fila" if n else "recusado"),
+        "documentos_aceitos": documentos_aceitos,
+        "documentos_xml": n_xml,
+        "arquivos_com_paginas": arquivos_com_paginas,
+        "paginas_enfileiradas": n,
+        "arquivos_duplicados": arquivos_duplicados,
+        "somente_duplicados": documentos_aceitos == 0 and arquivos_duplicados == len(arquivos),
+    }
 
 
 # ---------------------------------------------------------------- processamento

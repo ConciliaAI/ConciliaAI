@@ -32,19 +32,31 @@ def x(sql, args=()):
 
 
 def transacao(operacao):
-    """Executa várias instruções como uma única unidade atômica.
+    """Executa uma unidade atômica, inclusive quando chamada dentro de outra transação.
 
-    A função recebida recebe a conexão ativa. Se qualquer instrução falhar,
-    todas as alterações da operação são revertidas.
+    No nível externo usa BEGIN IMMEDIATE. Em chamadas aninhadas usa SAVEPOINT,
+    preservando a transação do chamador e revertendo apenas a operação interna.
     """
     with _lock:
+        aninhada = _con.in_transaction
+        ponto = "db_transacao_aninhada"
         try:
-            _con.execute("BEGIN IMMEDIATE")
+            if aninhada:
+                _con.execute(f"SAVEPOINT {ponto}")
+            else:
+                _con.execute("BEGIN IMMEDIATE")
             resultado = operacao(_con)
-            _con.commit()
+            if aninhada:
+                _con.execute(f"RELEASE SAVEPOINT {ponto}")
+            else:
+                _con.commit()
             return resultado
-        except Exception:
-            _con.rollback()
+        except BaseException:
+            if aninhada:
+                _con.execute(f"ROLLBACK TO SAVEPOINT {ponto}")
+                _con.execute(f"RELEASE SAVEPOINT {ponto}")
+            else:
+                _con.rollback()
             raise
 
 
@@ -140,6 +152,25 @@ CREATE TABLE IF NOT EXISTS integracao_eventos(
   FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS i_integracao_eventos_ws ON integracao_eventos(ws, quando);
+-- Idempotência de requisições ERP; CREATE IF NOT EXISTS preserva bancos existentes.
+CREATE TABLE IF NOT EXISTS integracao_requisicoes(
+  id INTEGER PRIMARY KEY,
+  integracao_id INTEGER NOT NULL,
+  chave TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  tentativa_id TEXT,
+  status TEXT NOT NULL DEFAULT 'processando'
+    CHECK(status IN ('processando','indeterminado','concluido')),
+  envio_id INTEGER,
+  resposta_status INTEGER,
+  resposta_json TEXT,
+  criada_em TEXT NOT NULL,
+  atualizada_em TEXT NOT NULL,
+  UNIQUE(integracao_id, chave),
+  FOREIGN KEY(integracao_id) REFERENCES integracoes(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS i_integracao_requisicoes_status
+  ON integracao_requisicoes(integracao_id, status);
 -- Eventos são append-only: nem a aplicação nem rotas administrativas podem
 -- editar ou apagar registros existentes.
 CREATE TRIGGER IF NOT EXISTS trg_integracao_eventos_sem_update
@@ -175,7 +206,8 @@ with _lock:
                            ("docs", "subtipo_manual INTEGER DEFAULT 0"),
                            ("integracao_eventos", "ator_usuario TEXT"),
                            ("integracao_eventos", "ator_nome TEXT"),
-                           ("integracao_eventos", "ator_perfil TEXT")):
+                           ("integracao_eventos", "ator_perfil TEXT"),
+                           ("integracao_requisicoes", "tentativa_id TEXT")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:
