@@ -31,6 +31,23 @@ def x(sql, args=()):
         return cur.lastrowid
 
 
+def transacao(operacao):
+    """Executa várias instruções como uma única unidade atômica.
+
+    A função recebida recebe a conexão ativa. Se qualquer instrução falhar,
+    todas as alterações da operação são revertidas.
+    """
+    with _lock:
+        try:
+            _con.execute("BEGIN IMMEDIATE")
+            resultado = operacao(_con)
+            _con.commit()
+            return resultado
+        except Exception:
+            _con.rollback()
+            raise
+
+
 def inserir_se_novo(sql, args=()):
     """INSERT OR IGNORE com resposta baseada em rowcount, sem falso sucesso de lastrowid."""
     with _lock:
@@ -118,10 +135,23 @@ CREATE TABLE IF NOT EXISTS integracao_eventos(
   quando TEXT NOT NULL,
   ator_usuario TEXT,
   ator_nome TEXT,
+  ator_perfil TEXT,
   FOREIGN KEY(integracao_id) REFERENCES integracoes(id) ON DELETE SET NULL,
   FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS i_integracao_eventos_ws ON integracao_eventos(ws, quando);
+-- Eventos são append-only: nem a aplicação nem rotas administrativas podem
+-- editar ou apagar registros existentes.
+CREATE TRIGGER IF NOT EXISTS trg_integracao_eventos_sem_update
+BEFORE UPDATE ON integracao_eventos
+BEGIN
+  SELECT RAISE(ABORT, 'Historico de auditoria e imutavel');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_integracao_eventos_sem_delete
+BEFORE DELETE ON integracao_eventos
+BEGIN
+  SELECT RAISE(ABORT, 'Historico de auditoria e imutavel');
+END;
 CREATE TABLE IF NOT EXISTS documentos_fiscais (
   id INTEGER PRIMARY KEY, ws TEXT NOT NULL, envio_id INT NOT NULL,
   nome_arquivo TEXT, caminho_xml TEXT, sha256 TEXT NOT NULL,
@@ -144,7 +174,8 @@ with _lock:
                            ("docs", "subtipo_revisao INTEGER DEFAULT 1"),
                            ("docs", "subtipo_manual INTEGER DEFAULT 0"),
                            ("integracao_eventos", "ator_usuario TEXT"),
-                           ("integracao_eventos", "ator_nome TEXT")):
+                           ("integracao_eventos", "ator_nome TEXT"),
+                           ("integracao_eventos", "ator_perfil TEXT")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:
