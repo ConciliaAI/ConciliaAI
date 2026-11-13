@@ -228,3 +228,48 @@ def test_auditoria_identifica_admin_em_criacao_rotacao_e_revogacao(cliente):
     for acao in ("criacao", "rotacao", "revogacao"):
         assert por_acao[acao]["ator_usuario"] == "admin"
         assert por_acao[acao]["ator_nome"] == "Administrador"
+        assert por_acao[acao]["ator_perfil"] == "admin"
+
+
+def test_falha_na_auditoria_reverte_criacao(cliente, monkeypatch):
+    from app.integrations import admin
+    entrar(cliente, "admin")
+    antes = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
+    def falhar(*args, **kwargs):
+        raise RuntimeError("falha simulada na auditoria")
+    monkeypatch.setattr(admin, "_evento", falhar)
+    with pytest.raises(RuntimeError):
+        cliente.post("/api/integracoes", json={"nome": "ERP rollback", "ws": "horizonte"})
+    depois = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
+    assert depois == antes
+
+
+def test_falha_na_auditoria_reverte_rotacao_e_revogacao(cliente, monkeypatch):
+    from app.integrations import admin
+    criado = criar_integracao(cliente)
+    integracao_id = criado["integracao"]["id"]
+    hash_antes = db.q("SELECT token_hash FROM integracoes WHERE id=?", (integracao_id,), um=True)["token_hash"]
+    entrar(cliente, "admin")
+    def falhar(*args, **kwargs):
+        raise RuntimeError("falha simulada na auditoria")
+    monkeypatch.setattr(admin, "_evento", falhar)
+    with pytest.raises(RuntimeError):
+        cliente.post(f"/api/integracoes/{integracao_id}/rotacionar", json={})
+    atual = db.q("SELECT token_hash, ativa FROM integracoes WHERE id=?", (integracao_id,), um=True)
+    assert atual["token_hash"] == hash_antes and atual["ativa"] == 1
+    with pytest.raises(RuntimeError):
+        cliente.post(f"/api/integracoes/{integracao_id}/revogar")
+    atual = db.q("SELECT token_hash, ativa FROM integracoes WHERE id=?", (integracao_id,), um=True)
+    assert atual["token_hash"] == hash_antes and atual["ativa"] == 1
+
+
+def test_historico_de_auditoria_nao_pode_ser_alterado_ou_excluido(cliente):
+    criado = criar_integracao(cliente)
+    integracao_id = criado["integracao"]["id"]
+    evento = db.q("SELECT id FROM integracao_eventos WHERE integracao_id=? LIMIT 1", (integracao_id,), um=True)
+    with pytest.raises(Exception):
+        db.x("UPDATE integracao_eventos SET acao=? WHERE id=?", ("alterado", evento["id"]))
+    with pytest.raises(Exception):
+        db.x("DELETE FROM integracao_eventos WHERE id=?", (evento["id"],))
+    preservado = db.q("SELECT acao FROM integracao_eventos WHERE id=?", (evento["id"],), um=True)
+    assert preservado["acao"] == "criacao"
