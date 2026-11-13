@@ -471,3 +471,36 @@ def test_admin_nao_pode_liberar_reserva_com_envio_associado(client):
         (integracao["id"], chave),
         um=True,
     ) == {"envio_id": envio_id}
+
+
+
+def test_admin_so_libera_processando_com_confirmacao_explicita(client):
+    token = _integracao(client)
+    integracao = db.q(
+        "SELECT id FROM integracoes WHERE token_hash=?",
+        (hash_token(token),),
+        um=True,
+    )
+    chave = "recuperacao-processando-03"
+    db.x(
+        """INSERT INTO integracao_requisicoes
+           (integracao_id, chave, fingerprint, status, criada_em, atualizada_em)
+           VALUES(?,?,?,'processando',?,?)""",
+        (integracao["id"], chave, "fingerprint", db.agora(), db.agora()),
+    )
+
+    sem_confirmacao = client.post(
+        f"/api/integracoes/{integracao['id']}/requisicoes/{chave}/desbloquear"
+    )
+    assert sem_confirmacao.status_code == 409
+
+    confirmada = client.post(
+        f"/api/integracoes/{integracao['id']}/requisicoes/{chave}/desbloquear",
+        json={"confirmar_processamento_encerrado": True},
+    )
+    assert confirmada.status_code == 200, confirmada.text
+    assert db.q(
+        "SELECT id FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
+        (integracao["id"], chave),
+        um=True,
+    ) is None
