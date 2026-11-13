@@ -116,6 +116,8 @@ CREATE TABLE IF NOT EXISTS integracao_eventos(
   endpoint TEXT,
   status INTEGER,
   quando TEXT NOT NULL,
+  ator_usuario TEXT,
+  ator_nome TEXT,
   FOREIGN KEY(integracao_id) REFERENCES integracoes(id) ON DELETE SET NULL,
   FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
 );
@@ -140,7 +142,9 @@ with _lock:
                            ("docs", "subtipo TEXT"), ("docs", "subtipo_pontos INTEGER"),
                            ("docs", "subtipo_evidencias TEXT"), ("docs", "subtipo_alternativas TEXT"),
                            ("docs", "subtipo_revisao INTEGER DEFAULT 1"),
-                           ("docs", "subtipo_manual INTEGER DEFAULT 0")):
+                           ("docs", "subtipo_manual INTEGER DEFAULT 0"),
+                           ("integracao_eventos", "ator_usuario TEXT"),
+                           ("integracao_eventos", "ator_nome TEXT")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:
