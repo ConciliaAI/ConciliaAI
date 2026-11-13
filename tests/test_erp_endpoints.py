@@ -31,12 +31,30 @@ def _integracao(client, workspace="horizonte", permissoes=None):
     return response.json()["token"]
 
 
-def test_endpoints_erp_exigem_credencial_e_escopo(client):
+def test_endpoints_erp_exigem_credencial_e_escopo(client, monkeypatch):
     assert client.get("/api/erp/v1/documents").status_code == 401
     token = _integracao(client, permissoes=["documents:write"])
     headers = {"Authorization": f"Bearer {token}"}
 
     assert client.get("/api/erp/v1/documents", headers=headers).status_code == 403
+    envio_id = db.x(
+        """INSERT INTO envios(ws, nome, origem, criado_em, status)
+           VALUES(?,?,?,?,?)""",
+        ("horizonte", "teste.pdf", "ERP: ERP endpoints", db.agora(), "fila"),
+    )
+    monkeypatch.setattr(
+        "app.integrations.erp.pipeline.criar_envio",
+        lambda *args, **kwargs: {
+            "envio_id": envio_id,
+            "status": "fila",
+            "documentos_aceitos": 1,
+            "documentos_xml": 0,
+            "arquivos_com_paginas": 1,
+            "paginas_enfileiradas": 1,
+            "arquivos_duplicados": 0,
+            "somente_duplicados": False,
+        },
+    )
     recebido = client.post(
         "/api/erp/v1/documents",
         headers=headers,
