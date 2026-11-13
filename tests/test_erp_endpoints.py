@@ -2,6 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app import db
 from app.main import app
 
 
@@ -99,3 +100,48 @@ def test_recebimento_rejeita_extensao_nao_permitida(client):
         files={"arquivos": ("script.exe", b"conteudo", "application/octet-stream")},
     )
     assert response.status_code == 415
+
+
+@pytest.mark.parametrize(
+    ("status", "codigo_esperado"),
+    [
+        ("falhou", "PROCESSING_FAILED"),
+        ("recusado", "DOCUMENTS_REJECTED"),
+    ],
+)
+def test_listagem_e_detalhe_nao_expoem_erro_interno(client, status, codigo_esperado):
+    token = _integracao(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    recebido = client.post(
+        "/api/erp/v1/documents",
+        headers=headers,
+        files={"arquivos": ("teste.pdf", b"conteudo de teste", "application/pdf")},
+    )
+    assert recebido.status_code == 202, recebido.text
+    envio_id = recebido.json()["envio_id"]
+
+    detalhe_interno = (
+        "FileNotFoundError: /srv/conciliaai/private/uploads/cliente/documento.pdf"
+    )
+    db.x(
+        "UPDATE envios SET status=?, erro=? WHERE id=?",
+        (status, detalhe_interno, envio_id),
+    )
+
+    lista = client.get("/api/erp/v1/documents", headers=headers)
+    assert lista.status_code == 200
+    item = next(item for item in lista.json()["items"] if item["id"] == envio_id)
+
+    detalhe = client.get(
+        f"/api/erp/v1/documents/{envio_id}",
+        headers=headers,
+    )
+    assert detalhe.status_code == 200
+    payloads = [item, detalhe.json()]
+
+    for payload in payloads:
+        assert "erro" not in payload
+        assert payload["erro_codigo"] == codigo_esperado
+        assert payload["erro_mensagem"]
+        assert detalhe_interno not in str(payload)
+        assert "/srv/conciliaai/private/" not in str(payload)
