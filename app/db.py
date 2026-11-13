@@ -31,6 +31,14 @@ def x(sql, args=()):
         return cur.lastrowid
 
 
+def inserir_se_novo(sql, args=()):
+    """INSERT OR IGNORE com resposta baseada em rowcount, sem falso sucesso de lastrowid."""
+    with _lock:
+        cur = _con.execute(sql, args)
+        _con.commit()
+        return cur.rowcount == 1
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS workspaces(
   id TEXT PRIMARY KEY, nome TEXT, setor TEXT, cor TEXT, sigla TEXT, ordem INT);
