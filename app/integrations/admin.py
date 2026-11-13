@@ -174,8 +174,10 @@ def listar_requisicoes(request: Request, integracao_id: int):
 
 
 @router.post("/{integracao_id}/requisicoes/{chave}/desbloquear")
-def desbloquear_requisicao(request: Request, integracao_id: int, chave: str):
-    """Libera manualmente apenas reserva indeterminada sem envio associado."""
+def desbloquear_requisicao(
+    request: Request, integracao_id: int, chave: str, corpo: dict | None = None
+):
+    """Libera reserva sem envio; estado processando exige confirmação humana do encerramento do worker."""
     administrador = _administrador(request)
     integracao = db.q(
         "SELECT id, ws FROM integracoes WHERE id=?",
@@ -193,19 +195,28 @@ def desbloquear_requisicao(request: Request, integracao_id: int, chave: str):
         ).fetchone()
         if not reserva:
             raise HTTPException(404, "Reserva idempotente não encontrada.")
-        if reserva["status"] != "indeterminado" or reserva["envio_id"] is not None:
+        if reserva["envio_id"] is not None:
             raise HTTPException(
                 409,
-                "A reserva só pode ser liberada manualmente quando está indeterminada e nenhum envio foi criado.",
+                "A reserva possui envio associado. Verifique esse envio; a chave não pode ser liberada automaticamente.",
+            )
+        if reserva["status"] == "indeterminado":
+            acao = "idempotencia_desbloqueada_sem_envio"
+        elif (
+            reserva["status"] == "processando"
+            and (corpo or {}).get("confirmar_processamento_encerrado") is True
+        ):
+            acao = "idempotencia_desbloqueada_apos_confirmacao_operacional"
+        else:
+            raise HTTPException(
+                409,
+                "Para liberar uma reserva em processamento, confirme que a execução correspondente foi encerrada e que nenhum envio foi criado.",
             )
         conn.execute(
             "DELETE FROM integracao_requisicoes WHERE integracao_id=? AND chave=?",
             (integracao_id, chave),
         )
-        _evento(
-            conn, integracao_id, integracao["ws"],
-            "idempotencia_desbloqueada_sem_envio", administrador,
-        )
+        _evento(conn, integracao_id, integracao["ws"], acao, administrador)
 
     db.transacao(persistir)
     return {"ok": True, "mensagem": "Reserva liberada; a chave poderá ser utilizada novamente."}
