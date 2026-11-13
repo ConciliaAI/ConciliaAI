@@ -198,3 +198,39 @@ def test_xsd_nao_configurado_nao_simula_aprovacao(monkeypatch):
     monkeypatch.delenv("CONCILIA_XSD_DIR", raising=False)
     resultado = validar_xsd(xml_nfe("55"), "55", "4.00")
     assert resultado["xsd"] == "nao_executada"
+
+
+def test_xml_duplicado_nao_e_contado_como_novo(tmp_path):
+    from app import db, pipeline
+    from app.main import app
+    from fastapi.testclient import TestClient
+    conteudo = xml_nfe("55").replace(b"VENDA", b"VENDA UNICA SEM DUPLICACAO")
+    with TestClient(app) as c:
+        assert c.post("/api/login", json={"usuario": "operador", "senha": "operador123"}).status_code == 200
+        enviado = c.post("/api/ws/horizonte/envios", files=[(
+            "nfe_sem_duplicacao.xml", conteudo, "application/xml")])
+        assert enviado.status_code == 200
+        eid = enviado.json()["id"]
+        antes = db.q("SELECT COUNT(*) AS n FROM documentos_fiscais WHERE ws=? AND envio_id=?",
+                     ("horizonte", eid), um=True)["n"]
+        assert antes == 1
+        arq = tmp_path / "segunda_copia.xml"
+        arq.write_bytes(conteudo)
+        assert pipeline.importar_xml(eid, "horizonte", arq, "segunda_copia.xml") is False
+        depois = db.q("SELECT COUNT(*) AS n FROM documentos_fiscais WHERE ws=? AND envio_id=?",
+                      ("horizonte", eid), um=True)["n"]
+        assert depois == antes
+        eventos = db.q("SELECT texto FROM eventos WHERE envio_id=? ORDER BY id DESC", (eid,))
+        assert any("já cadastrado" in e["texto"] for e in eventos)
+
+
+def test_relatorios_da_develop_preservados_apos_integracao():
+    from app.main import app
+    from fastapi.testclient import TestClient
+    with TestClient(app) as c:
+        assert c.post("/api/login", json={"usuario": "operador", "senha": "operador123"}).status_code == 200
+        r = c.get("/api/ws/horizonte/relatorios")
+        assert r.status_code == 200, r.text
+        assert "notas" in r.json() and "regras" in r.json()
+        fiscais = c.get("/api/ws/horizonte/documentos-fiscais")
+        assert fiscais.status_code == 200 and isinstance(fiscais.json(), list)
