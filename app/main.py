@@ -27,6 +27,7 @@ from . import (
 )
 from .fiscal import brl, fmt_cnpj, fmt_data
 from .integrations.admin import router as integracoes_router
+from .integrations.erp import router as erp_router
 
 trabalhador = pipeline.Trabalhador()
 MAX_MB = config.MAX_MB  # por arquivo (CONCILIA_MAX_MB no .env); lotes digitalizados costumam ter dezenas de MB
@@ -45,11 +46,14 @@ async def vida(app):
 
 app = FastAPI(title="Concilia AI", lifespan=vida)
 app.include_router(integracoes_router)
+app.include_router(erp_router)
 
 
 @app.middleware("http")
 async def exigir_login(request: Request, chamar):
-    if request.url.path.startswith("/api/") and request.url.path not in PUBLICAS:
+    if (request.url.path.startswith("/api/")
+            and request.url.path not in PUBLICAS
+            and not request.url.path.startswith("/api/erp/v1/")):
         u = auth.usuario_da_requisicao(request)
         if not u:
             return JSONResponse({"detail": "Entre na sua conta para continuar."}, status_code=401)
