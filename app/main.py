@@ -281,7 +281,9 @@ def envio(eid: int):
         p["sinais"] = _j(p["sinais"], [])
     docs = [_doc_publico(d, cats) for d in db.q("SELECT * FROM docs WHERE envio_id=? ORDER BY pag_ini", (eid,))]
     notas = db.q("SELECT id, numero, nome_prestador, cnpj_prestador, valor, status, origem FROM notas WHERE envio_id=? ORDER BY id", (eid,))
-    return {"envio": e, "paginas": pags, "docs": docs, "notas": notas,
+    fiscais = db.q("""SELECT id, modelo, tipo, numero, chave, emissor, criado_em
+                       FROM documentos_fiscais WHERE envio_id=? ORDER BY id""", (eid,))
+    return {"envio": e, "paginas": pags, "docs": docs, "notas": notas, "fiscais": fiscais,
             "eventos": db.q("SELECT * FROM eventos WHERE envio_id=? ORDER BY id", (eid,))}
 
 
@@ -683,6 +685,36 @@ def reconciliar(request: Request, ws: str):
     _ws(ws)
     auth.exigir(request, "revisor")
     return conciliacao.conciliar(ws)
+
+
+# ------------------------------------------------------------------ documentos fiscais XML (55, 65 e 57)
+@app.get("/api/ws/{ws}/documentos-fiscais")
+def listar_documentos_fiscais(ws: str, modelo: str = ""):
+    _ws(ws)
+    if modelo and modelo not in ("55", "65", "57"):
+        raise HTTPException(400, "Modelo fiscal não suportado")
+    sql = """SELECT id, ws, envio_id, nome_arquivo, sha256, modelo, tipo,
+             versao, numero, chave, emissao, emissor, destinatario, criado_em
+             FROM documentos_fiscais WHERE ws=?"""
+    args = [ws]
+    if modelo:
+        sql += " AND modelo=?"
+        args.append(modelo)
+    sql += " ORDER BY id DESC"
+    return db.q(sql, tuple(args))
+
+
+@app.get("/api/documentos-fiscais/{fid}")
+def detalhar_documento_fiscal(fid: int):
+    d = db.q("SELECT * FROM documentos_fiscais WHERE id=?", (fid,), um=True)
+    if not d:
+        raise HTTPException(404, "Documento fiscal não encontrado")
+    dados = json.loads(d["dados"])
+    dados["id"] = fid
+    dados["envio_id"] = d["envio_id"]
+    dados["nome_arquivo"] = d["nome_arquivo"]
+    dados["criado_em"] = d["criado_em"]
+    return dados
 
 
 # ------------------------------------------------------------------ documentos

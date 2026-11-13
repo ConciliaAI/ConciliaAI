@@ -31,6 +31,14 @@ def x(sql, args=()):
         return cur.lastrowid
 
 
+def inserir_se_novo(sql, args=()):
+    """INSERT OR IGNORE com resposta baseada em rowcount, sem falso sucesso de lastrowid."""
+    with _lock:
+        cur = _con.execute(sql, args)
+        _con.commit()
+        return cur.rowcount == 1
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS workspaces(
   id TEXT PRIMARY KEY, nome TEXT, setor TEXT, cor TEXT, sigla TEXT, ordem INT);
@@ -112,6 +120,14 @@ CREATE TABLE IF NOT EXISTS integracao_eventos(
   FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS i_integracao_eventos_ws ON integracao_eventos(ws, quando);
+CREATE TABLE IF NOT EXISTS documentos_fiscais (
+  id INTEGER PRIMARY KEY, ws TEXT NOT NULL, envio_id INT NOT NULL,
+  nome_arquivo TEXT, caminho_xml TEXT, sha256 TEXT NOT NULL,
+  modelo TEXT NOT NULL, tipo TEXT NOT NULL, versao TEXT,
+  numero TEXT, chave TEXT, emissao TEXT, emissor TEXT, destinatario TEXT,
+  dados TEXT NOT NULL, criado_em TEXT NOT NULL,
+  UNIQUE(ws, sha256));
+CREATE INDEX IF NOT EXISTS i_fiscais_ws ON documentos_fiscais(ws, modelo, id);
 """
 with _lock:
     _con.executescript(SCHEMA)

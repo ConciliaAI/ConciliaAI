@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 python-multipart
+lxml>=5,<7  # validacao opcional dos esquemas fiscais oficiais locais
 pymupdf
 pillow
 anthropic

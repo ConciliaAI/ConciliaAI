@@ -15,7 +15,7 @@ const SITUACAO = {
   recusado: ['Recusado', 'bg-erro-fundo text-erro'],
   cancelado: ['Cancelado', 'bg-papel text-apoio'],
 }
-const FORMATOS = ['XML da NFS-e', 'PDF', 'TIFF', 'JPG ou PNG', 'ZIP']
+const FORMATOS = ['XML NFS-e / NF-e / NFC-e / CT-e', 'PDF', 'TIFF', 'JPG ou PNG', 'ZIP']
 const ACEITOS = '.xml,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.zip,.bmp,.webp'
 const PASSOS = [
   ['Separa os documentos', 'onde cada um começa e termina'],
@@ -50,7 +50,7 @@ function resultado(e) {
   const partes = []
   if (e.documentos) partes.push(plural(e.documentos, 'documento', 'documentos'))
   if (e.duvidas) partes.push(plural(e.duvidas, 'dúvida', 'dúvidas'))
-  if (e.notas_xml) partes.push(plural(e.notas_xml, 'nota em XML', 'notas em XML'))
+  if (e.notas_xml) partes.push(plural(e.notas_xml, 'documento fiscal XML', 'documentos fiscais XML'))
   return partes.join(' · ') || '—'
 }
 
