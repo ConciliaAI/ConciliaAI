@@ -1,4 +1,6 @@
 """Testes dos endpoints de transferência ERP."""
+import hashlib
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -351,11 +353,18 @@ def test_chave_em_processamento_nao_dispara_novo_pipeline(client, monkeypatch):
         (__import__("app.integrations.security", fromlist=["hash_token"]).hash_token(token),),
         um=True,
     )
+    nome = "a.pdf"
+    conteudo = b"conteudo"
+    digest = hashlib.sha256()
+    digest.update(len(nome.encode("utf-8")).to_bytes(8, "big"))
+    digest.update(nome.encode("utf-8"))
+    digest.update(len(conteudo).to_bytes(8, "big"))
+    digest.update(conteudo)
     db.x(
         """INSERT INTO integracao_requisicoes
            (integracao_id, chave, fingerprint, status, criada_em, atualizada_em)
            VALUES(?,?,?,'processando',?,?)""",
-        (integracao["id"], headers["Idempotency-Key"], "fingerprint-qualquer",
+        (integracao["id"], headers["Idempotency-Key"], digest.hexdigest(),
          db.agora(), db.agora()),
     )
     chamadas = {"total": 0}
@@ -383,12 +392,14 @@ def test_post_exige_idempotency_key(client):
 
 
 def test_schema_idempotente_e_aditivo(client):
+    _integracao(client)
+    integracoes_antes = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
+    with db._lock:
+        db._con.executescript(db.SCHEMA)
+        db._con.commit()
     tabelas = db.q(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='integracao_requisicoes'"
     )
-    assert tabelas == [{"name": "integracao_requisicoes"}]
-    # O schema novo não recria nem apaga credenciais já cadastradas.
-    integracoes_antes = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
-    db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)
     integracoes_depois = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
+    assert tabelas == [{"name": "integracao_requisicoes"}]
     assert integracoes_depois == integracoes_antes
