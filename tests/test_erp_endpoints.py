@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app import db
 from app.main import app
+from app.integrations.security import hash_token
 
 
 @pytest.fixture(scope="module")
@@ -49,7 +50,7 @@ def test_endpoints_erp_exigem_credencial_e_escopo(client, monkeypatch):
            WHERE acao='escopo_negado' AND integracao_id=(
              SELECT id FROM integracoes WHERE token_hash=?
            ) ORDER BY id DESC LIMIT 1""",
-        (__import__("app.integrations.security", fromlist=["hash_token"]).hash_token(token),),
+        (hash_token(token),),
         um=True,
     )
     assert negada == {"acao": "escopo_negado", "status": 403}
@@ -89,6 +90,14 @@ def test_recebimento_e_consulta_de_envio(client):
     )
     assert recebido.status_code == 422, recebido.text
     envio_id = recebido.json()["envio_id"]
+    reserva = db.q(
+        """SELECT envio_id, status FROM integracao_requisicoes
+           WHERE integracao_id=(SELECT id FROM integracoes WHERE token_hash=?)
+           AND chave=?""",
+        (hash_token(token), headers["Idempotency-Key"]),
+        um=True,
+    )
+    assert reserva == {"envio_id": envio_id, "status": "concluido"}
 
     lista = client.get("/api/erp/v1/documents", headers=headers)
     assert lista.status_code == 200
@@ -360,3 +369,26 @@ def test_chave_em_processamento_nao_dispara_novo_pipeline(client, monkeypatch):
     )
     assert response.status_code == 409
     assert chamadas["total"] == 0
+
+
+
+def test_post_exige_idempotency_key(client):
+    token = _integracao(client, permissoes=["documents:write"])
+    response = client.post(
+        "/api/erp/v1/documents",
+        headers={"Authorization": f"Bearer {token}"},
+        files={"arquivos": ("a.pdf", b"conteudo", "application/pdf")},
+    )
+    assert response.status_code == 422
+
+
+def test_schema_idempotente_e_aditivo(client):
+    tabelas = db.q(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='integracao_requisicoes'"
+    )
+    assert tabelas == [{"name": "integracao_requisicoes"}]
+    # O schema novo não recria nem apaga credenciais já cadastradas.
+    integracoes_antes = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
+    db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)
+    integracoes_depois = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
+    assert integracoes_depois == integracoes_antes
