@@ -140,6 +140,24 @@ CREATE TABLE IF NOT EXISTS integracao_eventos(
   FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS i_integracao_eventos_ws ON integracao_eventos(ws, quando);
+-- Idempotência de requisições ERP; CREATE IF NOT EXISTS preserva bancos existentes.
+CREATE TABLE IF NOT EXISTS integracao_requisicoes(
+  id INTEGER PRIMARY KEY,
+  integracao_id INTEGER NOT NULL,
+  chave TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'processando'
+    CHECK(status IN ('processando','indeterminado','concluido')),
+  envio_id INTEGER,
+  resposta_status INTEGER,
+  resposta_json TEXT,
+  criada_em TEXT NOT NULL,
+  atualizada_em TEXT NOT NULL,
+  UNIQUE(integracao_id, chave),
+  FOREIGN KEY(integracao_id) REFERENCES integracoes(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS i_integracao_requisicoes_status
+  ON integracao_requisicoes(integracao_id, status);
 -- Eventos são append-only: nem a aplicação nem rotas administrativas podem
 -- editar ou apagar registros existentes.
 CREATE TRIGGER IF NOT EXISTS trg_integracao_eventos_sem_update
