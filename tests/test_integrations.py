@@ -9,6 +9,7 @@ from starlette.requests import Request
 
 from app import db
 from app.integrations.auth import autenticar_integracao, exigir_escopo
+from app.integrations.erp import exigir_integracao
 from app.main import app
 
 
@@ -172,3 +173,40 @@ def test_eventos_administrativos_sao_auditados(cliente):
     assert response.status_code == 200
     acoes = [evento["acao"] for evento in response.json()["eventos"]]
     assert "criacao" in acoes
+
+
+
+def test_middleware_libera_apenas_prefixo_erp_v1(cliente):
+    cliente.cookies.clear()
+
+    # O prefixo ERP passa pelo middleware humano; como a rota ainda não existe,
+    # o resultado esperado é 404, e não 401 por falta de cookie.
+    assert cliente.get("/api/erp/v1/rota-ainda-nao-implementada").status_code == 404
+
+    # Prefixos parecidos e demais rotas continuam exigindo sessão humana.
+    assert cliente.get("/api/erp/v10/rota-inexistente").status_code == 401
+    assert cliente.get("/api/integracoes").status_code == 401
+
+
+def test_dependencia_erp_exige_bearer_e_escopo(cliente):
+    criado = criar_integracao(cliente, permissoes=["results:read"])
+    dependencia = exigir_integracao("results:read")
+
+    integracao = dependencia(request_com_token(criado["token"]))
+    assert integracao["id"] == criado["integracao"]["id"]
+    assert integracao["ws"] == "horizonte"
+
+    with pytest.raises(HTTPException) as erro:
+        exigir_integracao("documents:write")(request_com_token(criado["token"]))
+    assert erro.value.status_code == 403
+
+    request_sem_token = Request({
+        "type": "http", "http_version": "1.1", "method": "GET",
+        "scheme": "http", "path": "/api/erp/v1/documentos",
+        "raw_path": b"/api/erp/v1/documentos", "query_string": b"",
+        "headers": [], "server": ("testserver", 80),
+        "client": ("testclient", 123),
+    })
+    with pytest.raises(HTTPException) as erro:
+        dependencia(request_sem_token)
+    assert erro.value.status_code == 401
