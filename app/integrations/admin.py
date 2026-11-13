@@ -43,11 +43,17 @@ def _permissoes(valor):
     return valor
 
 
-def _evento(integracao_id, ws, acao, status=200):
+def _evento(integracao_id, ws, acao, administrador, status=200):
+    """Audita ação técnica e identifica o administrador humano responsável."""
     db.x(
-        """INSERT INTO integracao_eventos(integracao_id, ws, acao, endpoint, status, quando)
-           VALUES(?,?,?,?,?,?)""",
-        (integracao_id, ws, acao, None, status, datetime.now(timezone.utc).isoformat()),
+        """INSERT INTO integracao_eventos(
+               integracao_id, ws, acao, endpoint, status, quando, ator_usuario, ator_nome
+           ) VALUES(?,?,?,?,?,?,?,?)""",
+        (
+            integracao_id, ws, acao, None, status,
+            datetime.now(timezone.utc).isoformat(),
+            administrador["usuario"], administrador["nome"],
+        ),
     )
 
 
@@ -68,7 +74,7 @@ def _publica(registro):
 
 @router.post("")
 def criar(request: Request, corpo: dict):
-    _administrador(request)
+    administrador = _administrador(request)
     nome = corpo.get("nome")
     ws = corpo.get("ws")
     if not isinstance(nome, str) or not nome.strip() or len(nome.strip()) > 120:
@@ -88,7 +94,7 @@ def criar(request: Request, corpo: dict):
            VALUES(?,?,?,?,?,1,?,?)""",
         (nome.strip(), ws, hash_token(token), prefixo, json.dumps(permissoes), agora, expira),
     )
-    _evento(integracao_id, ws, "criacao")
+    _evento(integracao_id, ws, "criacao", administrador)
     return {"integracao": _publica(db.q("SELECT * FROM integracoes WHERE id=?", (integracao_id,), um=True)),
             "token": token, "aviso": "Guarde o token agora: ele não será exibido novamente."}
 
@@ -107,7 +113,7 @@ def detalhes(request: Request, integracao_id: int):
     if not registro:
         raise HTTPException(404, "Integração não encontrada.")
     eventos = db.q(
-        """SELECT id, acao, endpoint, status, quando FROM integracao_eventos
+        """SELECT id, acao, endpoint, status, quando, ator_usuario, ator_nome FROM integracao_eventos
            WHERE integracao_id=? ORDER BY id DESC LIMIT 100""",
         (integracao_id,),
     )
@@ -116,7 +122,7 @@ def detalhes(request: Request, integracao_id: int):
 
 @router.post("/{integracao_id}/rotacionar")
 def rotacionar(request: Request, integracao_id: int, corpo: dict | None = None):
-    _administrador(request)
+    administrador = _administrador(request)
     registro = db.q("SELECT * FROM integracoes WHERE id=?", (integracao_id,), um=True)
     if not registro:
         raise HTTPException(404, "Integração não encontrada.")
@@ -137,7 +143,7 @@ def rotacionar(request: Request, integracao_id: int, corpo: dict | None = None):
            WHERE id=?""",
         (hash_token(token), token[:12], novo_expira, integracao_id),
     )
-    _evento(integracao_id, registro["ws"], "rotacao")
+    _evento(integracao_id, registro["ws"], "rotacao", administrador)
     atualizado = db.q("SELECT * FROM integracoes WHERE id=?", (integracao_id,), um=True)
     return {"integracao": _publica(atualizado), "token": token,
             "aviso": "Token anterior invalidado. Guarde o novo token agora."}
@@ -145,11 +151,11 @@ def rotacionar(request: Request, integracao_id: int, corpo: dict | None = None):
 
 @router.post("/{integracao_id}/revogar")
 def revogar(request: Request, integracao_id: int):
-    _administrador(request)
+    administrador = _administrador(request)
     registro = db.q("SELECT * FROM integracoes WHERE id=?", (integracao_id,), um=True)
     if not registro:
         raise HTTPException(404, "Integração não encontrada.")
     agora = datetime.now(timezone.utc).isoformat()
     db.x("UPDATE integracoes SET ativa=0, revogada_em=? WHERE id=?", (agora, integracao_id))
-    _evento(integracao_id, registro["ws"], "revogacao")
+    _evento(integracao_id, registro["ws"], "revogacao", administrador)
     return {"ok": True, "integracao": _publica(db.q("SELECT * FROM integracoes WHERE id=?", (integracao_id,), um=True))}
