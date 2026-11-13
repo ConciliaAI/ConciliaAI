@@ -210,3 +210,21 @@ def test_dependencia_erp_exige_bearer_e_escopo(cliente):
     with pytest.raises(HTTPException) as erro:
         dependencia(request_sem_token)
     assert erro.value.status_code == 401
+
+
+
+def test_auditoria_identifica_admin_em_criacao_rotacao_e_revogacao(cliente):
+    criado = criar_integracao(cliente)
+    integracao_id = criado["integracao"]["id"]
+
+    entrar(cliente, "admin")
+    rotacao = cliente.post(f"/api/integracoes/{integracao_id}/rotacionar", json={})
+    assert rotacao.status_code == 200
+    revogacao = cliente.post(f"/api/integracoes/{integracao_id}/revogar")
+    assert revogacao.status_code == 200
+
+    eventos = cliente.get(f"/api/integracoes/{integracao_id}").json()["eventos"]
+    por_acao = {evento["acao"]: evento for evento in eventos}
+    for acao in ("criacao", "rotacao", "revogacao"):
+        assert por_acao[acao]["ator_usuario"] == "admin"
+        assert por_acao[acao]["ator_nome"] == "Administrador"
