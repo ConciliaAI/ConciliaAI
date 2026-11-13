@@ -36,7 +36,7 @@ def importar_xml(eid: int, ws: str, caminho: Path, nome: str) -> bool:
         versao = fiscal_dados["versao"]
         emissor = (campos.get("emitente") or {}).get("nome")
         destinatario = (campos.get("destinatario") or {}).get("nome")
-        db.x("""INSERT OR IGNORE INTO documentos_fiscais
+        novo = db.inserir_se_novo("""INSERT OR IGNORE INTO documentos_fiscais
                 (ws, envio_id, nome_arquivo, caminho_xml, sha256, modelo, tipo,
                  versao, numero, chave, emissao, emissor, destinatario, dados, criado_em)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -44,6 +44,11 @@ def importar_xml(eid: int, ws: str, caminho: Path, nome: str) -> bool:
               versao, campos.get("numero"), campos.get("chave_acesso"), campos.get("emissao"),
               emissor, destinatario,
               json.dumps(fiscal_dados, ensure_ascii=False), db.agora()))
+        if not novo:
+            original = db.q("SELECT id, envio_id FROM documentos_fiscais WHERE ws=? AND sha256=?",
+                            (ws, sha), um=True)
+            db.evento(eid, f"XML já cadastrado: {nome} (registro fiscal #{original['id'] if original else '?'})")
+            return False
         db.evento(eid, f"XML {tipo.upper()} modelo {fiscal_dados['modelo']} interpretado: {nome}"
                        + (f" ({len(fiscal_dados['avisos'])} advertência(s))"
                           if fiscal_dados["avisos"] else ""))
