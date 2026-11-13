@@ -6,6 +6,7 @@ exigir_integracao(<escopo>) e obtém o workspace exclusivamente da credencial.
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import JSONResponse
 
 from .. import config, db, pipeline
 from .auth import autenticar_integracao, exigir_escopo
@@ -39,7 +40,12 @@ def _sanitizar_envio(envio: dict) -> dict:
     resposta["erro_mensagem"] = None
 
     if erro_interno:
-        if resposta.get("status") == "recusado":
+        if "já foi enviado" in str(erro_interno).lower():
+            resposta["erro_codigo"] = "DUPLICATE_DOCUMENT"
+            resposta["erro_mensagem"] = (
+                "O documento já havia sido recebido anteriormente e não foi importado novamente."
+            )
+        elif resposta.get("status") == "recusado":
             resposta["erro_codigo"] = "DOCUMENTS_REJECTED"
             resposta["erro_mensagem"] = (
                 "O envio não contém documentos válidos para processamento."
@@ -80,7 +86,7 @@ def _auditar(integracao: dict, request: Request, acao: str, status: int) -> None
     )
 
 
-@router.post("/documents", status_code=202)
+@router.post("/documents")
 async def receber_documentos(
     request: Request,
     arquivos: list[UploadFile] = File(...),
@@ -110,24 +116,54 @@ async def receber_documentos(
         recebidos.append((nome, conteudo))
 
     try:
-        envio_id = pipeline.criar_envio(
+        resultado = pipeline.criar_envio(
             integracao["ws"],
             recebidos,
             origem=f"ERP: {integracao['nome']}",
             usuario=f"integracao:{integracao['id']}",
+            retornar_detalhes=True,
         )
     except Exception:
         # O pipeline pode ter persistido parte do envio; não mascaramos a falha.
         raise
 
+    envio_id = resultado["envio_id"]
     envio = _envio_do_workspace(envio_id, integracao["ws"])
-    _auditar(integracao, request, "documentos_recebidos", 202)
-    return {
-        "envio_id": envio_id,
-        "status": envio["status"],
-        "arquivos_recebidos": len(recebidos),
-        "mensagem": "Arquivos recebidos e encaminhados ao processamento.",
-    }
+
+    if resultado["documentos_aceitos"] > 0:
+        codigo_http = 200 if resultado["status"] == "concluido" else 202
+        codigo_resultado = (
+            "PROCESSED" if codigo_http == 200 else "ACCEPTED_FOR_PROCESSING"
+        )
+        mensagem = (
+            "Documento(s) recebido(s) e processado(s) diretamente."
+            if codigo_http == 200
+            else "Documento(s) recebido(s) e encaminhado(s) para processamento."
+        )
+    elif resultado["somente_duplicados"]:
+        codigo_http = 409
+        codigo_resultado = "DUPLICATE_DOCUMENT"
+        mensagem = "Todos os documentos enviados já haviam sido recebidos anteriormente."
+    else:
+        codigo_http = 422
+        codigo_resultado = "NO_ACCEPTED_DOCUMENTS"
+        mensagem = "Nenhum documento válido foi identificado no envio."
+
+    _auditar(integracao, request, "documentos_recebidos", codigo_http)
+    return JSONResponse(
+        status_code=codigo_http,
+        content={
+            "envio_id": envio_id,
+            "status": envio["status"],
+            "resultado": codigo_resultado,
+            "documentos_aceitos": resultado["documentos_aceitos"],
+            "documentos_xml_processados": resultado["documentos_xml"],
+            "arquivos_com_paginas": resultado["arquivos_com_paginas"],
+            "paginas_enfileiradas": resultado["paginas_enfileiradas"],
+            "arquivos_duplicados": resultado["arquivos_duplicados"],
+            "mensagem": mensagem,
+        },
+    )
 
 
 @router.get("/documents")
