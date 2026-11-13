@@ -30,6 +30,34 @@ def exigir_integracao(escopo: str):
     return dependencia
 
 
+def _sanitizar_envio(envio: dict) -> dict:
+    """Remove detalhes internos de erro antes de expor um envio à integração ERP."""
+    resposta = dict(envio)
+    erro_interno = resposta.pop("erro", None)
+
+    resposta["erro_codigo"] = None
+    resposta["erro_mensagem"] = None
+
+    if erro_interno:
+        if resposta.get("status") == "recusado":
+            resposta["erro_codigo"] = "DOCUMENTS_REJECTED"
+            resposta["erro_mensagem"] = (
+                "O envio não contém documentos válidos para processamento."
+            )
+        elif resposta.get("status") == "falhou":
+            resposta["erro_codigo"] = "PROCESSING_FAILED"
+            resposta["erro_mensagem"] = (
+                "Não foi possível concluir o processamento. Consulte o suporte."
+            )
+        else:
+            resposta["erro_codigo"] = "PROCESSING_ERROR"
+            resposta["erro_mensagem"] = (
+                "Ocorreu um problema no processamento. Consulte o suporte."
+            )
+
+    return resposta
+
+
 def _envio_do_workspace(envio_id: int, ws: str) -> dict:
     """Retorna 404 também quando o envio existe, mas pertence a outro workspace."""
     envio = db.q(
@@ -116,6 +144,7 @@ def listar_envios(
            FROM envios WHERE ws=? ORDER BY id DESC LIMIT ? OFFSET ?""",
         (integracao["ws"], limit, offset),
     )
+    envios = [_sanitizar_envio(envio) for envio in envios]
     total = db.q(
         "SELECT COUNT(*) AS total FROM envios WHERE ws=?",
         (integracao["ws"],),
@@ -132,7 +161,7 @@ def consultar_envio(
     integracao: dict = Depends(exigir_integracao("results:read")),
 ):
     """Consulta status e contagens de um envio pertencente ao workspace autenticado."""
-    envio = _envio_do_workspace(envio_id, integracao["ws"])
+    envio = _sanitizar_envio(_envio_do_workspace(envio_id, integracao["ws"]))
     envio["documentos_identificados"] = db.q(
         "SELECT COUNT(*) AS total FROM docs WHERE envio_id=? AND ws=?",
         (envio_id, integracao["ws"]),
