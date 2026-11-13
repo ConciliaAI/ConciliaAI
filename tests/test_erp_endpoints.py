@@ -84,7 +84,7 @@ def test_endpoints_erp_exigem_credencial_e_escopo(client, monkeypatch):
 
 def test_recebimento_e_consulta_de_envio(client):
     token = _integracao(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _headers(token)
     recebido = client.post(
         "/api/erp/v1/documents",
         headers=headers,
@@ -350,7 +350,7 @@ def test_chave_em_processamento_nao_dispara_novo_pipeline(client, monkeypatch):
     headers = _headers(token)
     integracao = db.q(
         "SELECT id FROM integracoes WHERE token_hash=?",
-        (__import__("app.integrations.security", fromlist=["hash_token"]).hash_token(token),),
+        (hash_token(token),),
         um=True,
     )
     nome = "a.pdf"
