@@ -3,13 +3,17 @@
 As rotas deste módulo não usam cookies/sessões humanas. Cada endpoint declara
 exigir_integracao(<escopo>) e obtém o workspace exclusivamente da credencial.
 """
+import hashlib
+import json
+import re
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from .. import config, db, pipeline
-from .auth import autenticar_integracao, exigir_escopo
+from .auth import autorizar_integracao
 
 
 router = APIRouter(prefix="/api/erp/v1", tags=["Integração ERP"])
@@ -24,9 +28,7 @@ EXTENSOES_PERMITIDAS = {
 def exigir_integracao(escopo: str):
     """Cria dependência que valida Bearer Token e o escopo exigido pela rota."""
     def dependencia(request: Request) -> dict:
-        integracao = autenticar_integracao(request)
-        exigir_escopo(integracao, escopo)
-        return integracao
+        return autorizar_integracao(request, escopo)
 
     return dependencia
 
@@ -90,9 +92,12 @@ def _auditar(integracao: dict, request: Request, acao: str, status: int) -> None
 async def receber_documentos(
     request: Request,
     arquivos: list[UploadFile] = File(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key", min_length=8, max_length=128),
     integracao: dict = Depends(exigir_integracao("documents:write")),
 ):
-    """Recebe arquivos do ERP e os encaminha ao pipeline documental já existente."""
+    """Recebe arquivos; uma chave por operação impede reprocessamento em retries."""
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", idempotency_key):
+        raise HTTPException(400, "Idempotency-Key deve conter de 8 a 128 caracteres seguros.")
     if not arquivos or len(arquivos) > MAX_ARQUIVOS:
         raise HTTPException(400, f"Envie de 1 a {MAX_ARQUIVOS} arquivos por requisição.")
 
@@ -115,44 +120,91 @@ async def receber_documentos(
             raise HTTPException(413, f"O conjunto de arquivos excede o limite de {config.MAX_MB} MB por requisição.")
         recebidos.append((nome, conteudo))
 
+    # Fingerprint determinístico: considera nomes, ordem e bytes de cada arquivo.
+    digest = hashlib.sha256()
+    for nome, conteudo in recebidos:
+        nome_bytes = nome.encode("utf-8")
+        digest.update(len(nome_bytes).to_bytes(8, "big"))
+        digest.update(nome_bytes)
+        digest.update(len(conteudo).to_bytes(8, "big"))
+        digest.update(conteudo)
+    fingerprint = digest.hexdigest()
+    agora = db.agora()
+
+    # BEGIN IMMEDIATE serializa reservas concorrentes antes de qualquer efeito no pipeline.
+    def reservar(conn):
+        existente = conn.execute(
+            """SELECT fingerprint, status, envio_id, resposta_status, resposta_json
+               FROM integracao_requisicoes WHERE integracao_id=? AND chave=?""",
+            (integracao["id"], idempotency_key),
+        ).fetchone()
+        if existente:
+            return dict(existente), False
+        conn.execute(
+            """INSERT INTO integracao_requisicoes
+               (integracao_id, chave, fingerprint, status, criada_em, atualizada_em)
+               VALUES(?,?,?,'processando',?,?)""",
+            (integracao["id"], idempotency_key, fingerprint, agora, agora),
+        )
+        conn.execute(
+            """INSERT INTO integracao_eventos
+               (integracao_id, ws, acao, endpoint, status, quando)
+               VALUES(?,?,?,?,?,?)""",
+            (integracao["id"], integracao["ws"], "recebimento_iniciado",
+             request.url.path, 202, agora),
+        )
+        return None, True
+
+    existente, nova = db.transacao(reservar)
+    if not nova:
+        if existente["fingerprint"] != fingerprint:
+            raise HTTPException(409, "Idempotency-Key já utilizada com conteúdo diferente.")
+        if existente["status"] == "concluido":
+            return JSONResponse(
+                status_code=existente["resposta_status"],
+                content=json.loads(existente["resposta_json"]),
+                headers={"Idempotency-Replayed": "true"},
+            )
+        if existente["status"] == "processando":
+            raise HTTPException(
+                409, "Esta requisição ainda está em processamento. Não a reenvie com outra chave.",
+                headers={"Retry-After": "5"},
+            )
+        raise HTTPException(
+            409,
+            "O processamento anterior ficou indeterminado. A chave permanece bloqueada para evitar duplicidade; solicite reconciliação operacional.",
+        )
+
     try:
-        resultado = pipeline.criar_envio(
+        resultado = await run_in_threadpool(
+            pipeline.criar_envio,
             integracao["ws"],
             recebidos,
             origem=f"ERP: {integracao['nome']}",
             usuario=f"integracao:{integracao['id']}",
             retornar_detalhes=True,
         )
-    except Exception:
-        # O pipeline pode ter persistido parte do envio; não mascaramos a falha.
-        raise
+        envio_id = resultado["envio_id"]
+        envio = _envio_do_workspace(envio_id, integracao["ws"])
 
-    envio_id = resultado["envio_id"]
-    envio = _envio_do_workspace(envio_id, integracao["ws"])
+        if resultado["documentos_aceitos"] > 0:
+            codigo_http = 200 if resultado["status"] == "concluido" else 202
+            codigo_resultado = "PROCESSED" if codigo_http == 200 else "ACCEPTED_FOR_PROCESSING"
+            mensagem = (
+                "Documento(s) recebido(s) e processado(s) diretamente."
+                if codigo_http == 200
+                else "Documento(s) recebido(s) e encaminhado(s) para processamento."
+            )
+        elif resultado["somente_duplicados"]:
+            codigo_http = 409
+            codigo_resultado = "DUPLICATE_DOCUMENT"
+            mensagem = "Todos os documentos enviados já haviam sido recebidos anteriormente."
+        else:
+            codigo_http = 422
+            codigo_resultado = "NO_ACCEPTED_DOCUMENTS"
+            mensagem = "Nenhum documento válido foi identificado no envio."
 
-    if resultado["documentos_aceitos"] > 0:
-        codigo_http = 200 if resultado["status"] == "concluido" else 202
-        codigo_resultado = (
-            "PROCESSED" if codigo_http == 200 else "ACCEPTED_FOR_PROCESSING"
-        )
-        mensagem = (
-            "Documento(s) recebido(s) e processado(s) diretamente."
-            if codigo_http == 200
-            else "Documento(s) recebido(s) e encaminhado(s) para processamento."
-        )
-    elif resultado["somente_duplicados"]:
-        codigo_http = 409
-        codigo_resultado = "DUPLICATE_DOCUMENT"
-        mensagem = "Todos os documentos enviados já haviam sido recebidos anteriormente."
-    else:
-        codigo_http = 422
-        codigo_resultado = "NO_ACCEPTED_DOCUMENTS"
-        mensagem = "Nenhum documento válido foi identificado no envio."
-
-    _auditar(integracao, request, "documentos_recebidos", codigo_http)
-    return JSONResponse(
-        status_code=codigo_http,
-        content={
+        payload = {
             "envio_id": envio_id,
             "status": envio["status"],
             "resultado": codigo_resultado,
@@ -162,8 +214,43 @@ async def receber_documentos(
             "paginas_enfileiradas": resultado["paginas_enfileiradas"],
             "arquivos_duplicados": resultado["arquivos_duplicados"],
             "mensagem": mensagem,
-        },
-    )
+        }
+        resposta_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        finalizado = db.agora()
+
+        def concluir(conn):
+            conn.execute(
+                """UPDATE integracao_requisicoes
+                   SET status='concluido', envio_id=?, resposta_status=?,
+                       resposta_json=?, atualizada_em=?
+                   WHERE integracao_id=? AND chave=? AND status='processando'""",
+                (envio_id, codigo_http, resposta_json, finalizado,
+                 integracao["id"], idempotency_key),
+            )
+            if conn.execute("SELECT changes()").fetchone()[0] != 1:
+                raise RuntimeError("Não foi possível finalizar a reserva idempotente.")
+            conn.execute(
+                """INSERT INTO integracao_eventos
+                   (integracao_id, ws, acao, endpoint, status, quando)
+                   VALUES(?,?,?,?,?,?)""",
+                (integracao["id"], integracao["ws"], "recebimento_concluido",
+                 request.url.path, codigo_http, finalizado),
+            )
+
+        db.transacao(concluir)
+        return JSONResponse(status_code=codigo_http, content=payload)
+    except Exception:
+        # Não liberar a chave: o pipeline pode ter persistido dados antes da falha.
+        try:
+            db.x(
+                """UPDATE integracao_requisicoes SET status='indeterminado', atualizada_em=?
+                   WHERE integracao_id=? AND chave=? AND status='processando'""",
+                (db.agora(), integracao["id"], idempotency_key),
+            )
+            _auditar(integracao, request, "recebimento_indeterminado", 500)
+        except Exception:
+            pass
+        raise
 
 
 @router.get("/documents")
