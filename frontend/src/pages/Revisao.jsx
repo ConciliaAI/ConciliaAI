@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import Icone from '../components/Icone'
 import { curto, DUVIDA, nomeDocumento, resumoProblema } from '../documentos'
@@ -84,8 +84,11 @@ function pergunta(item, tipos) {
 function CartaoFila({ item, ativo, aoClicar }) {
   const doc = item.tipoItem === 'documento'
   const [sev, corSev] = SEVERIDADE[item.severidade] || []
+  const ref = useRef(null)
+  // O item escolhido (pelo clique ou depois de responder) fica sempre à vista dentro da fila que rola.
+  useEffect(() => { if (ativo) ref.current?.scrollIntoView({ block: 'nearest' }) }, [ativo])
   return (
-    <button onClick={aoClicar} aria-current={ativo ? 'true' : undefined}
+    <button ref={ref} onClick={aoClicar} aria-current={ativo ? 'true' : undefined}
             className={`grid min-h-[6.25rem] w-full content-center gap-1 rounded-2xl border px-4 py-3.5 text-left transition-colors
               ${ativo ? 'border-confere bg-nevoa/60 ring-1 ring-confere' : 'border-borda bg-white hover:border-confere/50'}`}>
       <span className="flex items-center gap-2.5 text-[0.9375rem] font-bold">
@@ -326,7 +329,13 @@ export default function Revisao({ ws, perfil, aoMudar }) {
       {/* Figma: fila 352 à esquerda, pergunta 680 à direita, espaço 24. */}
       <div className="mt-5 grid grid-cols-1 items-start gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
         <div className="grid content-start gap-3">
-          {fila.map((x) => <CartaoFila key={chave(x)} item={x} ativo={atual && chave(x) === chave(atual)} aoClicar={() => setSelecionado(chave(x))} />)}
+          {/* A fila pode ter centenas de itens: ela rola sozinha (uns 4 cartões à vista) e a página não cresce. */}
+          {fila.length > 0 && (
+            <div className="-mr-2 grid max-h-[33rem] content-start gap-3 overflow-y-auto overscroll-contain pr-2 [scrollbar-width:thin]"
+                 aria-label={`Fila de revisão, ${fila.length} itens`}>
+              {fila.map((x) => <CartaoFila key={chave(x)} item={x} ativo={atual && chave(x) === chave(atual)} aoClicar={() => setSelecionado(chave(x))} />)}
+            </div>
+          )}
 
           <div className="mt-2 rounded-2xl bg-noite p-6 text-white">
             <p className="text-sm text-white/70">Já resolvidas</p>

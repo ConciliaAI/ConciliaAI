@@ -4,8 +4,8 @@ export const MENU = [
   { id: 'enviar', rotulo: 'Enviar documentos', icone: 'enviar' },
   { id: 'revisao', rotulo: 'Revisão humana', icone: 'revisao', contador: 'revisao' },
   { id: 'contratos', rotulo: 'Contratos', icone: 'contratos' },
-  { id: 'fiscais', rotulo: 'XML fiscais', icone: 'documentos' },
   { id: 'relatorios', rotulo: 'Relatórios', icone: 'relatorios' },
+  { id: 'fiscais', rotulo: 'XML fiscais', icone: 'documentos' },
 ]
 const GERAL = [
   { id: 'config', rotulo: 'Configurações', icone: 'config' },

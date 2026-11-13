@@ -84,6 +84,34 @@ CREATE TABLE IF NOT EXISTS avisos(
   assunto TEXT, corpo TEXT, usuario TEXT, quando TEXT);
 CREATE INDEX IF NOT EXISTS i_notas ON notas(ws, cnpj_prestador, numero);
 CREATE INDEX IF NOT EXISTS i_div ON divergencias(ws, status);
+-- Integrações ERP: credenciais técnicas isoladas por workspace.
+CREATE TABLE IF NOT EXISTS integracoes(
+  id INTEGER PRIMARY KEY,
+  nome TEXT NOT NULL,
+  ws TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  token_prefix TEXT NOT NULL,
+  permissoes TEXT NOT NULL DEFAULT '[]',
+  ativa INTEGER NOT NULL DEFAULT 1,
+  criada_em TEXT NOT NULL,
+  expira_em TEXT,
+  revogada_em TEXT,
+  ultimo_acesso TEXT,
+  FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS i_integracoes_ws ON integracoes(ws, ativa);
+CREATE TABLE IF NOT EXISTS integracao_eventos(
+  id INTEGER PRIMARY KEY,
+  integracao_id INTEGER,
+  ws TEXT NOT NULL,
+  acao TEXT NOT NULL,
+  endpoint TEXT,
+  status INTEGER,
+  quando TEXT NOT NULL,
+  FOREIGN KEY(integracao_id) REFERENCES integracoes(id) ON DELETE SET NULL,
+  FOREIGN KEY(ws) REFERENCES workspaces(id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS i_integracao_eventos_ws ON integracao_eventos(ws, quando);
 CREATE TABLE IF NOT EXISTS documentos_fiscais (
   id INTEGER PRIMARY KEY, ws TEXT NOT NULL, envio_id INT NOT NULL,
   nome_arquivo TEXT, caminho_xml TEXT, sha256 TEXT NOT NULL,
