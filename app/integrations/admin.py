@@ -119,7 +119,7 @@ def detalhes(request: Request, integracao_id: int):
     if not registro:
         raise HTTPException(404, "Integração não encontrada.")
     eventos = db.q(
-        """SELECT id, acao, endpoint, status, quando, ator_usuario, ator_nome FROM integracao_eventos
+        """SELECT id, acao, endpoint, status, quando, ator_usuario, ator_nome, ator_perfil FROM integracao_eventos
            WHERE integracao_id=? ORDER BY id DESC LIMIT 100""",
         (integracao_id,),
     )
