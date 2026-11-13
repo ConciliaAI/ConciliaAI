@@ -21,6 +21,13 @@ def _login(client):
     assert response.status_code == 200, response.text
 
 
+def _headers(token):
+    return {
+        "Authorization": f"Bearer {token}",
+        "Idempotency-Key": f"test-{token[:24]}",
+    }
+
+
 def _integracao(client, workspace="horizonte", permissoes=None):
     _login(client)
     corpo = {"nome": "ERP endpoints", "ws": workspace}
@@ -34,9 +41,18 @@ def _integracao(client, workspace="horizonte", permissoes=None):
 def test_endpoints_erp_exigem_credencial_e_escopo(client, monkeypatch):
     assert client.get("/api/erp/v1/documents").status_code == 401
     token = _integracao(client, permissoes=["documents:write"])
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = _headers(token)
 
     assert client.get("/api/erp/v1/documents", headers=headers).status_code == 403
+    negada = db.q(
+        """SELECT acao, status FROM integracao_eventos
+           WHERE acao='escopo_negado' AND integracao_id=(
+             SELECT id FROM integracoes WHERE token_hash=?
+           ) ORDER BY id DESC LIMIT 1""",
+        (__import__("app.integrations.security", fromlist=["hash_token"]).hash_token(token),),
+        um=True,
+    )
+    assert negada == {"acao": "escopo_negado", "status": 403}
     envio_id = db.x(
         """INSERT INTO envios(ws, nome, origem, criado_em, status)
            VALUES(?,?,?,?,?)""",
@@ -92,7 +108,7 @@ def test_recebimento_e_consulta_de_envio(client):
 
 def test_integracao_nao_acessa_envio_de_outro_workspace(client):
     token_horizonte = _integracao(client, workspace="horizonte")
-    headers_horizonte = {"Authorization": f"Bearer {token_horizonte}"}
+    headers_horizonte = _headers(token_horizonte)
     recebido = client.post(
         "/api/erp/v1/documents",
         headers=headers_horizonte,
@@ -102,7 +118,7 @@ def test_integracao_nao_acessa_envio_de_outro_workspace(client):
     envio_id = recebido.json()["envio_id"]
 
     token_marazul = _integracao(client, workspace="marazul")
-    headers_marazul = {"Authorization": f"Bearer {token_marazul}"}
+    headers_marazul = _headers(token_marazul)
     resposta = client.get(
         f"/api/erp/v1/documents/{envio_id}",
         headers=headers_marazul,
@@ -114,7 +130,7 @@ def test_recebimento_rejeita_extensao_nao_permitida(client):
     token = _integracao(client)
     response = client.post(
         "/api/erp/v1/documents",
-        headers={"Authorization": f"Bearer {token}"},
+        headers=_headers(token),
         files={"arquivos": ("script.exe", b"conteudo", "application/octet-stream")},
     )
     assert response.status_code == 415
@@ -251,3 +267,96 @@ def test_recebimento_retorna_status_real_do_pipeline(
     assert response.status_code == status_http, response.text
     assert response.json()["resultado"] == codigo_resultado
     assert response.json()["envio_id"] == envio_id
+
+
+
+def test_idempotencia_reproduz_resposta_sem_chamar_pipeline_duas_vezes(client, monkeypatch):
+    token = _integracao(client, permissoes=["documents:write"])
+    headers = _headers(token)
+    envio_id = db.x(
+        """INSERT INTO envios(ws, nome, origem, criado_em, status)
+           VALUES(?,?,?,?,?)""",
+        ("horizonte", "idempotente.pdf", "ERP: ERP endpoints", db.agora(), "fila"),
+    )
+    chamadas = {"total": 0}
+
+    def pipeline_simulado(*args, **kwargs):
+        chamadas["total"] += 1
+        return {
+            "envio_id": envio_id,
+            "status": "fila",
+            "documentos_aceitos": 1,
+            "documentos_xml": 0,
+            "arquivos_com_paginas": 1,
+            "paginas_enfileiradas": 1,
+            "arquivos_duplicados": 0,
+            "somente_duplicados": False,
+        }
+
+    monkeypatch.setattr("app.integrations.erp.pipeline.criar_envio", pipeline_simulado)
+    arquivos = {"arquivos": ("idempotente.pdf", b"conteudo idempotente", "application/pdf")}
+    primeira = client.post("/api/erp/v1/documents", headers=headers, files=arquivos)
+    segunda = client.post("/api/erp/v1/documents", headers=headers, files=arquivos)
+
+    assert primeira.status_code == 202
+    assert segunda.status_code == primeira.status_code
+    assert segunda.json() == primeira.json()
+    assert segunda.headers.get("Idempotency-Replayed") == "true"
+    assert chamadas["total"] == 1
+
+
+def test_idempotency_key_nao_aceita_conteudo_diferente(client, monkeypatch):
+    token = _integracao(client, permissoes=["documents:write"])
+    headers = _headers(token)
+    envio_id = db.x(
+        """INSERT INTO envios(ws, nome, origem, criado_em, status)
+           VALUES(?,?,?,?,?)""",
+        ("horizonte", "idempotente.pdf", "ERP: ERP endpoints", db.agora(), "fila"),
+    )
+    monkeypatch.setattr(
+        "app.integrations.erp.pipeline.criar_envio",
+        lambda *args, **kwargs: {
+            "envio_id": envio_id, "status": "fila", "documentos_aceitos": 1,
+            "documentos_xml": 0, "arquivos_com_paginas": 1,
+            "paginas_enfileiradas": 1, "arquivos_duplicados": 0,
+            "somente_duplicados": False,
+        },
+    )
+    primeira = client.post(
+        "/api/erp/v1/documents", headers=headers,
+        files={"arquivos": ("a.pdf", b"conteudo A", "application/pdf")},
+    )
+    segunda = client.post(
+        "/api/erp/v1/documents", headers=headers,
+        files={"arquivos": ("a.pdf", b"conteudo B", "application/pdf")},
+    )
+    assert primeira.status_code == 202
+    assert segunda.status_code == 409
+
+
+def test_chave_em_processamento_nao_dispara_novo_pipeline(client, monkeypatch):
+    token = _integracao(client, permissoes=["documents:write"])
+    headers = _headers(token)
+    integracao = db.q(
+        "SELECT id FROM integracoes WHERE token_hash=?",
+        (__import__("app.integrations.security", fromlist=["hash_token"]).hash_token(token),),
+        um=True,
+    )
+    db.x(
+        """INSERT INTO integracao_requisicoes
+           (integracao_id, chave, fingerprint, status, criada_em, atualizada_em)
+           VALUES(?,?,?,'processando',?,?)""",
+        (integracao["id"], headers["Idempotency-Key"], "fingerprint-qualquer",
+         db.agora(), db.agora()),
+    )
+    chamadas = {"total": 0}
+    monkeypatch.setattr(
+        "app.integrations.erp.pipeline.criar_envio",
+        lambda *args, **kwargs: chamadas.update(total=chamadas["total"] + 1),
+    )
+    response = client.post(
+        "/api/erp/v1/documents", headers=headers,
+        files={"arquivos": ("a.pdf", b"conteudo", "application/pdf")},
+    )
+    assert response.status_code == 409
+    assert chamadas["total"] == 0
