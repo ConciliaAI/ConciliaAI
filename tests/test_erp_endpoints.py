@@ -507,22 +507,21 @@ def test_admin_so_libera_processando_com_confirmacao_explicita(client):
 
 
 
-def test_falha_no_pipeline_bloqueia_reenvio_e_permite_reconciliacao(client, monkeypatch):
-    token = _integracao(client, permissoes=["documents:write"])
-    headers = _headers(token)
-
-    def pipeline_com_falha(*args, **kwargs):
-        raise RuntimeError("falha simulada depois da reserva")
-
-    monkeypatch.setattr(
-        "app.integrations.erp.pipeline.criar_envio",
-        pipeline_com_falha,
-    )
-    # O TestClient padrão propaga exceções do servidor; neste caso verificamos o HTTP 500.
+def test_falha_no_pipeline_bloqueia_reenvio_e_permite_reconciliacao(monkeypatch):
     from fastapi.testclient import TestClient
-    with TestClient(app, raise_server_exceptions=False) as cliente_falha:
-        cliente_falha.cookies.update(client.cookies)
-        primeira = cliente_falha.post(
+
+    with TestClient(app, raise_server_exceptions=False) as c:
+        token = _integracao(c, permissoes=["documents:write"])
+        headers = _headers(token)
+
+        def pipeline_com_falha(*args, **kwargs):
+            raise RuntimeError("falha simulada depois da reserva")
+
+        monkeypatch.setattr(
+            "app.integrations.erp.pipeline.criar_envio",
+            pipeline_com_falha,
+        )
+        primeira = c.post(
             "/api/erp/v1/documents",
             headers=headers,
             files={"arquivos": ("falha.pdf", b"conteudo", "application/pdf")},
@@ -538,19 +537,19 @@ def test_falha_no_pipeline_bloqueia_reenvio_e_permite_reconciliacao(client, monk
         )
         assert reserva == {"status": "indeterminado", "envio_id": None}
 
-        segunda = cliente_falha.post(
+        segunda = c.post(
             "/api/erp/v1/documents",
             headers=headers,
             files={"arquivos": ("falha.pdf", b"conteudo", "application/pdf")},
         )
         assert segunda.status_code == 409
 
-    integracao = db.q(
-        "SELECT id FROM integracoes WHERE token_hash=?",
-        (hash_token(token),),
-        um=True,
-    )
-    liberada = client.post(
-        f"/api/integracoes/{integracao['id']}/requisicoes/{headers['Idempotency-Key']}/desbloquear"
-    )
-    assert liberada.status_code == 200, liberada.text
+        integracao = db.q(
+            "SELECT id FROM integracoes WHERE token_hash=?",
+            (hash_token(token),),
+            um=True,
+        )
+        liberada = c.post(
+            f"/api/integracoes/{integracao['id']}/requisicoes/{headers['Idempotency-Key']}/desbloquear"
+        )
+        assert liberada.status_code == 200, liberada.text
