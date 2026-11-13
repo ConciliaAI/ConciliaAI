@@ -1,25 +1,192 @@
 """Ponto de entrada da API ERP e dependências de autenticação máquina a máquina.
 
-As rotas deste módulo não usam cookies/sessões humanas. Cada endpoint deve
-declarar a dependência exigir_integracao(<escopo>) adequada à operação.
+As rotas deste módulo não usam cookies/sessões humanas. Cada endpoint declara
+exigir_integracao(<escopo>) e obtém o workspace exclusivamente da credencial.
 """
-from fastapi import APIRouter, Request
+from pathlib import Path
 
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+
+from .. import config, db, pipeline
 from .auth import autenticar_integracao, exigir_escopo
 
 
 router = APIRouter(prefix="/api/erp/v1", tags=["Integração ERP"])
 
+MAX_ARQUIVOS = 20
+EXTENSOES_PERMITIDAS = {
+    ".xml", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff",
+    ".bmp", ".webp", ".zip",
+}
+
 
 def exigir_integracao(escopo: str):
-    """Cria dependência que valida Bearer Token e o escopo exigido pela rota.
-
-    O workspace retornado vem exclusivamente do cadastro da credencial.
-    Nunca deve ser substituído por um workspace enviado pelo ERP.
-    """
+    """Cria dependência que valida Bearer Token e o escopo exigido pela rota."""
     def dependencia(request: Request) -> dict:
         integracao = autenticar_integracao(request)
         exigir_escopo(integracao, escopo)
         return integracao
 
     return dependencia
+
+
+def _envio_do_workspace(envio_id: int, ws: str) -> dict:
+    """Retorna 404 também quando o envio existe, mas pertence a outro workspace."""
+    envio = db.q(
+        "SELECT id, ws, nome, origem, criado_em, status, total, feitas, erro, "
+        "retomadas, motor, terminado_em, notas_xml FROM envios WHERE id=? AND ws=?",
+        (envio_id, ws),
+        um=True,
+    )
+    if not envio:
+        raise HTTPException(404, "Envio não encontrado.")
+    return envio
+
+
+def _auditar(integracao: dict, request: Request, acao: str, status: int) -> None:
+    """Registra a operação sem armazenar token, conteúdo ou dados dos documentos."""
+    db.x(
+        """INSERT INTO integracao_eventos(integracao_id, ws, acao, endpoint, status, quando)
+           VALUES(?,?,?,?,?,?)""",
+        (integracao["id"], integracao["ws"], acao, request.url.path, status, db.agora()),
+    )
+
+
+@router.post("/documents", status_code=202)
+async def receber_documentos(
+    request: Request,
+    arquivos: list[UploadFile] = File(...),
+    integracao: dict = Depends(exigir_integracao("documents:write")),
+):
+    """Recebe arquivos do ERP e os encaminha ao pipeline documental já existente."""
+    if not arquivos or len(arquivos) > MAX_ARQUIVOS:
+        raise HTTPException(400, f"Envie de 1 a {MAX_ARQUIVOS} arquivos por requisição.")
+
+    max_bytes = config.MAX_MB * 1024 * 1024
+    total_bytes = 0
+    recebidos = []
+
+    for arquivo in arquivos:
+        nome = Path(arquivo.filename or "").name
+        extensao = Path(nome).suffix.lower()
+        if not nome or extensao not in EXTENSOES_PERMITIDAS:
+            raise HTTPException(415, f"Formato não permitido: {nome or 'arquivo sem nome'}.")
+        conteudo = await arquivo.read(max_bytes + 1)
+        if not conteudo:
+            raise HTTPException(400, f"O arquivo {nome} está vazio.")
+        if len(conteudo) > max_bytes:
+            raise HTTPException(413, f"O arquivo {nome} excede o limite de {config.MAX_MB} MB.")
+        total_bytes += len(conteudo)
+        if total_bytes > max_bytes:
+            raise HTTPException(413, f"O conjunto de arquivos excede o limite de {config.MAX_MB} MB por requisição.")
+        recebidos.append((nome, conteudo))
+
+    try:
+        envio_id = pipeline.criar_envio(
+            integracao["ws"],
+            recebidos,
+            origem=f"ERP: {integracao['nome']}",
+            usuario=f"integracao:{integracao['id']}",
+        )
+    except Exception:
+        # O pipeline pode ter persistido parte do envio; não mascaramos a falha.
+        raise
+
+    envio = _envio_do_workspace(envio_id, integracao["ws"])
+    _auditar(integracao, request, "documentos_recebidos", 202)
+    return {
+        "envio_id": envio_id,
+        "status": envio["status"],
+        "arquivos_recebidos": len(recebidos),
+        "mensagem": "Arquivos recebidos e encaminhados ao processamento.",
+    }
+
+
+@router.get("/documents")
+def listar_envios(
+    request: Request,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    integracao: dict = Depends(exigir_integracao("results:read")),
+):
+    """Lista envios do workspace da credencial, com paginação."""
+    envios = db.q(
+        """SELECT id, nome, origem, criado_em, status, total, feitas, erro,
+                  retomadas, motor, terminado_em, notas_xml
+           FROM envios WHERE ws=? ORDER BY id DESC LIMIT ? OFFSET ?""",
+        (integracao["ws"], limit, offset),
+    )
+    total = db.q(
+        "SELECT COUNT(*) AS total FROM envios WHERE ws=?",
+        (integracao["ws"],),
+        um=True,
+    )["total"]
+    _auditar(integracao, request, "consulta_envios", 200)
+    return {"items": envios, "limit": limit, "offset": offset, "total": total}
+
+
+@router.get("/documents/{envio_id}")
+def consultar_envio(
+    request: Request,
+    envio_id: int,
+    integracao: dict = Depends(exigir_integracao("results:read")),
+):
+    """Consulta status e contagens de um envio pertencente ao workspace autenticado."""
+    envio = _envio_do_workspace(envio_id, integracao["ws"])
+    envio["documentos_identificados"] = db.q(
+        "SELECT COUNT(*) AS total FROM docs WHERE envio_id=? AND ws=?",
+        (envio_id, integracao["ws"]),
+        um=True,
+    )["total"]
+    envio["notas_nfse"] = db.q(
+        "SELECT COUNT(*) AS total FROM notas WHERE envio_id=? AND ws=?",
+        (envio_id, integracao["ws"]),
+        um=True,
+    )["total"]
+    envio["documentos_fiscais"] = db.q(
+        "SELECT COUNT(*) AS total FROM documentos_fiscais WHERE envio_id=? AND ws=?",
+        (envio_id, integracao["ws"]),
+        um=True,
+    )["total"]
+    _auditar(integracao, request, "consulta_envio", 200)
+    return envio
+
+
+@router.get("/documents/{envio_id}/results")
+def consultar_resultados(
+    request: Request,
+    envio_id: int,
+    integracao: dict = Depends(exigir_integracao("results:read")),
+):
+    """Retorna resultados estruturados sem expor XML bruto, OCR, CPF ou caminhos internos."""
+    _envio_do_workspace(envio_id, integracao["ws"])
+
+    documentos = db.q(
+        """SELECT id, tipo, conf, pag_ini, pag_fim, empresa, status, criado_em,
+                  subtipo, subtipo_revisao
+           FROM docs WHERE envio_id=? AND ws=? ORDER BY id""",
+        (envio_id, integracao["ws"]),
+    )
+    notas_nfse = db.q(
+        """SELECT id, numero, data_emissao, competencia, nome_prestador,
+                  descricao, valor, valor_liquido, status, origem
+           FROM notas WHERE envio_id=? AND ws=? ORDER BY id""",
+        (envio_id, integracao["ws"]),
+    )
+    documentos_fiscais = db.q(
+        """SELECT id, nome_arquivo, modelo, tipo, versao, numero, chave,
+                  emissao, emissor, destinatario, criado_em
+           FROM documentos_fiscais WHERE envio_id=? AND ws=? ORDER BY id""",
+        (envio_id, integracao["ws"]),
+    )
+    _auditar(integracao, request, "consulta_resultados", 200)
+    return {
+        "envio_id": envio_id,
+        "documentos_identificados": documentos,
+        "notas_nfse": notas_nfse,
+        "documentos_fiscais": documentos_fiscais,
+        "observacao": (
+            "Resultados disponíveis no momento da consulta. Documentos em OCR "
+            "podem receber resultados adicionais quando o processamento terminar."
+        ),
+    }
