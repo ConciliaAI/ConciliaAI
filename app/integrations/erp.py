@@ -249,7 +249,8 @@ async def receber_documentos(
 
         db.transacao(concluir)
         return JSONResponse(status_code=codigo_http, content=payload)
-    except Exception:
+    except BaseException:
+        # Inclui cancelamento da tarefa: a chave continua bloqueada e rastreável.
         # Não liberar a chave: o pipeline pode ter persistido dados antes da falha.
         try:
             db.x(
