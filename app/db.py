@@ -427,7 +427,8 @@ with _lock:
                            ("integracao_eventos", "ator_nome TEXT"),
                            ("integracao_eventos", "ator_perfil TEXT"),
                            ("integracao_requisicoes", "tentativa_id TEXT"),
-                           ("usuarios", "conta_id TEXT"), ("workspaces", "conta_id TEXT")):
+                           ("usuarios", "conta_id TEXT"), ("workspaces", "conta_id TEXT"),
+                           ("envios", "servidor TEXT")):
         if POSTGRES:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN IF NOT EXISTS {_esquema_postgres(coluna)}")
             continue

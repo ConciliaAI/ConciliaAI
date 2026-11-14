@@ -38,6 +38,27 @@ BANCO_URL = os.environ.get("DATABASE_URL", "").strip()
 # o esquema "concilia" não é, então os dados só saem pela API da Concilia.
 PG_ESQUEMA = os.environ.get("CONCILIA_PG_ESQUEMA", "concilia").strip() or "concilia"
 
+# Storage do Supabase para as imagens das páginas e os originais (ver docs/SUPABASE.md). Sem isso, só o disco.
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").strip()
+SUPABASE_CHAVE = (os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+STORAGE_BUCKET = os.environ.get("CONCILIA_BUCKET", "concilia").strip() or "concilia"
+STORAGE_LIMITE_MB = int(os.environ.get("CONCILIA_STORAGE_LIMITE_MB", "50"))  # limite por arquivo no plano gratuito
+
+
+def _servidor_id() -> str:
+    """Identidade deste computador. Com o banco compartilhado, cada envio é processado só por quem o recebeu."""
+    s = os.environ.get("CONCILIA_SERVIDOR", "").strip()
+    if s:
+        return s
+    arq = DADOS / "servidor.txt"
+    if not arq.exists():
+        import secrets
+        arq.write_text(secrets.token_hex(8), encoding="utf-8")
+    return arq.read_text(encoding="utf-8").strip()
+
+
+SERVIDOR_ID = _servidor_id()
+
 MODELO = os.environ.get("CONCILIA_MODELO", "claude-opus-5-5")
 # Limites por arquivo enviado. Um lote digitalizado de 100+ páginas em TIFF passa fácil de 50 MB.
 MAX_MB = int(os.environ.get("CONCILIA_MAX_MB", "300"))
