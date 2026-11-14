@@ -104,6 +104,11 @@ async def receber_documentos(
         raise HTTPException(400, "Idempotency-Key deve conter de 8 a 128 caracteres seguros.")
     if not arquivos or len(arquivos) > MAX_ARQUIVOS:
         raise HTTPException(400, f"Envie de 1 a {MAX_ARQUIVOS} arquivos por requisição.")
+    # Limite de documentos da conta dona do workspace (o mesmo das telas).
+    usados = db.q("""SELECT COUNT(*) c FROM docs WHERE ws IN (SELECT id FROM workspaces WHERE conta_id=
+                     (SELECT conta_id FROM workspaces WHERE id=?))""", (integracao["ws"],), um=True)["c"]
+    if usados >= config.LIMITE_DOCUMENTOS:
+        raise HTTPException(403, "A conta chegou ao limite de documentos.")
 
     max_bytes = config.MAX_MB * 1024 * 1024
     total_bytes = 0

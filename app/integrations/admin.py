@@ -82,7 +82,7 @@ def criar(request: Request, corpo: dict):
         raise HTTPException(400, "Informe um nome de integração de até 120 caracteres.")
     if not isinstance(ws, str) or not ws.strip():
         raise HTTPException(400, "Informe o workspace da integração.")
-    if not db.q("SELECT id FROM workspaces WHERE id=?", (ws,), um=True):
+    if not db.q("SELECT id FROM workspaces WHERE id=? AND conta_id=?", (ws, administrador.get("conta_id")), um=True):
         raise HTTPException(404, "Workspace não encontrado.")
 
     permissoes = _permissoes(corpo.get("permissoes"))
@@ -107,8 +107,9 @@ def criar(request: Request, corpo: dict):
 
 @router.get("")
 def listar(request: Request):
-    _administrador(request)
-    registros = db.q("SELECT * FROM integracoes ORDER BY id DESC")
+    administrador = _administrador(request)
+    registros = db.q("""SELECT i.* FROM integracoes i JOIN workspaces w ON w.id=i.ws
+                        WHERE w.conta_id=? ORDER BY i.id DESC""", (administrador.get("conta_id"),))
     return [_publica(r) for r in registros]
 
 

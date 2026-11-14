@@ -3,8 +3,10 @@
 - Senhas guardadas com PBKDF2-SHA256 e sal.
 - Sessão em cookie HttpOnly assinado com HMAC (também vale para imagens e downloads).
 - Perfis:  operador -> envia e consulta | revisor -> + decide pendências e revela dados
-           admin    -> + configurações, tipos de documento e avaliação.
+           admin    -> + configurações, tipos de documento, workspaces, usuários e avaliação.
+- Cada usuário pertence a uma conta (a empresa) e só enxerga os workspaces dela.
 """
+import re
 import base64
 import hashlib
 import hmac
@@ -17,6 +19,7 @@ from fastapi import HTTPException, Request
 
 from . import db
 from .config import DADOS
+from .seed import CONTA_DEMO
 
 COOKIE = "concilia_sessao"
 DURACAO = 12 * 3600
@@ -60,10 +63,47 @@ def criar_usuarios_padrao():
         do_env = os.environ.get(f"CONCILIA_SENHA_{usuario.upper()}", "").strip()
         atual = db.q("SELECT senha_hash FROM usuarios WHERE usuario=?", (usuario,), um=True)
         if not atual:
-            db.x("INSERT INTO usuarios VALUES(?,?,?,?)", (usuario, nome, usuario, hash_senha(do_env or senha)))
+            db.x("INSERT INTO usuarios(usuario, nome, perfil, senha_hash, conta_id) VALUES(?,?,?,?,?)",
+                 (usuario, nome, usuario, hash_senha(do_env or senha), CONTA_DEMO))
         elif do_env and not confere_senha(do_env, atual["senha_hash"]):
             # Senha trocada no .env: vale na próxima vez que o sistema abrir (antes, só valia num banco novo).
             db.x("UPDATE usuarios SET senha_hash=? WHERE usuario=?", (hash_senha(do_env), usuario))
+
+
+def validar_usuario(usuario, nome, senha, perfil="operador") -> tuple[str, str]:
+    """Confere os dados de um usuário novo sem gravar nada. Devolve (usuario, nome) já normalizados."""
+    if not all(isinstance(v, str) for v in (usuario, nome, senha)):
+        raise HTTPException(400, "Informe nome, usuário e senha.")
+    usuario, nome = usuario.strip().lower(), nome.strip()
+    if not re.fullmatch(r"[a-z0-9._@-]{3,60}", usuario):
+        raise HTTPException(400, "O usuário deve ter de 3 a 60 letras sem acento, números, ponto, hífen ou @.")
+    if len(nome) < 2:
+        raise HTTPException(400, "Informe o nome da pessoa.")
+    if len(senha) < 8:
+        raise HTTPException(400, "A senha precisa ter pelo menos 8 caracteres.")
+    if perfil not in PERFIS:
+        raise HTTPException(400, "Perfil inválido.")
+    if db.q("SELECT 1 FROM usuarios WHERE usuario=?", (usuario,)):
+        raise HTTPException(400, "Esse usuário já existe. Escolha outro.")
+    return usuario, nome
+
+
+def criar_usuario(conta_id: str, usuario, nome, senha, perfil="operador") -> dict:
+    """Cadastra um usuário numa conta. O login é único no sistema inteiro."""
+    usuario, nome = validar_usuario(usuario, nome, senha, perfil)
+    db.x("INSERT INTO usuarios(usuario, nome, perfil, senha_hash, conta_id) VALUES(?,?,?,?,?)",
+         (usuario, nome, perfil, hash_senha(senha), conta_id))
+    return {"usuario": usuario, "nome": nome, "perfil": perfil}
+
+
+def conta_do_usuario(usuario: str) -> str | None:
+    r = db.q("SELECT conta_id FROM usuarios WHERE usuario=?", (usuario,), um=True)
+    return r["conta_id"] if r else None
+
+
+def sessao_para(publico: dict) -> str:
+    """Token de sessão para um usuário que acabou de se identificar (login ou criação da conta)."""
+    return _assinar({**publico, "exp": time.time() + DURACAO, "sid": secrets.token_hex(16)})
 
 
 def _assinar(dados: dict) -> str:
@@ -109,7 +149,7 @@ def entrar(usuario, senha) -> tuple[str, dict]:
         raise HTTPException(401, "Usuário ou senha incorretos.")
     _erros_login.pop(usuario, None)
     publico = {"usuario": u["usuario"], "nome": u["nome"], "perfil": u["perfil"]}
-    return _assinar({**publico, "exp": agora + DURACAO, "sid": secrets.token_hex(16)}), publico
+    return sessao_para(publico), publico
 
 
 def sair(request: Request):
