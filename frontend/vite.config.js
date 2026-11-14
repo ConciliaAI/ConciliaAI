@@ -7,7 +7,9 @@ import { defineConfig } from 'vite'
 const API = process.env.CONCILIA_API || 'http://127.0.0.1:8000'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), basicSsl()],
+  // https (certificado de teste) para a câmera do scanner funcionar no celular. CONCILIA_SEM_HTTPS=1 abre em http
+  // simples, só para testes automáticos neste computador.
+  plugins: [react(), tailwindcss(), ...(process.env.CONCILIA_SEM_HTTPS ? [] : [basicSsl()])],
   server: {
     host: true, // expõe no 0.0.0.0 (rede local Wi-Fi)
     port: 5173,
