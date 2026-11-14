@@ -16,15 +16,15 @@ A Concilia AI recebe lotes grandes de documentos (XML da NFS-e, PDF, TIFF escane
 Não é só OCR: separa o lote, entende o documento e cruza nota × contrato (valor com aditivos vigentes, vigência, duplicidade, serviço e tomador), mostrando de onde vem cada diferença.
 
 ## Capabilities and Constraints
-- SaaS próprio, sem integração obrigatória com outro sistema. Uma conta por empresa, sem workspaces (ver decisões abaixo).
+- SaaS próprio, sem integração obrigatória com outro sistema. Uma conta por empresa (o escritório de BPO ou de contabilidade), com um workspace para cada cliente dela (ver decisões abaixo).
 - Origem: desafio proposto pela Bernhoeft no Hack Garanhuns Tech 2026; a Bernhoeft é cliente-alvo, não dona do produto.
 - Planos propostos (a validar): Teste grátis (14 dias, 200 documentos), Essencial R$ 197/mês (até 100.000 documentos), Profissional R$ 497/mês (acima de 100.000 documentos, com integração com ERP).
 - Cobrança real, app de celular e integração com ERP ainda não existem.
 
 ### Decisões da reunião (novembro de 2026)
-- **Sem workspaces:** a pessoa cria a conta e já entra na plataforma. Não há "um espaço por cliente".
+- **Conta da empresa com vários workspaces** (revisto em 13/11/2026, depois de conversar de novo com o time): quem usa são empresas de BPO e contabilidade, que atendem vários clientes. A empresa cria a conta, cadastra os seus usuários e cria um workspace para cada cliente; troca de cliente pelo seletor da barra do topo. Uma empresa nunca enxerga os workspaces de outra. A primeira versão desta decisão era "sem workspaces".
 - **Sem cadastro de fornecedores:** a plataforma só lê e estrutura os dados do documento.
-- **Limite:** base de 100.000 documentos.
+- **Limite:** 100.000 documentos por conta, somando todos os workspaces dela (`CONCILIA_LIMITE_DOCUMENTOS`).
 - **Scanner logo de cara no dashboard,** para ler a nota que a pessoa tem na mão. Quem faz o scanner é outra pessoa do time.
 - **Próximas frentes, quase todas no back-end:** relatório; identificação; mais formatos de documento; classificar e relacionar documentos; treinamento (base de referência para diferenciar e comparar); receber dados não estruturados e estruturar; dashboard de visualização; integração com ERP.
 - Os layouts novos estão no Figma "Concilia AI - Landing", página "Plataforma v2 · ajustes da reunião". A Page 1 guarda a versão anterior.
