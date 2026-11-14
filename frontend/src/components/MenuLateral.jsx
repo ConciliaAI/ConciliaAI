@@ -21,9 +21,10 @@ function Item({ item, ativo, contagem, aoClicar }) {
 
 const ROTULO = 'px-2 pb-2.5 text-[0.6875rem] font-bold tracking-[0.08em] text-[#8CB3FF]'
 
-export default function MenuLateral({ rota, contagens, totalDocumentos, aoSair, aoNavegar }) {
+export default function MenuLateral({ rota, contagens, totalDocumentos, limite = LIMITE_DOCUMENTOS, aoSair, aoNavegar }) {
+  // Documentos da conta inteira (todos os workspaces), contra o limite do plano.
   const usados = totalDocumentos ?? 0
-  const pct = Math.min(100, (usados / LIMITE_DOCUMENTOS) * 100)
+  const pct = Math.min(100, (usados / limite) * 100)
   return (
     <aside className="flex h-full min-h-full w-[15.5rem] flex-col rounded-[1.75rem] bg-noite p-4 pt-[1.625rem] text-white">
       <div className="px-2 pb-[2.375rem] [@media(max-height:760px)]:pb-5"><Logo claro /></div>
@@ -47,7 +48,7 @@ export default function MenuLateral({ rota, contagens, totalDocumentos, aoSair, 
         <div>
           <p className="text-sm font-bold">Plano Essencial</p>
           <p className="text-xs text-white/60">
-            {usados.toLocaleString('pt-BR')} de {LIMITE_DOCUMENTOS.toLocaleString('pt-BR')} documentos
+            {usados.toLocaleString('pt-BR')} de {limite.toLocaleString('pt-BR')} documentos
           </p>
         </div>
         <div className="h-1.5 rounded-full bg-white/15" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>

@@ -32,7 +32,34 @@ from .integrations.erp import router as erp_router
 trabalhador = pipeline.Trabalhador()
 MAX_MB = config.MAX_MB  # por arquivo (CONCILIA_MAX_MB no .env); lotes digitalizados costumam ter dezenas de MB
 MAX_BYTES = MAX_MB * 1024 * 1024
-PUBLICAS = {"/api/login", "/api/estado", "/api/sair"}
+PUBLICAS = {"/api/login", "/api/estado", "/api/sair", "/api/contas"}
+
+# De qual workspace é cada recurso pedido pelo caminho: o middleware confere se ele é da conta do usuário.
+_DONO = [
+    (re.compile(r"^/api/ws/([^/]+)"), None),
+    (re.compile(r"^/api/docs/(\d+)"), "SELECT ws FROM docs WHERE id=?"),
+    (re.compile(r"^/api/envios/(\d+)"), "SELECT ws FROM envios WHERE id=?"),
+    (re.compile(r"^/api/notas/(\d+)"), "SELECT ws FROM notas WHERE id=?"),
+    (re.compile(r"^/api/divergencias/(\d+)"), "SELECT ws FROM divergencias WHERE id=?"),
+    (re.compile(r"^/api/documentos-fiscais/(\d+)"), "SELECT ws FROM documentos_fiscais WHERE id=?"),
+    (re.compile(r"^/api/paginas/(\d+)"), "SELECT e.ws FROM paginas p JOIN envios e ON e.id=p.envio_id WHERE p.id=?"),
+    (re.compile(r"^/api/integracoes/(\d+)"), "SELECT ws FROM integracoes WHERE id=?"),
+]
+
+
+def _workspace_do_caminho(caminho: str) -> str | None:
+    for padrao, sql in _DONO:
+        m = padrao.match(caminho)
+        if m:
+            if sql is None:
+                return m.group(1)
+            r = db.q(sql, (int(m.group(1)),), um=True)
+            return r["ws"] if r else None
+    return None
+
+
+def workspace_da_conta(ws: str, conta_id: str) -> bool:
+    return bool(db.q("SELECT 1 FROM workspaces WHERE id=? AND conta_id=?", (ws, conta_id)))
 
 
 @asynccontextmanager
@@ -55,9 +82,15 @@ async def exigir_login(request: Request, chamar):
             and request.url.path not in PUBLICAS
             and not request.url.path.startswith("/api/erp/v1/")):
         u = auth.usuario_da_requisicao(request)
-        if not u:
+        conta = auth.conta_do_usuario(u["usuario"]) if u else None
+        if not u or not conta:
             return JSONResponse({"detail": "Entre na sua conta para continuar."}, status_code=401)
+        u = {**u, "conta_id": conta}
         request.state.usuario = u
+        # Isolamento entre empresas: workspace de outra conta responde como se não existisse.
+        ws = _workspace_do_caminho(request.url.path)
+        if ws and not workspace_da_conta(ws, conta):
+            return JSONResponse({"detail": "Não encontrado."}, status_code=404)
     return await chamar(request)
 
 
@@ -67,6 +100,55 @@ def login(corpo: dict):
     r = JSONResponse(u)
     r.set_cookie(auth.COOKIE, token, max_age=auth.DURACAO, httponly=True, samesite="lax")
     return r
+
+
+@app.post("/api/contas")
+def criar_conta(corpo: dict):
+    """Cadastro de uma empresa nova: cria a conta e o primeiro usuário (administrador) e já entra."""
+    if not config.CADASTRO_ABERTO:
+        raise HTTPException(403, "O cadastro de contas está fechado neste servidor.")
+    empresa = corpo.get("empresa")
+    if not isinstance(empresa, str) or not 2 <= len(empresa.strip()) <= 120:
+        raise HTTPException(400, "Informe o nome da empresa.")
+    # Confere tudo antes de gravar: um cadastro recusado não deixa conta pela metade.
+    auth.validar_usuario(corpo.get("usuario"), corpo.get("nome"), corpo.get("senha"), "admin")
+    cid = seed.criar_conta(empresa.strip())
+    try:
+        publico = auth.criar_usuario(cid, corpo.get("usuario"), corpo.get("nome"), corpo.get("senha"), "admin")
+    except Exception:
+        db.x("DELETE FROM contas WHERE id=?", (cid,))  # ex.: o mesmo usuário cadastrado ao mesmo tempo
+        raise
+    r = JSONResponse({**publico, "conta": {"id": cid, "nome": empresa.strip()}})
+    r.set_cookie(auth.COOKIE, auth.sessao_para(publico), max_age=auth.DURACAO, httponly=True, samesite="lax")
+    return r
+
+
+@app.get("/api/usuarios")
+def usuarios_da_conta(request: Request):
+    u = auth.exigir(request, "admin")
+    return db.q("SELECT usuario, nome, perfil FROM usuarios WHERE conta_id=? ORDER BY nome", (u["conta_id"],))
+
+
+@app.post("/api/usuarios")
+def cadastrar_usuario(request: Request, corpo: dict):
+    """O administrador da conta cadastra outra pessoa da empresa."""
+    u = auth.exigir(request, "admin")
+    return auth.criar_usuario(u["conta_id"], corpo.get("usuario"), corpo.get("nome"), corpo.get("senha"),
+                              corpo.get("perfil") or "operador")
+
+
+def documentos_da_conta(conta_id: str) -> int:
+    return db.q("SELECT COUNT(*) c FROM docs WHERE ws IN (SELECT id FROM workspaces WHERE conta_id=?)",
+                (conta_id,), um=True)["c"]
+
+
+def _limite_documentos(ws: str):
+    """Até config.LIMITE_DOCUMENTOS documentos por conta, somando todos os workspaces dela."""
+    conta = db.q("SELECT conta_id FROM workspaces WHERE id=?", (ws,), um=True)
+    if conta and documentos_da_conta(conta["conta_id"]) >= config.LIMITE_DOCUMENTOS:
+        limite = f"{config.LIMITE_DOCUMENTOS:,}".replace(",", ".")
+        raise HTTPException(403, f"A conta chegou ao limite de {limite} documentos. "
+                                 "Exclua documentos antigos ou fale com a gente para ampliar.")
 
 
 @app.post("/api/sair")
@@ -134,11 +216,19 @@ def tela():
 @app.get("/api/estado")
 def estado(request: Request):
     u = auth.usuario_da_requisicao(request)
+    conta_id = auth.conta_do_usuario(u["usuario"]) if u else None
+    conta = db.q("SELECT id, nome FROM contas WHERE id=?", (conta_id,), um=True) if conta_id else None
+    if not conta:
+        u = None
     return {
         "claude_configurado": config.claude_configurado(),
         "modelo": config.MODELO,
+        "cadastro_aberto": config.CADASTRO_ABERTO,
         "usuario": {k: u[k] for k in ("usuario", "nome", "perfil")} if u else None,
-        "clientes": db.q("SELECT * FROM workspaces ORDER BY ordem") if u else [],
+        "conta": {**conta, "documentos": documentos_da_conta(conta_id),
+                  "limite_documentos": config.LIMITE_DOCUMENTOS} if u else None,
+        # Só os workspaces (clientes) da conta de quem entrou.
+        "clientes": db.q("SELECT * FROM workspaces WHERE conta_id=? ORDER BY ordem", (conta_id,)) if u else [],
     }
 
 
@@ -205,6 +295,7 @@ def contagens(ws: str):
 async def enviar(request: Request, ws: str, arquivos: list[UploadFile] = File(...), origem: str = Form("")):
     _ws(ws)
     u = auth.exigir(request, "operador")
+    _limite_documentos(ws)
     dados = []
     for a in arquivos:
         conteudo = await a.read(MAX_BYTES + 1)
@@ -241,6 +332,7 @@ def enviar_exemplo(request: Request, ws: str):
     """Envia um lote fictício de contratos, aditivos e notas (para demonstração)."""
     _ws(ws)
     u = auth.exigir(request, "operador")
+    _limite_documentos(ws)
     # 7 fornecedores: o mínimo para o lote ter todos os cenários de divergência do gerador.
     return _lote_sintetico(ws, u, "Lote de exemplo com gabarito", 7)
 
@@ -670,17 +762,17 @@ def cadastrar_fornecedor(request: Request, ws: str, corpo: dict):
 
 @app.post("/api/clientes")
 def cadastrar_cliente(request: Request, corpo: dict):
-    """Novo cliente da Bernhoeft (um workspace separado)."""
-    auth.exigir(request, "admin")
+    """Novo workspace (um cliente da empresa) dentro da conta de quem pediu."""
+    u = auth.exigir(request, "admin")
     nome = (corpo.get("nome") or "").strip()
     if len(nome) < 2:
         raise HTTPException(400, "Informe o nome da empresa.")
     cnpj = fiscal.so_digitos(corpo.get("cnpj")) or None
     if cnpj and not fiscal.cnpj_valido(cnpj):
         raise HTTPException(400, "CNPJ inválido. Confira os 14 números ou deixe em branco.")
-    if cnpj and db.q("SELECT 1 FROM workspaces WHERE cnpj=?", (cnpj,)):
-        raise HTTPException(400, "Já existe um cliente com esse CNPJ.")
-    wid = seed.criar_cliente(nome, (corpo.get("setor") or "").strip(), cnpj)
+    if cnpj and db.q("SELECT 1 FROM workspaces WHERE cnpj=? AND conta_id=?", (cnpj, u["conta_id"])):
+        raise HTTPException(400, "Já existe um workspace com esse CNPJ.")
+    wid = seed.criar_cliente(nome, (corpo.get("setor") or "").strip(), cnpj, conta_id=u["conta_id"])
     return db.q("SELECT * FROM workspaces WHERE id=?", (wid,), um=True)
 
 

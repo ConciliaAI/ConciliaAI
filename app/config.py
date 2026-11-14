@@ -35,6 +35,10 @@ MODELO = os.environ.get("CONCILIA_MODELO", "claude-opus-5-5")
 # Limites por arquivo enviado. Um lote digitalizado de 100+ páginas em TIFF passa fácil de 50 MB.
 MAX_MB = int(os.environ.get("CONCILIA_MAX_MB", "300"))
 MAX_PAGINAS = int(os.environ.get("CONCILIA_MAX_PAGINAS", "2000"))
+# Documentos por conta (somando todos os workspaces dela): decisão do time, novembro de 2026.
+LIMITE_DOCUMENTOS = int(os.environ.get("CONCILIA_LIMITE_DOCUMENTOS", "100000"))
+# Criar conta pela tela de login. Desligue (0) num servidor aberto na internet se não quiser cadastro livre.
+CADASTRO_ABERTO = os.environ.get("CONCILIA_CADASTRO_ABERTO", "1") != "0"
 
 
 def claude_configurado() -> bool:

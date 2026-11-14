@@ -73,7 +73,7 @@ function Divergencia({ div, podeDecidir, aoDecidir }) {
   )
 }
 
-export default function Documento({ id, perfil, aoMudar }) {
+export default function Documento({ ws, id, perfil, aoMudar }) {
   const [doc, setDoc] = useState(null)
   const [nota, setNota] = useState(null)
   const [pagina, setPagina] = useState(0)
@@ -87,14 +87,13 @@ export default function Documento({ id, perfil, aoMudar }) {
       const d = await api.get(`/api/docs/${id}`)
       setDoc(d)
       // Nota fiscal lida deste documento (para mostrar a divergência com o contrato).
-      const ws = (await api.get('/api/estado')).clientes?.[0]?.id
       const notas = ws ? await api.get(`/api/ws/${ws}/notas`) : []
       const n = notas.find((x) => x.doc_id === d.id)
       setNota(n ? await api.get(`/api/notas/${n.id}`) : null)
     } catch (e) {
       setErro(e.message)
     }
-  }, [id])
+  }, [id, ws])
 
   useEffect(() => { carregar() }, [carregar])
 

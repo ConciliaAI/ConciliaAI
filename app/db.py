@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS exemplos(id INTEGER PRIMARY KEY, ws TEXT, tipo TEXT, 
 CREATE TABLE IF NOT EXISTS acessos(id INTEGER PRIMARY KEY, ws TEXT, doc_id INT, quando TEXT, motivo TEXT, usuario TEXT);
 CREATE TABLE IF NOT EXISTS arquivos(id INTEGER PRIMARY KEY, ws TEXT, sha256 TEXT, envio_id INT, nome TEXT);
 CREATE TABLE IF NOT EXISTS usuarios(usuario TEXT PRIMARY KEY, nome TEXT, perfil TEXT, senha_hash TEXT);
+-- Conta = a empresa que usa o sistema (escritório de BPO, contabilidade...). Os usuários e os workspaces
+-- (os clientes dessa empresa) pertencem a uma conta, e ninguém enxerga os workspaces de outra conta.
+CREATE TABLE IF NOT EXISTS contas(id TEXT PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT);
 CREATE TABLE IF NOT EXISTS sessoes_encerradas(sid TEXT PRIMARY KEY, exp REAL);
 -- Conciliação: a nota fiscal é o centro; contratos e aditivos são a referência.
 CREATE TABLE IF NOT EXISTS fornecedores(
@@ -207,7 +210,8 @@ with _lock:
                            ("integracao_eventos", "ator_usuario TEXT"),
                            ("integracao_eventos", "ator_nome TEXT"),
                            ("integracao_eventos", "ator_perfil TEXT"),
-                           ("integracao_requisicoes", "tentativa_id TEXT")):
+                           ("integracao_requisicoes", "tentativa_id TEXT"),
+                           ("usuarios", "conta_id TEXT"), ("workspaces", "conta_id TEXT")):
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:
