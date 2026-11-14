@@ -31,6 +31,13 @@ def carregar_env():
 
 carregar_env()
 
+# Banco: sem DATABASE_URL, SQLite em dados/concilia.db. Com DATABASE_URL (postgresql://...), Postgres,
+# por exemplo o do Supabase (Project Settings → Database → Connection string → Session pooler).
+BANCO_URL = os.environ.get("DATABASE_URL", "").strip()
+# Esquema próprio no Postgres: no Supabase, o esquema public é publicado pela API REST do projeto;
+# o esquema "concilia" não é, então os dados só saem pela API da Concilia.
+PG_ESQUEMA = os.environ.get("CONCILIA_PG_ESQUEMA", "concilia").strip() or "concilia"
+
 MODELO = os.environ.get("CONCILIA_MODELO", "claude-opus-5-5")
 # Limites por arquivo enviado. Um lote digitalizado de 100+ páginas em TIFF passa fácil de 50 MB.
 MAX_MB = int(os.environ.get("CONCILIA_MAX_MB", "300"))

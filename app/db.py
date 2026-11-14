@@ -1,16 +1,154 @@
-"""Banco SQLite: workspaces (clientes), envios, páginas, documentos, busca e auditoria."""
+"""Banco: workspaces (clientes), envios, páginas, documentos, busca e auditoria.
+
+Dois motores com o mesmo código:
+- SQLite (padrão): arquivo dados/concilia.db, sem instalar nada.
+- Postgres (ex.: Supabase): quando DATABASE_URL está no .env. O SQL do sistema é escrito no dialeto
+  do SQLite (placeholders ?, INSERT OR IGNORE...) e traduzido aqui; o esquema também.
+"""
 import json
+import re
 import sqlite3
 import threading
 from datetime import datetime
+from functools import lru_cache
 
-from .config import BANCO
+from .config import BANCO, BANCO_URL, PG_ESQUEMA
 
+POSTGRES = BANCO_URL.startswith(("postgres://", "postgresql://"))
 _lock = threading.RLock()
-_con = sqlite3.connect(BANCO, check_same_thread=False)
-_con.row_factory = sqlite3.Row
-_con.execute("PRAGMA journal_mode=WAL")
-_con.execute("PRAGMA foreign_keys=ON")
+
+# Tabelas com id numérico gerado pelo banco: no Postgres o INSERT devolve o id com RETURNING.
+_COM_ID = {"tipos", "envios", "paginas", "docs", "eventos", "exemplos", "acessos", "arquivos", "fornecedores",
+           "contratos", "aditivos", "notas", "divergencias", "trilha", "avisos", "integracoes", "integracao_eventos",
+           "integracao_requisicoes", "documentos_fiscais"}
+
+
+@lru_cache(maxsize=2048)
+def _para_postgres(sql: str) -> str:
+    """Traduz o SQL do sistema (dialeto SQLite) para o Postgres."""
+    saida, dentro = [], False
+    for ch in sql:
+        if ch == "'":
+            dentro = not dentro
+            saida.append(ch)
+        elif ch == "%":
+            saida.append("%%")  # o psycopg trata % como início de parâmetro, inclusive dentro de texto
+        elif ch == "?" and not dentro:
+            saida.append("%s")
+        else:
+            saida.append(ch)
+    sql = "".join(saida)
+    ignorar = re.match(r"\s*INSERT\s+OR\s+IGNORE\s+INTO", sql, re.I)
+    if ignorar:
+        sql = re.sub(r"INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", sql, count=1, flags=re.I).rstrip().rstrip(";")
+        sql += " ON CONFLICT DO NOTHING"
+    insert = re.match(r"\s*INSERT\s+INTO\s+(\w+)", sql, re.I)
+    if insert and insert.group(1).lower() in _COM_ID and not re.search(r"\bRETURNING\b", sql, re.I):
+        sql = sql.rstrip().rstrip(";") + " RETURNING id"
+    return sql
+
+
+class Linha(dict):
+    """Linha do resultado: acessa por nome (r["id"]) e por posição (r[0]), como o sqlite3.Row."""
+
+    def __getitem__(self, chave):
+        if isinstance(chave, int):
+            return list(self.values())[chave]
+        return super().__getitem__(chave)
+
+
+class _Cursor:
+    def __init__(self, cur, lastrowid):
+        self._cur, self.lastrowid, self.rowcount = cur, lastrowid, cur.rowcount
+
+    def fetchone(self):
+        return self._cur.fetchone() if self._cur.description else None
+
+    def fetchall(self):
+        return self._cur.fetchall() if self._cur.description else []
+
+
+def normalizar_url(url: str) -> str:
+    """Aceita a senha como foi digitada, mesmo com @ # / ? : (o Postgres exige esses símbolos codificados).
+
+    O usuário é o que vem antes do primeiro ":" e o servidor é o que vem depois do último "@".
+    Senhas já codificadas (com %40, %23...) passam do jeito que estão.
+    """
+    from urllib.parse import quote
+    m = re.match(r"^(postgres(?:ql)?://)([^:/@]+):(.*)@([^@]+)$", url)
+    if not m or re.search(r"%[0-9A-Fa-f]{2}", m.group(3)):
+        return url
+    return f"{m.group(1)}{m.group(2)}:{quote(m.group(3), safe='')}@{m.group(4)}"
+
+
+class _ConexaoPostgres:
+    """Expõe execute(sql, args) com a mesma cara da conexão do SQLite (lastrowid, rowcount, fetchone)."""
+
+    def __init__(self, url):
+        import psycopg
+        from psycopg.types.numeric import FloatLoader
+
+        def fabrica(cursor):
+            nomes = [c.name for c in cursor.description or []]
+            return lambda valores: Linha(zip(nomes, valores))
+
+        self._psycopg = psycopg
+        # prepare_threshold=None: funciona também pelo pooler do Supabase (porta 6543), que não guarda
+        # comandos preparados entre conexões.
+        self._con = psycopg.connect(normalizar_url(url), autocommit=True, row_factory=fabrica, prepare_threshold=None)
+        self._con.adapters.register_loader("numeric", FloatLoader)  # SUM/AVG voltam float, como no SQLite
+        if not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", PG_ESQUEMA):
+            raise ValueError("CONCILIA_PG_ESQUEMA inválido: use letras minúsculas, números e _.")
+        self._con.execute(f"CREATE SCHEMA IF NOT EXISTS {PG_ESQUEMA}")
+        self._con.execute(f"SET search_path TO {PG_ESQUEMA}, public, extensions")
+        self._transacoes = 0
+
+    @property
+    def in_transaction(self):
+        return self._transacoes > 0
+
+    def execute(self, sql, args=()):
+        cur = self._con.execute(_para_postgres(sql), tuple(args) or None)
+        lastrowid = None
+        if cur.description and len(cur.description) == 1 and cur.description[0].name == "id" \
+                and re.match(r"\s*INSERT", sql, re.I):
+            linha = cur.fetchone()
+            lastrowid = linha["id"] if linha else None
+        return _Cursor(cur, lastrowid)
+
+    def executescript(self, script):
+        self._con.execute(script)
+
+    def transaction(self):
+        return self._con.transaction()
+
+    def commit(self):
+        pass  # autocommit fora de db.transacao
+
+
+def _conectar():
+    if POSTGRES:
+        return _ConexaoPostgres(BANCO_URL)
+    con = sqlite3.connect(BANCO, check_same_thread=False)
+    con.row_factory = sqlite3.Row
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA foreign_keys=ON")
+    return con
+
+
+_con = _conectar()
+
+
+def _executar(sql, args):
+    """Executa um comando; no Postgres, refaz a conexão uma vez se ela caiu (ex.: inatividade no Supabase)."""
+    global _con
+    try:
+        return _con.execute(sql, args)
+    except Exception as erro:
+        if POSTGRES and isinstance(erro, _con._psycopg.OperationalError) and not _con.in_transaction:
+            _con = _conectar()
+            return _con.execute(sql, args)
+        raise
 
 
 def agora():
@@ -19,14 +157,14 @@ def agora():
 
 def q(sql, args=(), um=False):
     with _lock:
-        cur = _con.execute(sql, args)
+        cur = _executar(sql, args)
         linhas = [dict(r) for r in cur.fetchall()]
     return (linhas[0] if linhas else None) if um else linhas
 
 
 def x(sql, args=()):
     with _lock:
-        cur = _con.execute(sql, args)
+        cur = _executar(sql, args)
         _con.commit()
         return cur.lastrowid
 
@@ -34,10 +172,17 @@ def x(sql, args=()):
 def transacao(operacao):
     """Executa uma unidade atômica, inclusive quando chamada dentro de outra transação.
 
-    No nível externo usa BEGIN IMMEDIATE. Em chamadas aninhadas usa SAVEPOINT,
-    preservando a transação do chamador e revertendo apenas a operação interna.
+    SQLite: BEGIN IMMEDIATE no nível externo e SAVEPOINT nas chamadas aninhadas.
+    Postgres: transaction() do psycopg, que também vira SAVEPOINT quando aninhada.
     """
     with _lock:
+        if POSTGRES:
+            _con._transacoes += 1
+            try:
+                with _con.transaction():
+                    return operacao(_con)
+            finally:
+                _con._transacoes -= 1
         aninhada = _con.in_transaction
         ponto = "db_transacao_aninhada"
         try:
@@ -63,9 +208,26 @@ def transacao(operacao):
 def inserir_se_novo(sql, args=()):
     """INSERT OR IGNORE com resposta baseada em rowcount, sem falso sucesso de lastrowid."""
     with _lock:
-        cur = _con.execute(sql, args)
+        cur = _executar(sql, args)
         _con.commit()
         return cur.rowcount == 1
+
+
+def buscar_texto(ws, termos, limite=30):
+    """Documentos do workspace cujo texto tem todas as palavras (cada uma como começo de palavra).
+
+    Devolve [{doc_id, trecho}] do mais relevante para o menos. termos já vêm sem acento e em minúsculas.
+    """
+    if POSTGRES:
+        consulta = " & ".join(f"{t}:*" for t in termos)
+        return q("""SELECT doc_id, ts_headline('simple', texto, to_tsquery('simple', ?),
+                           'StartSel="",StopSel="",MaxWords=24,MinWords=8,MaxFragments=2,FragmentDelimiter=" … "') trecho
+                    FROM busca WHERE ws=? AND tsv @@ to_tsquery('simple', ?)
+                    ORDER BY ts_rank(tsv, to_tsquery('simple', ?)) DESC LIMIT ?""",
+                 (consulta, ws, consulta, consulta, limite))
+    consulta = " AND ".join(f'"{t}"*' for t in termos)
+    return q("""SELECT doc_id, snippet(busca, 2, '', '', ' … ', 24) trecho FROM busca
+                WHERE busca MATCH ? AND ws=? ORDER BY rank LIMIT ?""", (consulta, ws, limite))
 
 
 SCHEMA = """
@@ -88,8 +250,6 @@ CREATE TABLE IF NOT EXISTS docs(
   id INTEGER PRIMARY KEY, envio_id INT, ws TEXT, tipo TEXT, conf INT, pag_ini INT, pag_fim INT,
   pessoa TEXT, cpf TEXT, empresa TEXT, status TEXT, duvida TEXT, motivo TEXT, sinais TEXT,
   candidatos TEXT, sensiveis TEXT, criado_em TEXT, decidido_em TEXT, decisao TEXT);
-CREATE VIRTUAL TABLE IF NOT EXISTS busca USING fts5(doc_id UNINDEXED, ws UNINDEXED, texto,
-  tokenize="unicode61 remove_diacritics 2");
 CREATE TABLE IF NOT EXISTS eventos(id INTEGER PRIMARY KEY, envio_id INT, quando TEXT, texto TEXT);
 CREATE TABLE IF NOT EXISTS exemplos(id INTEGER PRIMARY KEY, ws TEXT, tipo TEXT, palavras TEXT);
 CREATE TABLE IF NOT EXISTS acessos(id INTEGER PRIMARY KEY, ws TEXT, doc_id INT, quando TEXT, motivo TEXT, usuario TEXT);
@@ -174,6 +334,19 @@ CREATE TABLE IF NOT EXISTS integracao_requisicoes(
 );
 CREATE INDEX IF NOT EXISTS i_integracao_requisicoes_status
   ON integracao_requisicoes(integracao_id, status);
+CREATE TABLE IF NOT EXISTS documentos_fiscais (
+  id INTEGER PRIMARY KEY, ws TEXT NOT NULL, envio_id INT NOT NULL,
+  nome_arquivo TEXT, caminho_xml TEXT, sha256 TEXT NOT NULL,
+  modelo TEXT NOT NULL, tipo TEXT NOT NULL, versao TEXT,
+  numero TEXT, chave TEXT, emissao TEXT, emissor TEXT, destinatario TEXT,
+  dados TEXT NOT NULL, criado_em TEXT NOT NULL,
+  UNIQUE(ws, sha256));
+CREATE INDEX IF NOT EXISTS i_fiscais_ws ON documentos_fiscais(ws, modelo, id);
+"""
+# Partes que só existem no SQLite: busca de texto (FTS5) e auditoria imutável.
+SCHEMA_SQLITE = """
+CREATE VIRTUAL TABLE IF NOT EXISTS busca USING fts5(doc_id UNINDEXED, ws UNINDEXED, texto,
+  tokenize="unicode61 remove_diacritics 2");
 -- Eventos são append-only: nem a aplicação nem rotas administrativas podem
 -- editar ou apagar registros existentes.
 CREATE TRIGGER IF NOT EXISTS trg_integracao_eventos_sem_update
@@ -186,17 +359,60 @@ BEFORE DELETE ON integracao_eventos
 BEGIN
   SELECT RAISE(ABORT, 'Historico de auditoria e imutavel');
 END;
-CREATE TABLE IF NOT EXISTS documentos_fiscais (
-  id INTEGER PRIMARY KEY, ws TEXT NOT NULL, envio_id INT NOT NULL,
-  nome_arquivo TEXT, caminho_xml TEXT, sha256 TEXT NOT NULL,
-  modelo TEXT NOT NULL, tipo TEXT NOT NULL, versao TEXT,
-  numero TEXT, chave TEXT, emissao TEXT, emissor TEXT, destinatario TEXT,
-  dados TEXT NOT NULL, criado_em TEXT NOT NULL,
-  UNIQUE(ws, sha256));
-CREATE INDEX IF NOT EXISTS i_fiscais_ws ON documentos_fiscais(ws, modelo, id);
 """
+
+# As mesmas partes no Postgres. A busca guarda o texto sem acento num tsvector (trigger), e a auditoria
+# do ERP continua sem UPDATE nem DELETE.
+SCHEMA_POSTGRES = """
+CREATE TABLE IF NOT EXISTS busca(doc_id BIGINT, ws TEXT, texto TEXT, tsv TSVECTOR);
+CREATE INDEX IF NOT EXISTS i_busca_tsv ON busca USING GIN(tsv);
+CREATE INDEX IF NOT EXISTS i_busca_doc ON busca(doc_id);
+CREATE OR REPLACE FUNCTION concilia_busca_tsv() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  -- Pontuação vira espaço, como no FTS5 do SQLite: "321.654.987-00" vira 321, 654, 987 e 00.
+  NEW.tsv := to_tsvector('simple', regexp_replace({UNACCENT}(lower(coalesce(NEW.texto, ''))), '[^[:alnum:]]+', ' ', 'g'));
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_busca_tsv ON busca;
+CREATE TRIGGER trg_busca_tsv BEFORE INSERT OR UPDATE OF texto ON busca
+  FOR EACH ROW EXECUTE FUNCTION concilia_busca_tsv();
+CREATE OR REPLACE FUNCTION concilia_auditoria_imutavel() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'Historico de auditoria e imutavel';
+END $$;
+DROP TRIGGER IF EXISTS trg_integracao_eventos_sem_update ON integracao_eventos;
+CREATE TRIGGER trg_integracao_eventos_sem_update BEFORE UPDATE ON integracao_eventos
+  FOR EACH ROW EXECUTE FUNCTION concilia_auditoria_imutavel();
+DROP TRIGGER IF EXISTS trg_integracao_eventos_sem_delete ON integracao_eventos;
+CREATE TRIGGER trg_integracao_eventos_sem_delete BEFORE DELETE ON integracao_eventos
+  FOR EACH ROW EXECUTE FUNCTION concilia_auditoria_imutavel();
+"""
+
+
+def _esquema_postgres(sql: str) -> str:
+    """O esquema do SQLite no dialeto do Postgres (ids gerados, números com ponto flutuante)."""
+    sql = re.sub(r"\bid INTEGER PRIMARY KEY\b", "id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY", sql)
+    return re.sub(r"\bREAL\b", "DOUBLE PRECISION", sql)
+
+
+def _unaccent() -> str:
+    """Função que tira acentos (extensão unaccent do Postgres; no Supabase fica no esquema extensions)."""
+    try:
+        _con.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
+    except Exception:
+        pass  # sem permissão para criar extensão: usa a que já existir
+    r = _con.execute("""SELECT n.nspname esquema FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace
+                        WHERE e.extname='unaccent'""").fetchone()
+    return f'{r["esquema"]}.unaccent' if r else ""
+
+
 with _lock:
-    _con.executescript(SCHEMA)
+    if POSTGRES:
+        _con.executescript(_esquema_postgres(SCHEMA))
+        _con.executescript(SCHEMA_POSTGRES.replace("{UNACCENT}", _unaccent()))
+    else:
+        _con.executescript(SCHEMA)
+        _con.executescript(SCHEMA_SQLITE)
     # Colunas novas em bancos criados por versões anteriores.
     for tabela, coluna in (("envios", "gabarito TEXT"), ("envios", "usuario TEXT"), ("docs", "decidido_por TEXT"),
                            ("acessos", "usuario TEXT"), ("docs", "dados TEXT"), ("docs", "aviso TEXT"),
@@ -212,6 +428,9 @@ with _lock:
                            ("integracao_eventos", "ator_perfil TEXT"),
                            ("integracao_requisicoes", "tentativa_id TEXT"),
                            ("usuarios", "conta_id TEXT"), ("workspaces", "conta_id TEXT")):
+        if POSTGRES:
+            _con.execute(f"ALTER TABLE {tabela} ADD COLUMN IF NOT EXISTS {_esquema_postgres(coluna)}")
+            continue
         try:
             _con.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna}")
         except sqlite3.OperationalError:

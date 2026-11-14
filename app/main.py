@@ -951,13 +951,11 @@ def busca(ws: str, q: str = ""):
     termos = re.findall(r"\w+", analise.norm(q))
     if not termos:
         return []
-    consulta = " AND ".join(f'"{t}"*' for t in termos)
     cats = _cats(ws)
     try:
         # Trecho sem marcadores: a máscara roda no texto limpo (marcadores no meio de um CPF ou e-mail
         # impediam o reconhecimento) e o destaque é aplicado só depois, no texto já mascarado.
-        linhas = db.q("""SELECT doc_id, snippet(busca, 2, '', '', ' … ', 24) trecho FROM busca
-                         WHERE busca MATCH ? AND ws=? ORDER BY rank LIMIT 30""", (consulta, ws))
+        linhas = db.buscar_texto(ws, termos)
     except Exception:
         return []
     out = []
