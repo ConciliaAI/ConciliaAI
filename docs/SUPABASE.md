@@ -46,8 +46,30 @@ CONCILIA_TESTE_POSTGRES=env .venv/Scripts/python.exe -m pytest -q tests     # us
 
 Eles criam um esquema temporário (`teste_xxxx`) e o apagam no fim, sem tocar no esquema `concilia`.
 
+## Arquivos no Storage
+
+As imagens das páginas e os arquivos originais também vão para o Supabase, num bucket **privado** chamado `concilia` (criado sozinho na primeira vez). No `.env`:
+
+```ini
+SUPABASE_URL=https://<projeto>.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_...
+```
+
+A chave fica em **Project Settings → API Keys → Secret keys** (a `sb_secret_...`, não a publishable). Ela dá acesso de administrador ao projeto: só no `.env`, nunca em chat, print, commit ou no front.
+
+- O disco continua sendo onde o OCR trabalha; a cópia para o Storage é feita em segundo plano e não atrasa a leitura.
+- Um computador que não tem a imagem a busca no Storage na primeira vez que precisa.
+- Excluir um documento apaga as imagens do disco e do Storage.
+- Sem internet, o lote é processado do mesmo jeito; só a cópia não acontece.
+- Arquivos acima de 50 MB (limite do plano gratuito, `CONCILIA_STORAGE_LIMITE_MB`) ficam só no disco.
+- Miniaturas e PDFs não vão para o Storage: são refeitos a partir das páginas.
+
+## Vários computadores no mesmo banco
+
+Cada envio é marcado com o computador que o recebeu (`dados/servidor.txt`) e só esse computador o processa e o retoma depois de uma queda. Sem isso, dois notebooks abertos ao mesmo tempo processariam o mesmo lote.
+
 ## Limites desta versão
 
 - Uma conexão por processo, com as consultas em fila: suficiente para a demonstração; em produção, trocar por um pool de conexões.
 - Cada consulta paga a ida e volta até o Supabase (na medição daqui, cerca de 230 ms): telas com muitas consultas ficam mais lentas que no SQLite.
-- As imagens das páginas, miniaturas e PDFs continuam no disco do servidor (`dados/`). O próximo passo é levá-los para o Storage do Supabase.
+- Um envio que estava sendo lido num computador que ficou desligado só continua quando esse computador abrir a plataforma de novo.
