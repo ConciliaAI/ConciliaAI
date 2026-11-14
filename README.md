@@ -2,7 +2,7 @@
 
 **Hack Garanhuns Tech 2026 · Desafio 3 — Document AI Factory (desafio proposto pela Bernhoeft)**
 
-A Concilia AI recebe lotes grandes de documentos digitalizados e misturados, descobre onde cada documento começa e termina, agrupa as páginas, classifica o tipo, deixa o texto pesquisável (OCR) e manda para revisão humana o que não tem certeza. O foco é o documento que mais pesa na gestão de terceiros: a **nota fiscal de serviço (NFS-e)**, conferida contra o contrato do fornecedor.
+A Concilia AI recebe lotes grandes de documentos digitalizados e misturados, descobre onde cada documento começa e termina, agrupa as páginas, classifica o tipo, deixa o texto pesquisável (OCR) e manda para revisão humana o que não tem certeza. O foco é o documento que mais pesa na gestão de terceiros: a **nota fiscal de serviço (NFS-e)**, conferida contra o contrato do fornecedor. Também lê o XML de **NF-e (55), NFC-e (65) e CT-e (57)**, recebe documentos direto do **ERP** do cliente e tem um **scanner pela câmera** do celular.
 
 > Ferramenta de apoio à conferência documental. Aponta diferenças e mostra de onde elas vêm; não substitui análise jurídica, contábil ou tributária.
 
@@ -25,9 +25,9 @@ Na primeira vez ele instala tudo automaticamente (precisa de internet e Python 3
 
 Roteiro da demonstração em **[LEIA-ME.md](LEIA-ME.md)**.
 
-### Front novo (React + Tailwind), em construção
+### Front novo (React + Tailwind)
 
-As telas estão sendo refeitas em `frontend/` (Vite, React, Tailwind, JavaScript), seguindo os layouts do Figma. Ele usa a mesma API da plataforma, então abra a plataforma primeiro (porta 8000) e depois:
+As telas foram refeitas em `frontend/` (Vite, React, Tailwind, JavaScript), seguindo os layouts do Figma. Ele usa a mesma API da plataforma, então abra a plataforma primeiro (porta 8000) e depois:
 
 ```bash
 cd frontend
@@ -35,7 +35,7 @@ npm install
 npm run dev
 ```
 
-Abre em http://localhost:5173.
+Abre em **https://localhost:5173**. O certificado é de teste (para a câmera funcionar no celular), então o navegador mostra um aviso na primeira vez: clique em **Avançado → Continuar para localhost**. No celular, na mesma rede Wi-Fi, use o endereço "Network" que o `npm run dev` mostra.
 
 | Tela | O que faz |
 |---|---|
@@ -46,10 +46,10 @@ Abre em http://localhost:5173.
 | Documento | Página do documento, divergência com os valores, confiança da leitura e campos lidos; aprovar, rejeitar, baixar PDF e excluir |
 | Busca | Busca no texto de todos os documentos, com os dados protegidos mascarados |
 | Relatórios | Notas conferidas no mês (gráfico por situação), divergências por regra e as planilhas para baixar em CSV |
+| XML fiscais | NF-e, NFC-e e CT-e importados: filtro por modelo e detalhes com emitente, destinatário, itens, tributos e validação |
+| Scanner | "Escanear agora" no dashboard abre a câmera (traseira ou frontal), mostra a prévia e envia a foto para a leitura |
 
-Contratos, Configurações e Ajuda ainda abrem na versão atual, em http://127.0.0.1:8000. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px).
-
-O scanner é feito por outra pessoa do time: o botão "Escanear agora" já existe no dashboard (`frontend/src/components/BlocoScanner.jsx`, propriedade `aoEscanear`) e é ali que ele se liga.
+Contratos, Configurações e Ajuda ainda abrem na versão anterior, em http://127.0.0.1:8000 (pasta `web/`), até serem passadas para o front novo. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px). Listas longas (fila de revisão, tabela de documentos) rolam por dentro e a tabela mostra 100 documentos por vez, pensando no limite de 100 mil documentos por conta.
 
 ## Requisitos do Desafio 3
 
@@ -87,6 +87,23 @@ O scanner é feito por outra pessoa do time: o botão "Escanear agora" já exist
 
 Cada empresa cliente é um espaço separado, com seus fornecedores (cadastrados à mão ou pelo CNPJ dos documentos), contratos e notas.
 
+## Outros documentos fiscais (XML)
+
+XML de **NF-e (modelo 55), NFC-e (65) e CT-e (57)** são lidos direto, sem OCR nem IA, cada um pelo seu leitor (`app/parser_nfe.py`, `app/parser_nfce.py`, `app/parser_cte.py`). O sistema guarda emitente, destinatário, itens, tributos, frete, pagamentos e notas referenciadas, avisa XML repetido e, se os esquemas oficiais (XSD) estiverem instalados, valida o leiaute. Esses documentos aparecem na tela **XML fiscais** e ficam fora da conferência nota × contrato, que é só para serviços. PDFs e fotos também ganham um **subtipo** (DANFE, DACTE, NFS-e…) pelos sinais do texto. Detalhes em [docs/PARSERS_FISCAIS.md](docs/PARSERS_FISCAIS.md).
+
+## Integração com ERP
+
+O ERP do cliente pode mandar documentos e buscar os resultados sem ninguém abrir a tela, pela API `/api/erp/v1` com chave de acesso (Bearer):
+
+| Rota | O que faz |
+|---|---|
+| `POST /api/erp/v1/documents` | Envia até 20 arquivos; com `Idempotency-Key`, o mesmo pedido repetido não é processado duas vezes |
+| `GET /api/erp/v1/documents` | Lista os envios da empresa |
+| `GET /api/erp/v1/documents/{id}` | Situação e progresso de um envio |
+| `GET /api/erp/v1/documents/{id}/results` | Documentos lidos, com tipo, confiança, valores e chave fiscal (sem texto livre nem nomes) |
+
+O administrador cria, troca e revoga as chaves em `/api/integracoes`; cada uso fica numa auditoria que não pode ser alterada. Detalhes em [docs/ERP_API_V1.md](docs/ERP_API_V1.md).
+
 ## Resultado medido
 
 Lote fictício gerado com gabarito: 8 fornecedores, **124 páginas num TIFF só de imagem** (contratos de 9 páginas, aditivos e notas misturados; ~6% das folhas tortas, borradas e apagadas) + 24 XML de NFS-e. Processado no notebook, sem a chave do Claude, em cerca de 5 minutos (OCR local, ~2 s por página).
@@ -104,7 +121,8 @@ Tudo o que o sistema errou foi para a revisão humana: nada errado foi aprovado 
 
 ## Como foi feito
 
-- **Python + FastAPI**, telas em HTML/JS sem build, banco **SQLite** com busca de texto (FTS5).
+- **Python + FastAPI**, banco **SQLite** com busca de texto (FTS5).
+- Front em **React + Tailwind** (Vite), seguindo o Figma; a versão anterior das telas, em HTML/JS sem build, fica em `web/` até a migração terminar.
 - **PyMuPDF** para PDF e imagens, **RapidOCR** para o OCR local, **Claude** (`claude-opus-5-5`) opcional para leitura multimodal.
 - Fila de processamento própria, página a página, com ponto de retomada.
 - Gerador de documentos fictícios com gabarito: `scripts/generate_synthetic_batch.py`.
@@ -115,20 +133,37 @@ app/fiscal.py       leitura do XML da NFS-e e dos campos de contratos, aditivos 
 app/pipeline.py     fila: recebe, renderiza, lê e agrupa as páginas; retoma após falha
 app/analise.py      tipo, início de documento e confiança (local ou Claude)
 app/anonimizar.py   dados protegidos no texto e na imagem
-web/index.html      as telas
-tests/              28 testes automáticos
+app/parser_*.py     leitura do XML de NF-e, NFC-e e CT-e (roteador_fiscal.py escolhe o leitor)
+app/classificacao_subtipos.py  subtipo do documento (DANFE, DACTE, NFS-e…) pelos sinais do texto
+app/integrations/   API do ERP: chaves de acesso, envio, resultados e auditoria
+frontend/           telas novas (React + Tailwind)
+web/index.html      telas da versão anterior (Contratos, Configurações e Ajuda)
+tests/              118 testes automáticos
 ```
+
+O GitHub roda os testes e o build do front a cada commit (`.github/workflows/ci.yml`).
 
 Testes:
 - **Linux:** `.venv/bin/pytest tests -q`
 - **Windows:** `.venv\Scripts\python.exe -m pytest tests -q`
+
+## Time
+
+| Pessoa | Principais entregas |
+|---|---|
+| Eduardo Noronha | Plataforma (separação, OCR, revisão humana, conferência nota × contrato), marca, layouts no Figma e o front novo em React (dashboard, envio, revisão, documento, busca, relatórios) |
+| Leonardo Bernardo Maciel | Leitura de NF-e, NFC-e e CT-e, validação XSD, subtipos de documento, tela XML fiscais e o CI |
+| Martha Machado Vieira | Integração com ERP: chaves de acesso, envio com idempotência, resultados e auditoria |
+| Ruan Silva | Scanner pela câmera, `iniciar.sh` para Linux e o fluxo de branches do time |
+
+Como o time trabalha (branches, PRs e testes): **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## Limites (o que este MVP ainda não é)
 
 - **Validado com dados fictícios.** Próximo passo: piloto com documentos reais de um cliente.
 - Login, banco SQLite e segurança são de demonstração, não de produção. Sem criptografia do banco nem política de retenção.
 - Com o Claude ligado, as páginas vão para a API da Anthropic antes de serem anonimizadas; em produção isso exige contrato de tratamento de dados (LGPD).
-- O XML de exemplo imita o leiaute nacional; falta validar com o XSD oficial e com notas reais.
+- O XML de exemplo da NFS-e imita o leiaute nacional; falta validar com o XSD oficial e com notas reais. Para NF-e, NFC-e e CT-e a validação XSD existe, mas depende de instalar os esquemas oficiais, e o protocolo do XML não é uma consulta à SEFAZ.
 - Leitura local leva cerca de 2 a 3 segundos por página digitalizada; lotes de milhares de páginas pedem mais de um processador trabalhando ao mesmo tempo.
 - Os avisos ao fornecedor são gerados e registrados, mas o envio é feito pelo e-mail de quem revisa (não há servidor de e-mail).
 
