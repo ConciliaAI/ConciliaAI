@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Icone from './Icone'
+import SeletorWorkspace from './SeletorWorkspace'
 
 const PERFIS = { admin: 'Administrador', revisor: 'Revisor', operador: 'Operador' }
 
@@ -8,7 +9,7 @@ function iniciais(nome = '') {
 }
 
 // Medidas do Figma: barra de 72 de altura; busca 420x48 a 16 da borda; sino 48; avatar 44.
-export default function BarraTopo({ usuario, alertas = 0, aoBuscar, aoAbrirMenu }) {
+export default function BarraTopo({ usuario, clientes = [], ws, aoTrocar, alertas = 0, aoBuscar, aoAbrirMenu }) {
   const [termo, setTermo] = useState('')
   const segundaLinha = PERFIS[usuario?.perfil] === usuario?.nome ? `@${usuario?.usuario}` : PERFIS[usuario?.perfil] || usuario?.perfil
   return (
@@ -24,6 +25,7 @@ export default function BarraTopo({ usuario, alertas = 0, aoBuscar, aoAbrirMenu 
                className="h-12 w-full rounded-full bg-papel pr-4 pl-[2.875rem] text-sm outline-none placeholder:text-suave focus:ring-2 focus:ring-confere/40" />
       </form>
       <div className="ml-auto flex items-center gap-2.5">
+        {clientes.length > 0 && <SeletorWorkspace clientes={clientes} ws={ws} aoTrocar={aoTrocar} podeCriar={usuario?.perfil === 'admin'} />}
         <button className="relative grid size-12 place-items-center rounded-full border border-borda text-noite hover:bg-papel"
                 aria-label={alertas > 0 ? `Notificações: ${alertas} pendente(s)` : 'Notificações'}>
           <Icone nome="sino" className="size-5" />

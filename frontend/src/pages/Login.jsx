@@ -2,19 +2,28 @@ import { useState } from 'react'
 import { api } from '../api'
 import Logo from '../components/Logo'
 
-export default function Login({ aoEntrar }) {
+// Entrar ou criar a conta da empresa (escritório de BPO, contabilidade...). A conta nasce sem workspaces:
+// depois de entrar, a empresa cria um workspace para cada cliente dela.
+export default function Login({ aoEntrar, cadastroAberto = true }) {
+  const [modo, setModo] = useState('entrar') // 'entrar' | 'criar'
   const [usuario, setUsuario] = useState('')
   const [senha, setSenha] = useState('')
+  const [empresa, setEmpresa] = useState('')
+  const [nome, setNome] = useState('')
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const criando = modo === 'criar'
 
   async function entrar(e) {
     e.preventDefault()
     if (!usuario || !senha) return setErro('Preencha usuário e senha.')
+    if (criando && (!empresa.trim() || !nome.trim())) return setErro('Preencha o nome da empresa e o seu nome.')
+    if (criando && senha.length < 8) return setErro('A senha precisa ter pelo menos 8 caracteres.')
     setEnviando(true)
     setErro('')
     try {
-      await api.post('/api/login', { usuario, senha })
+      if (criando) await api.post('/api/contas', { empresa, nome, usuario, senha })
+      else await api.post('/api/login', { usuario, senha })
       await aoEntrar()
     } catch (err) {
       setErro(err.message)
@@ -31,21 +40,45 @@ export default function Login({ aoEntrar }) {
           <div className="grid justify-items-center gap-6 text-center">
             <Logo />
             <div className="grid gap-1.5">
-              <h1 className="text-[2rem] font-extrabold">Bem-vindo de volta</h1>
-              <p className="text-sm text-apoio">Entre para conferir seus documentos.</p>
+              <h1 className="text-[2rem] font-extrabold">{criando ? 'Criar conta' : 'Bem-vindo de volta'}</h1>
+              <p className="text-sm text-apoio">
+                {criando ? 'Uma conta para a sua empresa. Depois você cria um workspace para cada cliente.' : 'Entre para conferir seus documentos.'}
+              </p>
             </div>
           </div>
+          {criando && (
+            <>
+              <label className="grid gap-1.5 text-sm font-medium">Nome da empresa
+                <input className={campo} value={empresa} onChange={(e) => setEmpresa(e.target.value)} autoComplete="organization" autoFocus
+                       placeholder="Ex.: Escritório Contábil Silva" />
+              </label>
+              <label className="grid gap-1.5 text-sm font-medium">Seu nome
+                <input className={campo} value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+              </label>
+            </>
+          )}
           <label className="grid gap-1.5 text-sm font-medium">Usuário
-            <input className={campo} value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus />
+            <input className={campo} value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="username" autoFocus={!criando}
+                   placeholder={criando ? 'Ex.: ana.silva' : undefined} />
           </label>
           <label className="grid gap-1.5 text-sm font-medium">Senha
-            <input className={campo} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" />
+            <input className={campo} type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
+                   autoComplete={criando ? 'new-password' : 'current-password'} placeholder={criando ? 'Pelo menos 8 caracteres' : undefined} />
           </label>
           {erro && <p className="rounded-lg bg-erro-fundo px-3 py-2 text-sm text-erro" role="alert">{erro}</p>}
           <button disabled={enviando}
                   className="rounded-xl bg-confere py-3.5 font-bold text-white hover:bg-[#2559e0] disabled:opacity-60">
-            {enviando ? 'Entrando…' : 'Entrar'}
+            {enviando ? (criando ? 'Criando…' : 'Entrando…') : (criando ? 'Criar conta e entrar' : 'Entrar')}
           </button>
+          {cadastroAberto && (
+            <p className="text-center text-sm text-apoio">
+              {criando ? 'Já tem conta? ' : 'Sua empresa ainda não usa a Concilia AI? '}
+              <button type="button" onClick={() => { setModo(criando ? 'entrar' : 'criar'); setErro('') }}
+                      className="font-bold text-tinta hover:underline">
+                {criando ? 'Entrar' : 'Criar conta'}
+              </button>
+            </p>
+          )}
         </form>
         <p className="mt-16 text-xs text-suave">© 2026 Concilia AI · Privacidade e LGPD</p>
       </main>
