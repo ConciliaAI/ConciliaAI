@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 import BarraTopo from './components/BarraTopo'
 import MenuLateral from './components/MenuLateral'
-import { MENU } from './menu'
+import Ajuda from './pages/Ajuda'
 import Busca from './pages/Busca'
+import Configuracoes from './pages/Configuracoes'
 import Contratos from './pages/Contratos'
 import Dashboard from './pages/Dashboard'
-import EmMigracao from './pages/EmMigracao'
 import Enviar from './pages/Enviar'
 import Relatorios from './pages/Relatorios'
 import Fiscais from './pages/Fiscais'
@@ -110,10 +110,9 @@ export default function App() {
   else if (rota === 'relatorios') pagina = <Relatorios ws={ws} cliente={cliente?.nome} />
   else if (rota === 'fiscais') pagina = <Fiscais key="lista-fiscais" ws={ws} />
   else if (rota.startsWith('fiscal-')) pagina = <Fiscais key={rota} ws={ws} id={+rota.split('-')[1]} />
-  else {
-    const item = MENU.find((m) => m.id === rota)
-    pagina = <EmMigracao titulo={item?.rotulo || (rota === 'config' ? 'Configurações' : 'Ajuda')} />
-  }
+  else if (rota === 'config') pagina = <Configuracoes key={window.location.hash} ws={ws} cliente={cliente} conta={estado.conta} usuario={estado.usuario} />
+  else if (rota === 'ajuda') pagina = <Ajuda />
+  else pagina = <Dashboard ws={ws} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
 
   const menu = (
     <MenuLateral rota={rota.startsWith('documento-') ? 'documentos' : rota} contagens={contagens} totalDocumentos={estado.conta?.documentos}
