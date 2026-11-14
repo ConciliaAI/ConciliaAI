@@ -8,6 +8,10 @@ if not exist ".venv\Scripts\python.exe" (
   ".venv\Scripts\python.exe" -m pip install -q --upgrade pip
   ".venv\Scripts\python.exe" -m pip install -q -r requirements.txt || (echo Falha ao instalar as bibliotecas. Verifique a internet. & pause & exit /b 1)
 )
+rem Bibliotecas novas depois de um git pull (rapido quando ja esta tudo instalado).
+".venv\Scripts\python.exe" -m pip install -q --disable-pip-version-check -r requirements.txt || (echo Falha ao atualizar as bibliotecas. Verifique a internet. & pause & exit /b 1)
+rem Monta o front novo quando ele mudou; a propria API serve as telas em http://127.0.0.1:8000.
+".venv\Scripts\python.exe" scripts\preparar_front.py
 echo.
 echo  Concilia AI rodando em http://127.0.0.1:8000
 echo  Para parar, feche esta janela.

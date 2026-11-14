@@ -208,10 +208,16 @@ def _doc_publico(d, cats, com_paginas=False):
 
 
 # ------------------------------------------------------------------ telas
+# O front novo (frontend/dist, montado pelo iniciar.bat/iniciar.sh) é servido pela própria API em
+# http://127.0.0.1:8000: um endereço só, sem npm run dev nem certificado. Sem ele, abre a versão anterior (web/).
+FRONT_PRONTO = config.BASE / "frontend" / "dist"
+
+
 @app.get("/")
 def tela():
     # Sem cache: depois de atualizar o sistema, o navegador sempre pega as telas novas.
-    return FileResponse(config.WEB / "index.html", headers={"Cache-Control": "no-store"})
+    pagina = FRONT_PRONTO / "index.html"
+    return FileResponse(pagina if pagina.exists() else config.WEB / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/estado")
@@ -1108,3 +1114,9 @@ def novo_tipo(request: Request, ws: str, corpo: dict):
     db.x("INSERT INTO tipos(ws, nome, titulos, palavras, exigido) VALUES(?,?,?,?,?)",
          (ws, nome, json.dumps(titulos), json.dumps(palavras), 0))
     return {"ok": True}
+
+
+# Arquivos do front novo (scripts, estilos, imagens). Fica por último: as rotas /api têm prioridade.
+if (FRONT_PRONTO / "index.html").exists():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=FRONT_PRONTO), name="front")
