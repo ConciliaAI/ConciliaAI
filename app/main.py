@@ -25,6 +25,7 @@ from . import (
     pipeline,
     seed,
 )
+from . import arquivos as armazenamento
 from .fiscal import brl, fmt_cnpj, fmt_data
 from .integrations.admin import router as integracoes_router
 from .integrations.erp import router as erp_router
@@ -428,6 +429,9 @@ def imagem(request: Request, pid: int, largura: int = 0, revelar: int = 0):
     p = db.q("SELECT p.*, e.ws FROM paginas p JOIN envios e ON e.id=p.envio_id WHERE p.id=?", (pid,), um=True)
     if not p or not p["img"]:
         raise HTTPException(404, "Página ainda não processada")
+    img = armazenamento.local(p["img"])
+    if not img:
+        raise HTTPException(404, "A imagem desta página não está disponível (nem no disco nem no Storage).")
     if revelar:
         # Imagem sem máscara só para revisor que registrou o motivo deste documento há pouco (POST /revelar).
         u = auth.exigir(request, "revisor")
@@ -445,7 +449,7 @@ def imagem(request: Request, pid: int, largura: int = 0, revelar: int = 0):
         cache = config.DADOS / "miniaturas" / f"{pid}_{largura}_{chave}.jpg"
         if cache.exists():
             return Response(cache.read_bytes(), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=300"})
-    im = anonimizar.mascarar_imagem(p["img"], _j(p["linhas"], []), cats, _j(p["sensiveis"], []))
+    im = anonimizar.mascarar_imagem(img, _j(p["linhas"], []), cats, _j(p["sensiveis"], []))
     if largura:
         im.thumbnail((largura, largura * 2))
     buf = io.BytesIO()
@@ -569,7 +573,8 @@ def _decidir(did: int, corpo: dict):
         confs, primeira = [], None
         for p in pags:
             anterior = db.q("SELECT tipo, pessoa, cpf FROM paginas WHERE envio_id=? AND n=?", (d["envio_id"], p["n"] - 1), um=True)
-            r = analise.analisar(p["img"], p["texto"], tipos, anterior, ex, cfg.get("usar_claude") == "1")
+            r = analise.analisar(str(armazenamento.local(p["img"]) or ""), p["texto"], tipos, anterior, ex,
+                                 cfg.get("usar_claude") == "1")
             db.x("UPDATE paginas SET tipo=?, conf=?, sinais=?, candidatos=?, motor=? WHERE id=?",
                  (r["tipo"], r["conf"], json.dumps(r["sinais"], ensure_ascii=False),
                   json.dumps(r["candidatos"], ensure_ascii=False), r["motor"], p["id"]))
@@ -853,13 +858,9 @@ def excluir_documento(request: Request, did: int):
     d = _doc(did)
     pags = db.q("SELECT id, img FROM paginas WHERE envio_id=? AND n BETWEEN ? AND ?", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
     for p in pags:
-        arquivos = [Path(p["img"])] if p["img"] else []
-        arquivos += list((config.DADOS / "miniaturas").glob(f"{p['id']}_*.jpg"))
-        for arq in arquivos:
-            try:
-                arq.unlink(missing_ok=True)
-            except OSError:
-                pass
+        caminhos = [p["img"]] if p["img"] else []
+        caminhos += list((config.DADOS / "miniaturas").glob(f"{p['id']}_*.jpg"))
+        armazenamento.apagar(caminhos)  # do disco e do Storage
     db.x("""UPDATE paginas SET status='excluida', img=NULL, texto=NULL, linhas=NULL, sensiveis=NULL, doc_id=NULL
             WHERE envio_id=? AND n BETWEEN ? AND ?""", (d["envio_id"], d["pag_ini"], d["pag_fim"]))
     _limpar_extraidos(did)
@@ -923,7 +924,10 @@ def _pdf_doc(d) -> bytes:
     sens = _j(d["sensiveis"], [])
     saida = fitz.open()
     for p in pags:
-        im = anonimizar.mascarar_imagem(p["img"], _j(p["linhas"], []), cats, sens)
+        img = armazenamento.local(p["img"])
+        if not img:
+            continue  # imagem perdida: o PDF sai com as páginas que existem
+        im = anonimizar.mascarar_imagem(img, _j(p["linhas"], []), cats, sens)
         s = 0.5
         largura, altura = im.width, im.height
         # JPEG em até 1400 px: o PDF fica ~50x menor que PNG em resolução cheia e o texto continua legível.
@@ -951,13 +955,11 @@ def busca(ws: str, q: str = ""):
     termos = re.findall(r"\w+", analise.norm(q))
     if not termos:
         return []
-    consulta = " AND ".join(f'"{t}"*' for t in termos)
     cats = _cats(ws)
     try:
         # Trecho sem marcadores: a máscara roda no texto limpo (marcadores no meio de um CPF ou e-mail
         # impediam o reconhecimento) e o destaque é aplicado só depois, no texto já mascarado.
-        linhas = db.q("""SELECT doc_id, snippet(busca, 2, '', '', ' … ', 24) trecho FROM busca
-                         WHERE busca MATCH ? AND ws=? ORDER BY rank LIMIT 30""", (consulta, ws))
+        linhas = db.buscar_texto(ws, termos)
     except Exception:
         return []
     out = []

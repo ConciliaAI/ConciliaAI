@@ -6,6 +6,7 @@ lxml>=5,<7  # validacao opcional dos esquemas fiscais oficiais locais
 pymupdf
 pillow
 anthropic
+psycopg[binary]>=3.2  # Postgres (Supabase), usado quando DATABASE_URL está no .env
 rapidocr-onnxruntime
 # Gerador sintético com gabarito (scripts/generate_synthetic_batch.py)
 Faker==37.1.0

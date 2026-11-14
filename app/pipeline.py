@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import analise, conciliacao, config, db, fiscal, ocr, roteador_fiscal
 from .classificacao_subtipos import identificar_subtipo, TIPO_COMPATIVEL
+from . import arquivos as armazenamento
 from .config import ENVIOS, PAGINAS
 
 EXTS = (".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp")
@@ -92,8 +93,8 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
 
     def criar_registro(conn):
         cur = conn.execute(
-            "INSERT INTO envios(ws, nome, origem, criado_em, status, usuario) VALUES(?,?,?,?, 'recebendo', ?)",
-            (ws, nome, origem, db.agora(), usuario),
+            "INSERT INTO envios(ws, nome, origem, criado_em, status, usuario, servidor) VALUES(?,?,?,?, 'recebendo', ?, ?)",
+            (ws, nome, origem, db.agora(), usuario, config.SERVIDOR_ID),
         )
         envio_id = cur.lastrowid
         # O vínculo com a chave idempotente é confirmado na mesma transação do envio.
@@ -117,6 +118,7 @@ def criar_envio(ws: str, arquivos: list[tuple[str, bytes]], origem: str, usuario
         seguro = f"{i:03d}_" + "".join(c if c.isalnum() or c in "._-" else "_" for c in Path(nome_arq).name)
         caminho = pasta / seguro
         caminho.write_bytes(conteudo)
+        armazenamento.enviar(caminho)  # cópia do original no Storage (quando configurado)
         if seguro.lower().endswith(".zip"):
             try:
                 extraidos = _abrir_zip(caminho, pasta, i)
@@ -204,12 +206,15 @@ class Trabalhador(threading.Thread):
             ocr.aquecer()
         except Exception:
             pass  # sem o aquecimento, o modelo carrega na primeira página
-        # Envios que estavam no meio quando o programa fechou: retomar de onde pararam.
-        for e in db.q("SELECT * FROM envios WHERE status='processando'"):
+        # Envios que estavam no meio quando o programa fechou: retomar de onde pararam. Só os recebidos
+        # neste computador: com o banco compartilhado, os dos outros continuam com quem os recebeu.
+        for e in db.q("SELECT * FROM envios WHERE status='processando' AND (servidor=? OR servidor IS NULL)",
+                      (config.SERVIDOR_ID,)):
             db.x("UPDATE envios SET status='fila', retomadas=retomadas+1 WHERE id=?", (e["id"],))
             db.evento(e["id"], f"O programa foi fechado no meio. Retomando da página {e['feitas'] + 1}, sem repetir as anteriores.")
         while True:
-            e = db.q("SELECT * FROM envios WHERE status='fila' ORDER BY id LIMIT 1", um=True)
+            e = db.q("""SELECT * FROM envios WHERE status='fila' AND (servidor=? OR servidor IS NULL)
+                        ORDER BY id LIMIT 1""", (config.SERVIDOR_ID,), um=True)
             if not e:
                 self.acordar.wait(1.5)
                 self.acordar.clear()
@@ -276,10 +281,11 @@ class Trabalhador(threading.Thread):
             db.x("""UPDATE paginas SET status='feita', img=?, largura=?, altura=?, texto=?, linhas=?, fonte_texto=?,
                     tipo=?, conf=?, inicio=?, sinais=?, candidatos=?, pessoa=?, cpf=?, empresa=?, sensiveis=?, motor=?
                     WHERE id=?""",
-                 (png, larg, alt, texto, json.dumps(linhas, ensure_ascii=False), fonte, r["tipo"], r["conf"],
+                 (armazenamento.chave(png), larg, alt, texto, json.dumps(linhas, ensure_ascii=False), fonte, r["tipo"], r["conf"],
                   int(r["inicio"]), json.dumps(r["sinais"], ensure_ascii=False),
                   json.dumps(r["candidatos"], ensure_ascii=False), r["pessoa"], r["cpf"], r["empresa"],
                   json.dumps(r["sensiveis"], ensure_ascii=False), r["motor"], p["id"]))
+            armazenamento.enviar(png)  # cópia da página no Storage, em segundo plano
             db.x("UPDATE envios SET feitas=(SELECT COUNT(*) FROM paginas WHERE envio_id=? AND status IN ('feita','erro')) WHERE id=?",
                  (eid, eid))
         agrupar(eid)

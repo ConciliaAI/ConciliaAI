@@ -239,7 +239,7 @@ async def receber_documentos(
         finalizado = db.agora()
 
         def concluir(conn):
-            conn.execute(
+            cur = conn.execute(
                 """UPDATE integracao_requisicoes
                    SET status='concluido', envio_id=?, resposta_status=?,
                        resposta_json=?, atualizada_em=?
@@ -247,7 +247,7 @@ async def receber_documentos(
                 (envio_id, codigo_http, resposta_json, finalizado,
                  integracao["id"], idempotency_key, tentativa_id),
             )
-            if conn.execute("SELECT changes()").fetchone()[0] != 1:
+            if cur.rowcount != 1:
                 raise RuntimeError("Não foi possível finalizar a reserva idempotente.")
             conn.execute(
                 """INSERT INTO integracao_eventos

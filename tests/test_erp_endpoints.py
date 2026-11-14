@@ -395,11 +395,18 @@ def test_schema_idempotente_e_aditivo(client):
     _integracao(client)
     integracoes_antes = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
     with db._lock:
-        db._con.executescript(db.SCHEMA)
+        if db.POSTGRES:
+            db._con.executescript(db._esquema_postgres(db.SCHEMA))
+        else:
+            db._con.executescript(db.SCHEMA)
         db._con.commit()
-    tabelas = db.q(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='integracao_requisicoes'"
-    )
+    if db.POSTGRES:
+        tabelas = db.q("""SELECT table_name AS name FROM information_schema.tables
+                          WHERE table_schema=current_schema() AND table_name='integracao_requisicoes'""")
+    else:
+        tabelas = db.q(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='integracao_requisicoes'"
+        )
     integracoes_depois = db.q("SELECT COUNT(*) AS total FROM integracoes", um=True)["total"]
     assert tabelas == [{"name": "integracao_requisicoes"}]
     assert integracoes_depois == integracoes_antes

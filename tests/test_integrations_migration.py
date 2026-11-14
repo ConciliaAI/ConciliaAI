@@ -39,6 +39,7 @@ def test_migracao_adiciona_identificacao_do_ator_sem_perder_historico(tmp_path):
     # precisa nascer apontando para o banco temporário, e não para o banco dos testes.
     raiz_projeto = Path(__file__).resolve().parents[1]
     ambiente = os.environ.copy()
+    ambiente["DATABASE_URL"] = "sqlite"  # migração de um arquivo SQLite antigo, mesmo quando os testes usam Postgres
     ambiente["CONCILIA_DADOS"] = str(tmp_path)
     ambiente["PYTHONPATH"] = str(raiz_projeto) + os.pathsep + ambiente.get("PYTHONPATH", "")
 
