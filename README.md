@@ -15,27 +15,23 @@ Grandes empresas contratam dezenas de micro e pequenas empresas. Cada uma manda 
 - **Linux:** Execute `./iniciar.sh` no terminal (veja o [Protocolo detalhado para Linux](docs/PROTOCOLO_LINUX.md)).
 - **Windows:** Dê dois cliques em **`iniciar.bat`**.
 
-Na primeira vez ele instala tudo automaticamente (precisa de internet e Python 3.11+). O navegador abre em http://127.0.0.1:8000.
+Ele instala ou atualiza as bibliotecas, monta as telas e abre o navegador em **http://127.0.0.1:8000**. Precisa de Python 3.11+ e Node.js (para montar as telas; sem Node, abre a versão anterior delas). Deixe a janela aberta enquanto usa. Roteiro de teste para o time: **[docs/ROTEIRO_DE_TESTE.md](docs/ROTEIRO_DE_TESTE.md)**.
 
 | Usuário | Senha | Pode |
 |---|---|---|
-| admin | admin123 | tudo: clientes, configurações, avaliação |
+| admin | admin123 | tudo: workspaces, usuários, integrações, configurações e avaliação |
 | revisor | revisor123 | decidir dúvidas e divergências, avisar fornecedores, ver dados protegidos |
 | operador | operador123 | enviar documentos e consultar |
+
+São as contas da empresa de demonstração (senhas trocáveis no `.env`). Outra empresa entra por **Criar conta**, na tela de login, e cria um workspace para cada cliente. Banco no Supabase: **[docs/SUPABASE.md](docs/SUPABASE.md)**.
 
 Roteiro da demonstração em **[LEIA-ME.md](LEIA-ME.md)**.
 
 ### Front novo (React + Tailwind)
 
-As telas foram refeitas em `frontend/` (Vite, React, Tailwind, JavaScript), seguindo os layouts do Figma. Ele usa a mesma API da plataforma, então abra a plataforma primeiro (porta 8000) e depois:
+As telas foram refeitas em `frontend/` (Vite, React, Tailwind, JavaScript), seguindo os layouts do Figma, e a API as serve em http://127.0.0.1:8000 (o `iniciar.bat` monta tudo).
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Abre em **https://localhost:5173**. O certificado é de teste (para a câmera funcionar no celular), então o navegador mostra um aviso na primeira vez: clique em **Avançado → Continuar para localhost**. No celular, na mesma rede Wi-Fi, use o endereço "Network" que o `npm run dev` mostra.
+Para mexer nas telas com recarga automática, ou testar o scanner no celular (a câmera exige https), rode também `cd frontend`, `npm install` e `npm run dev`: abre em **https://localhost:5173**, com um certificado de teste (na primeira vez: **Avançado → Continuar para localhost**). No celular, na mesma rede Wi-Fi, use o endereço "Network" que aparecer.
 
 | Tela | O que faz |
 |---|---|
@@ -45,11 +41,15 @@ Abre em **https://localhost:5173**. O certificado é de teste (para a câmera fu
 | Revisão humana | Uma fila só com as dúvidas da leitura e as divergências nota × contrato; páginas lado a lado, respostas com atalhos 1, 2 e 3 |
 | Documento | Página do documento, divergência com os valores, confiança da leitura e campos lidos; aprovar, rejeitar, baixar PDF e excluir |
 | Busca | Busca no texto de todos os documentos, com os dados protegidos mascarados |
+| Contratos | Contratos lidos, vigência (vencidos e a vencer), notas e divergências de cada um, aditivos e busca |
 | Relatórios | Notas conferidas no mês (gráfico por situação), divergências por regra e as planilhas para baixar em CSV |
 | XML fiscais | NF-e, NFC-e e CT-e importados: filtro por modelo e detalhes com emitente, destinatário, itens, tributos e validação |
 | Scanner | "Escanear agora" no dashboard abre a câmera (traseira ou frontal), mostra a prévia e envia a foto para a leitura |
+| Configurações | Abas: geral (IA, limite de confiança, tolerância e regras), dados protegidos, tipos de documento, usuários da empresa, integração com ERP e acerto da IA |
+| Ajuda | O caminho de um documento, o que a Concilia faz e perguntas frequentes |
+| Criar conta e workspaces | Cadastro da empresa no login; seletor de cliente na barra do topo e "Novo workspace" |
 
-Contratos, Configurações e Ajuda ainda abrem na versão anterior, em http://127.0.0.1:8000 (pasta `web/`), até serem passadas para o front novo. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px). Listas longas (fila de revisão, tabela de documentos) rolam por dentro e a tabela mostra 100 documentos por vez, pensando no limite de 100 mil documentos por conta.
+Todas as telas estão no front novo; a pasta `web/` guarda a versão anterior, usada só quando o computador não tem Node. A interface escala junto com a largura e a altura da janela, mantendo as proporções do Figma (1440 px). Listas longas (fila de revisão, tabela de documentos) rolam por dentro e a tabela mostra 100 documentos por vez, pensando no limite de 100 mil documentos por conta.
 
 ## Requisitos do Desafio 3
 
