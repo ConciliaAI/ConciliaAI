@@ -102,6 +102,15 @@ if [ ! -f ".env" ] && [ -f ".env.exemplo" ]; then
     cp .env.exemplo .env
 fi
 
+# 5b. Bibliotecas novas depois de um git pull (rápido quando já está tudo instalado)
+.venv/bin/python -m pip install -q --disable-pip-version-check --no-cache-dir -r requirements.txt || {
+    echo -e "${VERMELHO}Falha ao atualizar as bibliotecas. Verifique a conexão com a internet.${SEM_COR}"
+    exit 1
+}
+
+# 5c. Monta o front novo quando ele mudou; a própria API serve as telas em http://127.0.0.1:8000
+.venv/bin/python scripts/preparar_front.py
+
 # 6. Informações de execução
 URL="http://127.0.0.1:8000"
 echo ""

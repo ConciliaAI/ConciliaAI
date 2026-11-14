@@ -4,19 +4,17 @@ Para quem vai testar no `stage` antes de liberar para o `main`. Leva uns 15 minu
 
 ## 1. Abrir
 
-1. Atualize o branch e instale o que for novo:
-   ```bash
-   git pull
-   .venv\Scripts\python.exe -m pip install -r requirements.txt     # Windows
-   cd frontend && npm install
-   ```
-2. Ligue a plataforma (API): `iniciar.bat` (Windows) ou `./iniciar.sh` (Linux). Deixe a janela aberta.
-3. Em outro terminal, o front: `cd frontend` e `npm run dev`.
-4. Abra **https://localhost:5173** (com **s**).
+1. Pegue a versão mais nova: `git pull`
+2. Dê dois cliques no **`iniciar.bat`** (no Linux: `./iniciar.sh`).
+   - Ele instala ou atualiza o que faltar e monta as telas sozinho. Na primeira vez demora uns minutos; depois, segundos.
+   - Precisa de **Python 3.11+** e, para as telas novas, **Node.js LTS** (nodejs.org). Sem Node, abre a versão anterior das telas.
+3. O navegador abre em **http://127.0.0.1:8000**. Deixe a janela preta aberta enquanto usa.
 
-**Aviso de certificado é normal.** O front usa um certificado de teste (para a câmera do scanner funcionar no celular). Na primeira vez, e sempre que reinstalar o front, o navegador mostra "Sua conexão não é particular": clique em **Avançado → Continuar para localhost**.
+Só isso: não precisa de `npm run dev`, de segundo terminal nem de aceitar certificado.
 
 **Banco:** sem `DATABASE_URL` no `.env`, tudo fica num SQLite só seu. Com as linhas do Supabase (peça no privado), você vê os mesmos dados do time. Veja `docs/SUPABASE.md`.
+
+**Scanner no celular:** a câmera do celular exige https. Só para esse teste, rode `cd frontend` e `npm run dev`, abra no celular o endereço "Network" que aparecer e aceite o aviso de certificado (é de teste).
 
 ## 2. Testar
 
@@ -36,11 +34,11 @@ Para quem vai testar no `stage` antes de liberar para o `main`. Leva uns 15 minu
 | 12 | **Configurações**: passe pelas abas; crie um usuário e uma chave de ERP | Usuário criado; a chave aparece uma vez só; revogar funciona |
 | 13 | Entre como `operador` e abra Configurações | Tudo visível, nada editável |
 | 14 | **Ajuda** | Passo a passo e perguntas frequentes |
-| 15 | No celular (mesmo Wi-Fi), abra o endereço "Network" do `npm run dev` e use **Escanear agora** | A câmera abre e a foto vira documento |
+| 15 | No celular (veja "Scanner no celular" acima), use **Escanear agora** | A câmera abre e a foto vira documento |
 
 ## 3. Se der erro
 
-Anote **a tela**, **o que você fez** e **a mensagem** (print ajuda; nada de senha ou chave no print) e abra uma issue ou mande no grupo. Erros da API aparecem na janela do `iniciar.bat`.
+Anote **a tela**, **o que você fez** e **a mensagem** (print ajuda; nada de senha ou chave no print) e abra uma issue ou mande no grupo. Erros aparecem na janela preta do `iniciar.bat`.
 
 ## Tempo de leitura
 
