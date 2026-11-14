@@ -4,6 +4,7 @@ import BarraTopo from './components/BarraTopo'
 import MenuLateral from './components/MenuLateral'
 import { MENU } from './menu'
 import Busca from './pages/Busca'
+import Contratos from './pages/Contratos'
 import Dashboard from './pages/Dashboard'
 import EmMigracao from './pages/EmMigracao'
 import Enviar from './pages/Enviar'
@@ -78,6 +79,7 @@ export default function App() {
   else if (rota === 'revisao') pagina = <Revisao ws={ws} perfil={estado.usuario.perfil} aoMudar={atualizarContagens} />
   else if (rota === 'enviar') pagina = <Enviar ws={ws} aoMudar={atualizarContagens} />
   else if (rota === 'busca') pagina = <Busca ws={ws} termo={busca} />
+  else if (rota === 'contratos') pagina = <Contratos ws={ws} />
   else if (rota === 'relatorios') pagina = <Relatorios ws={ws} cliente={estado.clientes?.[0]?.nome} />
   else if (rota === 'fiscais') pagina = <Fiscais key="lista-fiscais" ws={ws} />
   else if (rota.startsWith('fiscal-')) pagina = <Fiscais key={rota} ws={ws} id={+rota.split('-')[1]} />
