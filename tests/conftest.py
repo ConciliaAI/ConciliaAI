@@ -27,6 +27,9 @@ if _pg:
     os.environ["CONCILIA_PG_ESQUEMA"] = f"teste_{secrets.token_hex(4)}"
 else:
     os.environ["DATABASE_URL"] = "sqlite"  # não vazio: o .env não sobrescreve
+# Os testes nunca usam o Storage de verdade (test_arquivos.py simula um em memória).
+os.environ["SUPABASE_URL"] = " "
+os.environ["SUPABASE_SECRET_KEY"] = " "
 
 
 def pytest_sessionfinish(session, exitstatus):
