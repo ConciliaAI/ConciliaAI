@@ -28,3 +28,6 @@ casos-de-teste/
 
 # Apresentação do hackathon (vídeos e pitch): só local, fora do GitHub
 apresentacao/
+
+# Pasta temporária do iniciar.sh (Linux)
+.tmp/
