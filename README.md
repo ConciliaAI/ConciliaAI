@@ -12,6 +12,10 @@ Grandes empresas contratam dezenas de micro e pequenas empresas. Cada uma manda 
 
 ## Como abrir
 
+**Online:** **https://concilia.2.25.226.129.nip.io** (VPS com Docker e HTTPS; a banca pode entrar por **Criar conta**). Detalhes técnicos, arquitetura e outras formas de rodar em [Arquitetura e tecnologias](#arquitetura-e-tecnologias) e [Como rodar](#como-rodar).
+
+No seu computador:
+
 - **Linux:** Execute `./iniciar.sh` no terminal (veja o [Protocolo detalhado para Linux](docs/PROTOCOLO_LINUX.md)).
 - **Windows:** Dê dois cliques em **`iniciar.bat`**.
 
@@ -119,13 +123,71 @@ Lote fictício gerado com gabarito: 8 fornecedores, **124 páginas num TIFF só 
 
 Tudo o que o sistema errou foi para a revisão humana: nada errado foi aprovado sozinho. Os dados sintéticos são mais fáceis que documentos reais: os números servem para comparar versões e mostrar o fluxo, não como promessa de acerto. A tela **Acerto da IA** refaz essa medição com um lote novo.
 
-## Como foi feito
+## Arquitetura e tecnologias
 
-- **Python + FastAPI**, banco **SQLite** com busca de texto (FTS5).
-- Front em **React + Tailwind** (Vite), seguindo o Figma; a versão anterior das telas, em HTML/JS sem build, fica em `web/` até a migração terminar.
-- **PyMuPDF** para PDF e imagens, **RapidOCR** para o OCR local, **Claude** (`claude-opus-5-5`) opcional para leitura multimodal.
-- Fila de processamento própria, página a página, com ponto de retomada.
-- Gerador de documentos fictícios com gabarito: `scripts/generate_synthetic_batch.py`.
+Uma aplicação só (API + fila de processamento + telas), empacotada em um contêiner. O estado fica fora dela: no banco (SQLite ou Postgres) e nos arquivos (disco ou Storage do Supabase). Por isso a mesma imagem roda num notebook, numa VPS ou em várias máquinas ligadas ao mesmo banco.
+
+```mermaid
+flowchart LR
+    U[Telas React<br/>navegador ou celular] -->|HTTPS| P[Caddy<br/>proxy e certificado]
+    E[ERP do cliente] -->|API /api/erp/v1<br/>chave Bearer + Idempotency-Key| P
+    P --> A[FastAPI<br/>API REST + telas]
+    A --> F[Fila de envios<br/>uma página por vez<br/>com ponto de retomada]
+    F --> R[Leitura de cada página<br/>PyMuPDF + RapidOCR]
+    R --> C{Confiança}
+    C -->|alta| D[Documento pronto]
+    C -->|baixa| H[Revisão humana]
+    R -. opcional .-> L[Claude multimodal<br/>imagem + texto]
+    X[XML NFS-e, NF-e,<br/>NFC-e, CT-e] --> Q[Leitores fiscais<br/>sem OCR]
+    D --> K[Conciliação<br/>nota × contrato × aditivo vigente]
+    Q --> K
+    K -->|divergência| H
+    A --- B[(SQLite ou Postgres<br/>busca de texto)]
+    A --- S[(Disco ou<br/>Supabase Storage)]
+```
+
+| Camada | Tecnologia | Papel |
+|---|---|---|
+| Telas | React 19, Vite, Tailwind | Interface do Figma, servida pela própria API depois do build |
+| API | Python 3.12, FastAPI, Uvicorn | Rotas REST, login por cookie assinado, perfis (admin, revisor, operador), contas e workspaces isolados |
+| Fila | Trabalhador em segundo plano (`app/pipeline.py`) | Processa cada envio página a página e grava cada página ao terminar |
+| Leitura | PyMuPDF, Pillow, RapidOCR (ONNX Runtime) | Renderiza PDF, TIFF e fotos e faz o OCR no próprio servidor, sem custo por página |
+| IA | Claude (`claude-opus-5-5`, opcional) | Lê imagem e texto juntos para tipo, fronteira e campos; sem chave ou em falha, usa a leitura local |
+| Documentos fiscais | lxml, validação XSD | Leitores próprios de NFS-e, NF-e, NFC-e e CT-e direto do XML |
+| Banco | SQLite (FTS5) ou Postgres no Supabase (tsvector) | Mesmo código para os dois; busca de texto nos dois |
+| Arquivos | Disco local ou Supabase Storage | Imagens das páginas e originais |
+| Integração | API `/api/erp/v1` | Chaves de acesso revogáveis, idempotência e trilha de auditoria imutável |
+| Implantação | Docker (2 etapas), Docker Compose, Caddy | Imagem única; HTTPS automático na VPS |
+| Qualidade | pytest (131 testes), GitHub Actions | Testes e build do front em cada push e pull request |
+
+### Escalabilidade e robustez
+
+- **Retomada após falha:** cada página é gravada assim que termina. Se o servidor cair ou reiniciar, o envio continua da página seguinte, sem refazer as anteriores.
+- **Mais máquinas, mesmo banco:** com Postgres e Storage no Supabase, vários servidores atendem ao mesmo tempo. Cada envio fica com o servidor que o recebeu (`CONCILIA_SERVIDOR`), então nenhum é processado duas vezes.
+- **Lotes grandes:** até 300 MB e 2.000 páginas por arquivo (configurável). A fila lê uma página por vez, o que mantém a memória estável em lotes de milhares de páginas.
+- **Limite por conta:** até 100.000 documentos por conta, somando os workspaces, com isolamento total entre contas.
+- **ERP sem duplicidade:** o mesmo pedido repetido com a mesma `Idempotency-Key` devolve o resultado original, mesmo com tentativas simultâneas.
+- **IA com plano B:** se a API do Claude falhar ou não estiver configurada, a leitura local assume, e a página registra qual motor foi usado.
+- **Na dúvida, uma pessoa decide:** abaixo de 75% de confiança, ou com página repetida ou faltando, o documento vai para a revisão humana, com o motivo.
+- **Dados protegidos:** CPF, RG, conta, saúde, endereço e contato são mascarados no texto, na busca, na imagem e no PDF. Ver o original exige motivo, que fica registrado.
+- **Testado a cada mudança:** 131 testes cobrem leitura, conciliação, contas, ERP (concorrência e idempotência), Storage e migração do banco, rodando no SQLite e no Postgres.
+
+## Como rodar
+
+| Jeito | Comando | Endereço |
+|---|---|---|
+| Windows, um clique | `iniciar.bat` | http://127.0.0.1:8000 |
+| Linux | `./iniciar.sh` | http://127.0.0.1:8000 |
+| Docker | `docker build -t concilia-ai .` e `docker run -p 8000:8000 -v concilia-dados:/dados concilia-ai` | http://127.0.0.1:8000 |
+| Produção (VPS) | `docker compose up -d --build`, roteiro em [deploy/LEIA-ME.md](deploy/LEIA-ME.md) | https://concilia.2.25.226.129.nip.io |
+
+Configuração pelo `.env` (modelo em `.env.exemplo`): senhas das contas, `ANTHROPIC_API_KEY` para ligar o Claude, `DATABASE_URL` e `SUPABASE_*` para Postgres e Storage ([docs/SUPABASE.md](docs/SUPABASE.md)). Sem nada disso, roda com SQLite e OCR local.
+
+Testes:
+- **Linux:** `.venv/bin/pytest tests -q`
+- **Windows:** `.venv\Scripts\python.exe -m pytest tests -q`
+
+### Onde fica cada coisa
 
 ```text
 app/conciliacao.py  regras de conferência, decisões e medição contra o gabarito
@@ -138,14 +200,12 @@ app/classificacao_subtipos.py  subtipo do documento (DANFE, DACTE, NFS-e…) pel
 app/integrations/   API do ERP: chaves de acesso, envio, resultados e auditoria
 frontend/           telas novas (React + Tailwind)
 web/index.html      telas da versão anterior (Contratos, Configurações e Ajuda)
-tests/              118 testes automáticos
+tests/              131 testes automáticos
+Dockerfile          imagem única: monta o front e roda a API
+deploy/             docker-compose e roteiro da VPS
 ```
 
-O GitHub roda os testes e o build do front a cada commit (`.github/workflows/ci.yml`).
-
-Testes:
-- **Linux:** `.venv/bin/pytest tests -q`
-- **Windows:** `.venv\Scripts\python.exe -m pytest tests -q`
+O GitHub roda os testes e o build do front a cada commit (`.github/workflows/ci.yml`). Gerador de documentos fictícios com gabarito: `scripts/generate_synthetic_batch.py`.
 
 ## Time
 
