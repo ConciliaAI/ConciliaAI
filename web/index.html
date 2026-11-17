@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concilia AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--noite:#0F1E3D;--confere:#2F6BFF;--tinta:#1D47B8;--ambar:#F5B700;--nevoa:#E9EFFD;--papel:#F7F8FA;--painel:#F2F4F8;--card:#fff;
+--apoio:#5B6680;--suave:#8A93A8;--borda:#E3E7EF;--ambar-fundo:#FFF4D1;--ambar-texto:#7A5A00;--erro:#C93434;--erro-fundo:#FDE8E8;--media:#8AA6E8;
+--fonte:"Plus Jakarta Sans",system-ui,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--noite);font-family:var(--fonte);font-size:15px;line-height:1.5}
+body{padding:16px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--confere);outline-offset:2px}
+h1,h2,h3{margin:0;letter-spacing:-.02em}
+p{margin:0}
+a{color:var(--tinta)}
+.ic{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.num{font-variant-numeric:tabular-nums}.muted{color:var(--apoio)}.small{font-size:13px}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);gap:16px;max-width:1440px;margin:0 auto;align-items:start}
+.side{background:var(--painel);border-radius:24px;padding:24px 16px;position:sticky;top:16px;min-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:6px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 12px}
+.brand b{font-weight:800;font-size:22px;letter-spacing:-.035em}.brand span{font-weight:700;font-size:22px;color:var(--tinta)}
+.navlabel{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--suave);padding:14px 12px 6px;font-weight:600}
+.nav a{position:relative;display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;color:var(--apoio);text-decoration:none;font-weight:500}
+.nav a:hover{background:#E8ECF4;color:var(--noite)}
+.nav a.on{color:var(--noite);font-weight:700;background:#fff}
+.nav a.on::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:4px;border-radius:0 4px 4px 0;background:var(--confere)}
+.nav a.on .ic{color:var(--confere)}
+.count{margin-left:auto;font-size:12px;font-weight:700;background:var(--ambar);color:#3D2C00;border-radius:999px;padding:1px 8px}
+.motor{margin-top:auto;background:var(--noite);color:#F7F8FA;border-radius:18px;padding:16px;display:grid;gap:6px}
+.motor p{font-size:13px;color:#B9C3DA}
+.main{display:grid;gap:16px;min-width:0}
+.top{background:var(--painel);border-radius:20px;padding:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:relative;z-index:5}
+.ws{position:relative}
+.wsbtn{display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid var(--borda);border-radius:14px;padding:6px 12px 6px 6px;text-align:left;min-width:230px}
+.wslogo{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;flex:none}
+.wsbtn b,.wsopt b{display:block;font-size:14px;line-height:1.2}.wsbtn small,.wsopt small{font-size:12px;color:var(--suave)}
+.wsmenu{position:absolute;top:calc(100% + 8px);left:0;width:300px;background:#fff;border:1px solid var(--borda);border-radius:16px;box-shadow:0 16px 40px rgba(15,30,61,.14);padding:8px;display:grid;gap:2px;z-index:10}
+.wsopt{display:flex;align-items:center;gap:10px;border:0;background:transparent;border-radius:10px;padding:8px 10px;text-align:left;width:100%}
+.wsopt:hover{background:var(--papel)}.wsopt.on{background:var(--nevoa)}
+.search{flex:1 1 240px;display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:10px 14px;color:var(--suave)}
+.search input{border:0;outline:0;background:transparent;flex:1;min-width:0;color:var(--noite)}
+.badge{font-size:12px;font-weight:700;border-radius:999px;padding:5px 12px;white-space:nowrap}
+.panel{background:var(--painel);border-radius:24px;padding:24px;display:grid;gap:16px;min-width:0}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.head h1{font-size:30px;font-weight:800}.head p{color:var(--apoio);margin-top:4px;max-width:66ch}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:11px 18px;font-weight:700;border:1.5px solid transparent;background:var(--confere);color:#fff;text-decoration:none;white-space:nowrap}
+.btn:hover{background:var(--tinta)}.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;color:var(--tinta);border-color:var(--tinta)}
+.btn.light{background:#fff;color:var(--noite);border-color:var(--borda)}
+.btn.white{background:#fff;color:var(--tinta)}
+.btn.sm{padding:7px 12px;font-size:13px;border-radius:10px}
+.grid{display:grid;gap:16px}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g-wide{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}
+.c{background:#fff;border-radius:20px;padding:20px;min-width:0}.c h3{font-size:16px;font-weight:700}
+.ch{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.task{display:grid;gap:10px;align-content:start}.task .eb{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.task .big{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.15}.task p{font-size:14px;color:var(--apoio)}
+.task.hl{background:var(--confere);color:#fff}.task.hl p{color:#DCE6FF}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;border:1px solid transparent}
+.chip i{width:7px;height:7px;border-radius:50%;display:block}
+.s-ok{background:var(--nevoa);color:var(--tinta)}.s-ok i{background:var(--confere)}
+.s-rev{background:var(--ambar-fundo);color:var(--ambar-texto)}.s-rev i{background:var(--ambar)}
+.s-run{background:#fff;color:var(--confere);border-color:#BFD0FF}.s-run i{background:var(--confere);animation:pulse 1.4s infinite}
+.s-err{background:var(--erro-fundo);color:var(--erro)}.s-err i{background:var(--erro)}
+.s-neu{background:#EEF0F4;color:var(--apoio)}.s-neu i{background:var(--suave)}
+@keyframes pulse{50%{opacity:.3}}
+.bar{height:8px;border-radius:99px;background:#EDF0F6;overflow:hidden}.bar span{display:block;height:100%;border-radius:99px;background:var(--confere);transition:width .4s}
+.li{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--borda);flex-wrap:wrap}.li:first-child{border-top:0}
+.li .t{min-width:180px;flex:1}.li .t b{display:block;font-size:14px}.li .t span{font-size:13px;color:var(--apoio)}
+.doci{width:38px;height:38px;border-radius:11px;background:var(--nevoa);color:var(--tinta);display:grid;place-items:center;flex:none}
+.doci.warn{background:var(--ambar-fundo);color:var(--ambar-texto)}.doci.bad{background:var(--erro-fundo);color:var(--erro)}
+.dark{background:var(--noite);color:#F7F8FA}
+.value{display:flex;gap:28px;flex-wrap:wrap}.value b{display:block;font-size:26px;font-weight:800}.value span{font-size:13px;color:#AEB8D0}
+.conf{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:13px;white-space:nowrap}
+.conf .m{width:44px;height:6px;border-radius:9px;background:#EDF0F6;overflow:hidden}.conf .m span{display:block;height:100%}
+.drop{border:2px dashed #B9C8EE;background:#FBFCFF;border-radius:20px;padding:36px 24px;display:grid;justify-items:center;gap:10px;text-align:center;cursor:pointer}
+.drop.over{background:var(--nevoa);border-color:var(--confere)}
+.bigic{width:60px;height:60px;border-radius:18px;background:var(--nevoa);color:var(--confere);display:grid;place-items:center}
+.strip{display:flex;gap:16px;overflow-x:auto;padding:8px 4px 12px}
+.grp{display:grid;gap:8px;flex:none;align-content:start;cursor:pointer}
+.grp .pages{display:flex;gap:5px}
+.thumb{width:74px;height:100px;border-radius:6px;border:1px solid var(--borda);object-fit:cover;object-position:top;background:#fff;display:block}
+.thumb.start{border-left:4px solid var(--noite)}
+.thumb.wait{display:grid;place-items:center;color:var(--suave);font-size:12px}
+.grp .bk{height:6px;border-radius:4px}
+.grp .gl{font-size:12px;line-height:1.35;max-width:240px}.grp .gl b{display:block;font-size:13px}
+.grp.doubt .pages{outline:2px dashed var(--ambar);outline-offset:4px;border-radius:6px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--apoio);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:16px;height:6px;border-radius:3px;display:block}
+.qwrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+.qcard{background:#fff;border-radius:22px;padding:24px;display:grid;gap:18px}
+.qcard h2{font-size:24px;font-weight:800;line-height:1.25}
+.qpages{display:flex;gap:12px;flex-wrap:wrap}
+.qp{display:grid;gap:6px;justify-items:center}
+.qp img{width:170px;border:1.5px solid var(--borda);border-radius:8px;background:#fff;cursor:zoom-in}
+.qp.viz img{opacity:.45}.qp small{font-size:12px;color:var(--suave);font-weight:600}
+.answers{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.ans{display:flex;align-items:center;gap:12px;text-align:left;background:#fff;border:1.5px solid var(--borda);border-radius:14px;padding:14px 16px;font-weight:700}
+.ans:hover{border-color:var(--confere);background:#F8FAFF}.ans span{flex:1}
+.ans kbd{font-family:inherit;font-size:12px;color:var(--suave);border:1.5px solid var(--borda);border-radius:6px;padding:1px 7px}
+.ans.main{background:var(--confere);border-color:var(--confere);color:#fff}.ans.main kbd{color:#DCE6FF;border-color:rgba(255,255,255,.4)}
+details.why{background:var(--papel);border-radius:12px;padding:12px 14px;font-size:14px}
+details.why summary{cursor:pointer;font-weight:600;color:var(--tinta)}details.why ul{margin:8px 0 0;padding-left:18px;color:var(--apoio)}
+.inp{width:100%;border:1.5px solid var(--borda);border-radius:12px;padding:10px 12px;background:#fff}.inp:focus{border-color:var(--confere);outline:0}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;font-weight:600;color:var(--suave);padding:8px 10px;border-bottom:1px solid var(--borda);white-space:nowrap}
+td{padding:11px 10px;border-bottom:1px solid var(--borda);vertical-align:middle}tr:last-child td{border-bottom:0}
+.matrix td,.matrix th{text-align:center}.matrix td:first-child,.matrix th:first-child{text-align:left}
+.cell{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:8px;padding:5px 9px;border:1.5px solid transparent;white-space:nowrap;background:none}
+.cell.ok{background:var(--nevoa);color:var(--tinta)}.cell.rev{background:var(--ambar-fundo);color:var(--ambar-texto)}.cell.falta{background:var(--erro-fundo);color:var(--erro)}
+button.cell:hover{border-color:currentColor}.cell .ic{width:14px;height:14px;stroke-width:2.4}
+.viewer{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:20px}
+.viewer .pgs{display:grid;gap:10px}.viewer .pgs img{width:100%;border:1px solid var(--borda);border-radius:8px}
+.ocr{background:var(--papel);border-radius:12px;padding:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;max-height:420px;overflow:auto}
+.pm{background:var(--noite);color:#fff;border-radius:4px;padding:0 6px;font-size:12px;font-weight:600}
+mark{background:#FFE18A;color:inherit;border-radius:3px;padding:0 2px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px}.kv span{color:var(--suave)}
+.row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:12px 0;border-top:1px solid var(--borda)}.row:first-child{border-top:0}
+.row .t b{display:block;font-size:14px}.row .t span{font-size:13px;color:var(--apoio)}
+.sw{position:relative;width:42px;height:24px;flex:none}.sw input{opacity:0;width:100%;height:100%;margin:0;position:absolute;cursor:pointer;z-index:1}
+.sw span{position:absolute;inset:0;border-radius:99px;background:#D3D9E4;transition:.15s}
+.sw span::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.15s}
+.sw input:checked+span{background:var(--confere)}.sw input:checked+span::after{transform:translateX(18px)}
+.tagset{display:flex;gap:6px;flex-wrap:wrap}.tagset span{background:var(--nevoa);color:var(--tinta);border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600}
+.tagset span.ex{background:var(--noite);color:#fff}
+.req{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:14px;align-items:center;background:#fff;border-radius:16px;padding:14px 16px}
+.req .ok{width:36px;height:36px;border-radius:50%;background:var(--confere);color:#fff;display:grid;place-items:center}
+.req.dif .ok{background:var(--noite)}.req b{display:block}.req span{font-size:13px;color:var(--apoio)}
+.ev{display:flex;gap:10px;font-size:13px;padding:6px 0}.ev time{color:var(--suave);white-space:nowrap}
+.res{background:#fff;border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.res .t{flex:1;min-width:220px;display:grid;gap:4px}.res p{color:var(--apoio);font-size:14px}
+.empty{text-align:center;padding:40px 20px;display:grid;gap:10px;justify-items:center}
+.err{color:var(--erro);font-size:13px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%) translateY(20px);background:var(--noite);color:#fff;padding:12px 18px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:20;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.zoom{position:fixed;inset:0;background:rgba(15,30,61,.7);display:grid;place-items:center;z-index:30;padding:20px;cursor:zoom-out}
+.zoom img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+@media (max-width:1180px){.g-wide,.qwrap,.viewer{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}.side{position:static;min-height:0;flex-direction:row;overflow-x:auto;padding:12px}
+.navlabel,.motor{display:none}.nav{display:flex}.nav a{white-space:nowrap}.nav a.on::before{display:none}.g3,.g2{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+const P={inicio:'M3 11 12 3l9 8M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5',enviar:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
+pendencias:'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',documentos:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+busca:'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',relatorios:'M4 20V10M10 20V4M16 20v-8M22 20H2',configuracoes:'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+como:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',check:'M20 6 9 17l-5-5',x:'M18 6 6 18M6 6l12 12',clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
+alert:'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',file:'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6',
+download:'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',arrow:'M5 12h14M13 6l6 6-6 6',eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+chev:'M6 9l6 6 6-6',refresh:'M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5',play:'M7 4l13 8-13 8z',pause:'M7 4h3v16H7zM14 4h3v16h-3z',plus:'M12 5v14M5 12h14',shield:'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',zap:'M13 2 3 14h9l-1 8 10-12h-9z'};
+const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const MARK=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13" fill="#2F6BFF"/><rect x="12" y="15.5" width="24" height="6" rx="3" fill="#fff"/><rect x="12" y="26.5" width="24" height="6" rx="3" fill="#fff"/></svg>`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const prot=s=>esc(s).replace(/⟦([^⟧]+)⟧/g,'<span class="pm">$1</span>');
+const cc=c=>c>=95?'var(--confere)':c>=75?'var(--media)':'var(--ambar)';
+const cw=c=>c>=95?'Alta':c>=75?'Média':'Baixa';
+const conf=c=>`<span class="conf num"><span class="m"><span style="width:${c}%;background:${cc(c)}"></span></span>${cw(c)} · ${c}%</span>`;
+const chip=(k,t)=>`<span class="chip s-${k}"><i></i>${t}</span>`;
+const ST={recusado:['err','Recusado'],recebendo:['neu','Recebendo'],fila:['run','Na fila'],processando:['run','Organizando'],pausado:['neu','Pausado'],falhou:['err','Falhou, retomando'],concluido:['ok','Pronto']};
+const stEnvio=e=>{const s=ST[e.status]||['neu',e.status];return chip(s[0],s[1]+(e.status==='processando'||e.status==='fila'?` · ${e.total?Math.round(100*e.feitas/e.total):0}%`:''));};
+const S={ws:null,clientes:[],estado:{},menu:false,q:0,timer:null,doc:null,revelado:null};
+async function api(u,o){const r=await fetch(u,o);if(r.status===401&&!u.endsWith('/api/login')){S.usuario=null;location.hash='#entrar';throw new Error('Entre na sua conta para continuar')}
+  if(!r.ok){let m='Algo deu errado. Tente de novo.';try{m=(await r.json()).detail||m}catch(e){}throw new Error(m)}return r.headers.get('content-type')?.includes('json')?r.json():r;}
+const PERF={admin:3,revisor:2,operador:1};const pode=p=>S.usuario&&PERF[S.usuario.perfil]>=PERF[p];
+const NOMEPERF={admin:'Administrador',revisor:'Revisor',operador:'Operador'};
+const post=(u,b)=>api(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+let tt;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+const W=()=>S.clientes.find(c=>c.id===S.ws)||S.clientes[0];
+const logo=c=>`<span class="wslogo" style="background:${c.cor};${c.cor==='#F5B700'?'color:#3D2C00':''}">${c.sigla}</span>`;
+
+const NAV=[['documentos','Documentos'],['enviar','Enviar documentos']];
+P.acerto='M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z';
+P.sair='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9';
+P.divergencias=P.alert;P.notas='M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4';P.contratos=P.file;
+P.fornecedores='M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1';
+const brl=v=>v==null?'—':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dt=s=>s?s.slice(0,10).split('-').reverse().join('/'):'—';
+const SEV={critica:['err','Crítica'],alta:['rev','Alta'],media:['neu','Média']};
+const sev=s=>chip(...(SEV[s]||['neu',s]));
+const STN={conciliada:['ok','Conferida'],divergente:['rev','Com divergência'],aprovada:['ok','Aprovada com ressalva'],rejeitada:['err','Rejeitada'],pendente:['neu','Aguardando']};
+const stNota=s=>chip(...(STN[s]||['neu',s]));
+const STD={aberta:['rev','Aberta'],aprovada:['ok','Aprovada'],rejeitada:['err','Rejeitada']};
+function shell(rota,inner,cont){
+  const w=W();const claude=S.estado.claude_configurado&&S.cfgClaude!=='0';const n={documentos:cont.pendencias};
+  return `<div class="app"><aside class="side"><div class="brand">${MARK(34)}<b>concilia</b><span>AI</span></div><nav class="nav" style="display:contents">
+  ${NAV.map(([k,t])=>`<a href="#${k}" class="${rota===k||(rota==='envio'&&k==='enviar')||(rota==='pendencias'&&k==='documentos')?'on':''}">${ic(k)}${t}${n[k]?`<span class="count num">${n[k]}</span>`:''}</a>`).join('')}
+  <div class="navlabel">Conta</div><a href="#entrar" data-sair>${ic('sair')}Sair</a></nav>
+  ${claude?`<div class="motor"><b>Claude conectado</b><p>O ${esc(S.estado.modelo)} lê cada página (imagem + texto) e extrai os campos dos contratos.</p></div>`:''}</aside>
+  <div class="main"><header class="top"><div class="ws"><button class="wsbtn" id="wsbtn">${logo(w)}<div><b>${esc(w.nome)}</b><small>Cliente da Bernhoeft · ${esc(w.setor)}</small></div>${ic('chev')}</button>
+  ${S.menu?`<div class="wsmenu"><div class="navlabel" style="padding:6px 10px">Clientes da Bernhoeft</div>${S.clientes.map(c=>`<button class="wsopt ${c.id===S.ws?'on':''}" data-ws="${c.id}">${logo(c)}<div><b>${esc(c.nome)}</b><small>${esc(c.setor)}</small></div></button>`).join('')}${pode('admin')?`<a class="wsopt" href="#novo-cliente" style="text-decoration:none;color:var(--tinta);font-weight:700">${ic('plus')}Novo cliente</a>`:''}</div>`:''}</div>
+  <label class="search">${ic('busca')}<input id="topq" placeholder="Buscar dentro dos documentos" aria-label="Buscar dentro dos documentos"></label>
+  ${claude?'<span class="badge" style="background:var(--nevoa);color:var(--tinta)">IA: Claude</span>':''}
+  <span style="display:flex;align-items:center;gap:10px;padding:0 6px"><span class="wslogo" style="background:var(--nevoa);color:var(--tinta)">${esc((S.usuario?.nome||'?').slice(0,2).toUpperCase())}</span><span><b style="display:block;font-size:14px">${esc(S.usuario?.nome||'')}</b><small style="font-size:12px;color:var(--suave)">${NOMEPERF[S.usuario?.perfil]||''}</small></span></span></header>
+  <section class="panel">${inner}</section></div></div>`;
+}
+
+const V={};
+V.inicio=async()=>{
+  const r=await api(`/api/ws/${S.ws}/visao`);const a=r.ativos[0];
+  const etapa=(n,t,num,rot,txt,link)=>`<a class="c" href="${link}" style="text-decoration:none;color:inherit;display:grid;gap:8px;align-content:start;border:1.5px solid var(--borda)">
+    <span class="small" style="font-weight:700;color:var(--tinta)">${n} · ${t}</span><b class="num" style="font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1">${num}</b><span class="small" style="font-weight:600">${rot}</span><span class="small muted">${txt}</span></a>`;
+  const tipos=r.tipos.slice(0,3).map(x=>`${x.c} ${esc(x.tipo)}`).join(' · ')||'—';
+  return [`<div class="head"><div><h1>Visão geral</h1><p>Cliente ${esc(W().nome)}. Lotes de imagens entram desorganizados e saem como documentos separados, classificados e pesquisáveis.</p></div><div class="actions"><a class="btn" href="#enviar">${ic('enviar')}Enviar documentos</a><a class="btn ghost" href="#documentos">${ic('documentos')}Ver documentos</a></div></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+   ${etapa(1,'Ingestão',r.paginas,'páginas recebidas',`${r.arquivos} arquivo(s) em ${r.envios} envio(s): imagens, TIFF, PDF ou ZIP.`,'#enviar')}
+   ${etapa(2,'Identificação',r.documentos,'documentos separados','Onde cada documento começa e termina, com as páginas agrupadas.','#enviar')}
+   ${etapa(3,'Classificação',r.tipos.length,'tipos encontrados',tipos+'. Texto lido por OCR.','#documentos')}
+   ${etapa(4,'Validação',(r.pct_auto??'—')+(r.pct_auto!=null?'%':''),'aprovados sem revisão',`${r.revisao} aguardando revisão humana · ${r.decididos} já decididos por uma pessoa.`,'#pendencias')}
+   ${etapa(5,'Disponibilização',r.prontos,'documentos prontos','Em pastas por tipo, com busca e PDF pesquisável para baixar.','#documentos')}</div>
+  ${r.revisao?`<div class="c task hl" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px;display:grid;gap:4px"><div class="eb">${ic('pendencias')}Precisa de você</div><p>${r.revisao} documento(s) com confiança baixa. A IA preferiu perguntar a errar.</p></div><a class="btn white" href="#pendencias">Revisar agora ${ic('arrow')}</a></div>`:''}
+  <div class="grid g2">
+   <div class="c"><div class="ch"><h3>Em processamento</h3>${a?stEnvio(a):''}</div>${a?`<p><b>Envio #${a.id}</b> · ${esc(a.nome)}</p><div class="bar" style="margin-top:10px"><span style="width:${a.total?Math.round(100*a.feitas/a.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${a.feitas} de ${a.total} páginas lidas e salvas.${restante(a)}</p><a class="btn ghost sm" href="#envio-${a.id}" style="margin-top:10px">Acompanhar</a>`:'<p class="muted">Nada sendo processado agora.</p>'}
+    <p class="small muted" style="margin-top:12px">${ic('refresh')} Retomada após falha: cada página é salva ao terminar.${r.retomadas?` ${r.retomadas} retomada(s) até agora, sem perder páginas.`:''}</p></div>
+   <div class="c"><div class="ch"><h3>Envios recentes</h3><a href="#enviar" class="small" style="font-weight:700">Ver todos</a></div>${r.recentes.length?r.recentes.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda.</p>'}</div></div>`,{pendencias:r.revisao},r.ativos.length>0];
+};
+// Estimativa pelo ritmo até agora (inclui a espera na fila e a primeira página, que carrega o OCR).
+function restante(e){if(!e.feitas||e.feitas>=e.total||!e.criado_em)return '';
+  const ini=new Date(e.criado_em.replace(' ','T'));const passou=(Date.now()-ini)/1000;if(!(passou>0))return '';
+  const s=passou/e.feitas*(e.total-e.feitas);const t=s<60?'menos de 1 min':s<3600?`${Math.round(s/60)} min`:`${(s/3600).toFixed(1).replace('.',',')} h`;
+  return s<60?' Falta menos de 1 min.':` Faltam cerca de ${t}.`;}
+const envioLi=e=>`<div class="li"><span class="doci">${ic('file')}</span><div class="t"><b>#${e.id} · ${esc(e.nome)}</b><span>${esc(e.criado_em)}${e.notas_xml?` · ${e.notas_xml} XML de nota`:''}${e.total?` · ${e.total} páginas`:''}${e.retomadas?` · retomado ${e.retomadas}x após falha`:''}</span></div>${stEnvio(e)}<a class="btn light sm" href="#envio-${e.id}">Ver</a></div>`;
+
+V.enviar=async()=>{
+  const es=await api(`/api/ws/${S.ws}/envios`);
+  return [`<div class="head"><div><h1>Enviar documentos</h1><p>Mande lotes de imagens do jeito que estiverem: tudo junto, fora de ordem, digitalizado ou foto. A Concilia descobre onde cada documento começa e termina, classifica e lê o texto.</p></div>
+  <div class="actions"><button class="btn ghost" id="exemplo">${ic('zap')}Carregar lote de exemplo</button></div></div>
+  <div class="c" style="display:grid;gap:14px"><label class="drop" id="drop"><span class="bigic">${ic('enviar')}</span><b style="font-size:18px">Arraste os arquivos para cá</b><span class="muted">ou <u style="color:var(--tinta);font-weight:700">escolha no computador</u></span><span class="small muted">TIFF, PDF, foto (JPG/PNG) ou ZIP · arquivos grandes, vários de uma vez</span>
+  <input type="file" id="files" multiple accept=".xml,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.zip,.bmp,.webp" style="position:absolute;width:1px;height:1px;opacity:0"></label><p class="small muted" id="upmsg"></p>
+  <p class="small muted">O lote de exemplo é fictício: cerca de 110 páginas digitalizadas (notas fiscais, contratos e aditivos misturados), com algumas folhas tortas e borradas para mostrar a revisão humana.</p></div>
+  <div class="c"><div class="ch"><h3>Seus envios</h3><span class="small muted">Se algo falhar no meio, a Concilia continua da última página salva.</span></div>${es.length?es.map(envioLi).join(''):'<p class="muted">Nenhum envio ainda. Arraste arquivos acima ou use o lote de exemplo.</p>'}</div>`,null,es.some(e=>['fila','processando','falhou','recebendo'].includes(e.status))];
+};
+
+V.envio=async(id)=>{
+  const d=await api(`/api/envios/${id}`);const e=d.envio;const ativo=['fila','processando','falhou','recebendo'].includes(e.status);
+  const porDoc={};d.paginas.forEach(p=>{(porDoc[p.doc_id||('p'+p.n)]=porDoc[p.doc_id||('p'+p.n)]||[]).push(p)});
+  const docs=d.docs.length?d.docs.map(doc=>({doc,pags:d.paginas.filter(p=>p.n>=doc.pag_ini&&p.n<=doc.pag_fim)})):[];
+  const soltas=d.docs.length?[]:d.paginas.filter(p=>p.status==='feita');
+  const th=p=>`<img class="thumb ${p.inicio?'start':''}" loading="lazy" src="/api/paginas/${p.id}/imagem?largura=160&v=${e.feitas}" alt="Página ${p.n}" data-zoom="${p.id}">`;
+  const grp=x=>`<div class="grp ${x.doc.status==='revisao'?'doubt':''}" ${x.doc.status==='confirmado'?`data-doc="${x.doc.id}"`:''}><div class="pages">${x.pags.map(th).join('')}</div><div class="bk" style="background:${x.doc.status==='revisao'?'var(--ambar)':cc(x.doc.conf)}"></div><div class="gl"><b>${esc(x.doc.tipo)}</b><span class="muted num">pág. ${x.doc.pag_ini}${x.doc.pag_fim>x.doc.pag_ini?'–'+x.doc.pag_fim:''} · ${cw(x.doc.conf)} ${x.doc.conf}%${x.doc.empresa?' · '+esc(x.doc.empresa):''}</span>${x.doc.status==='revisao'?`<br><a href="#pendencias" style="color:var(--ambar-texto);font-weight:700">Precisa de você</a>`:''}</div></div>`;
+  const sinais=[...new Set(d.paginas.flatMap(p=>p.sinais))].slice(0,8);
+  const notasCard=d.notas.length?`<div class="c"><div class="ch"><div><h3>Notas fiscais deste envio</h3><p class="small muted">${d.notas.filter(n=>n.origem==='xml').length} lida(s) direto do XML, sem OCR. Conferidas contra os contratos do cliente.</p></div><a class="btn light sm" href="#notas">Ver todas as notas</a></div>
+   <div class="tablewrap"><table><thead><tr><th>Nota</th><th>Prestador</th><th>Valor</th><th>Origem</th><th>Situação</th></tr></thead><tbody>${d.notas.map(n=>`<tr><td class="num"><b>${esc(n.numero)}</b></td><td>${esc(n.nome_prestador||n.cnpj_prestador)}</td><td class="num">${brl(n.valor)}</td><td>${n.origem==='xml'?'XML':'PDF'}</td><td>${stNota(n.status)}</td></tr>`).join('')}</tbody></table></div></div>`:'';
+  return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#enviar" style="font-weight:700;text-decoration:none">← Envios</a></p><h1>Envio #${e.id}</h1><p>${esc(e.nome)}${e.notas_xml?` · ${e.notas_xml} nota(s) em XML`:''}${e.total?` · ${e.total} páginas${d.docs.length?` viraram ${d.docs.length} documentos`:''}${e.motor==='claude'?' · lido pelo Claude (imagem + texto)':''}`:''}</p></div>
+  <div class="actions">${stEnvio(e)}${e.status==='processando'||e.status==='fila'?`<button class="btn light sm" data-acao="pausar">${ic('pause')}Pausar</button><button class="btn light sm" data-acao="simular-falha">${ic('zap')}Simular queda</button>`:''}${e.status==='pausado'||e.status==='falhou'?`<button class="btn sm" data-acao="retomar">${ic('play')}Retomar</button>`:''}</div></div>
+  ${ativo||e.status==='pausado'?`<div class="c"><div class="bar"><span style="width:${e.total?Math.round(100*e.feitas/e.total):0}%"></span></div><p class="small muted num" style="margin-top:8px">${e.feitas} de ${e.total} páginas lidas e salvas.${restante(e)} ${e.status==='falhou'?'Retomando sozinho em instantes…':''}</p><p class="small muted" style="margin-top:4px">Pode sair desta tela e continuar usando o sistema: o envio segue sozinho, e as notas em XML já estão disponíveis.</p></div>`:''}
+  ${e.total?`<div class="c"><div class="ch"><div><h3>Onde cada documento começa e termina</h3><p class="small muted">A borda escura marca a primeira página de cada documento. Clique numa página para ampliar.</p></div>
+  <div class="legend"><span><i style="background:var(--confere)"></i>Confiança alta</span><span><i style="background:var(--media)"></i>Média</span><span><i style="background:var(--ambar)"></i>Vai para você confirmar</span></div></div>
+  ${docs.length?`<div class="strip">${docs.map(grp).join('')}</div>`:soltas.length?`<div class="strip">${soltas.map(p=>`<div class="grp"><div class="pages">${th(p)}</div><div class="gl"><b>${esc(p.tipo)}</b><span class="muted">pág. ${p.n} · ${p.conf}%</span></div></div>`).join('')}</div>`:`<p class="muted">${e.total?'As páginas aparecem aqui conforme são lidas.':'Este envio só tinha XML: nenhuma página para separar.'}</p>`}</div>`:''}
+  
+  <div class="grid g2"><div class="c"><h3 style="margin-bottom:10px">Como a IA decidiu</h3>${sinais.length?`<ul style="margin:0;padding-left:18px;display:grid;gap:6px" class="small">${sinais.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:`<p class="muted">${e.total?'Aparece quando as páginas forem lidas.':'O XML da NFS-e já vem estruturado: os campos são lidos direto, sem OCR e sem adivinhação.'}</p>`}</div>
+  <div class="c"><h3 style="margin-bottom:10px">Histórico do envio</h3>${d.eventos.map(v=>`<div class="ev"><time>${esc(v.quando.slice(11,19))}</time><span>${esc(v.texto)}</span></div>`).join('')}</div></div>`,null,ativo];
+};
+
+V.pendencias=async()=>{
+  const r=await api(`/api/ws/${S.ws}/pendencias`);const L=r.pendencias;
+  if(!L.length)return[`<div class="head"><div><h1>Revisão humana</h1></div></div><div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>Tudo certo por agora</h2><p class="muted">Quando a IA não tiver certeza (abaixo de ${r.limiar}%) de que tipo é um documento ou onde ele termina, ele aparece aqui para você decidir antes de entrar na conferência.</p><a class="btn" href="#documentos">Ver documentos</a></div>`,0];
+  if(S.q>=L.length)S.q=0;const d=L[S.q];
+  const imgs=[...d.vizinhas.filter(v=>v.n<d.pag_ini),...d.paginas,...d.vizinhas.filter(v=>v.n>d.pag_fim)];
+  const fora=v=>v.n<d.pag_ini||v.n>d.pag_fim;
+  let titulo,resp;
+  if(d.duvida==='integridade'){
+    titulo=`Este ${esc(d.tipo).toLowerCase()} chegou com problema nas páginas. O que fazer?`;
+    resp=[['Pedir o documento completo ao fornecedor',{acao:'pedir'}],['Aceitar assim mesmo',{acao:'confirmar'}]];
+    S.outrasPags=[];
+  }else if(d.duvida==='fronteira'&&d.paginas.length>1){
+    titulo=`Estas ${d.paginas.length} páginas são um ${esc(d.tipo)} só ou mais de um documento?`;
+    const fraca=+((d.motivo||'').match(/\d+/)||[0])[0];
+    resp=[[`É um documento só`,{acao:'confirmar'}]];
+    if(fraca>d.pag_ini&&fraca<=d.pag_fim)resp.push([`Começa outro na página ${fraca}`,{acao:'dividir',pagina:fraca}]);
+    S.outrasPags=d.paginas.slice(1).map(p=>p.n).filter(n=>n!==fraca);
+  }else{
+    titulo=d.tipo==='Não identificado'?'Que documento é este?':`Este documento é mesmo ${esc(d.tipo)}?`;
+    const c=d.candidatos.map(x=>x[0]).filter(x=>x!=='Não identificado');if(!c.includes(d.tipo)&&d.tipo!=='Não identificado')c.unshift(d.tipo);
+    resp=c.slice(0,3).map((t,i)=>[i===0&&t===d.tipo?`Sim, é ${t}`:`É ${t}`,{acao:'confirmar',tipo:t}]);
+  }
+  const temAnterior=d.vizinhas.some(v=>v.n<d.pag_ini);
+  return [`<div class="head"><div><p class="small" style="margin-bottom:6px"><a href="#documentos" style="font-weight:700;text-decoration:none">← Documentos</a></p><h1>Revisão humana</h1><p>Uma pergunta por vez. Abaixo de ${r.limiar}% de confiança, a IA pergunta em vez de errar. Depois da sua resposta, o documento entra na conferência e sua resposta vira exemplo para as próximas.</p></div></div>
+  <div class="qwrap"><div class="qcard"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="small muted num">Pergunta ${S.q+1} de ${L.length} · envio #${d.envio_id}</span>${conf(d.conf)}</div>
+  <div style="display:grid;gap:6px"><h2>${titulo}</h2><p class="small muted">${esc(d.empresa||'Empresa não identificada')} · páginas ${d.pag_ini}–${d.pag_fim}</p></div>
+  ${d.duvida==='integridade'?`<div style="background:var(--erro-fundo);color:var(--erro);border-radius:12px;padding:12px 14px;display:grid;gap:4px">${d.sinais.filter(s=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(s)).map(s=>`<b class="small">${esc(s)}.</b>`).join('')}<span class="small">Um contrato incompleto ou com página trocada não deve ser usado para conferir notas. Peça a via completa ou aceite se tiver certeza.</span></div>`:''}
+  <div class="qpages">${imgs.map(p=>`<div class="qp ${fora(p)?'viz':''}"><img src="/api/paginas/${p.id}/imagem?largura=420" alt="Página ${p.n}" data-zoom="${p.id}"><small>pág. ${p.n}${fora(p)?' (outro documento)':''}</small></div>`).join('')}</div>
+  ${!pode('revisor')?`<div class="c" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:14px">Você entrou como operador. Só revisor ou administrador pode responder as dúvidas.</div>`:''}
+  <div class="answers" ${pode('revisor')?'':'style="opacity:.5;pointer-events:none"'}>${resp.map((x,i)=>`<button class="ans ${i===0?'main':''}" data-dec="${esc(JSON.stringify(x[1]))}" data-did="${d.id}"><span>${esc(x[0])}</span><kbd>${i+1}</kbd></button>`).join('')}</div>
+  ${d.duvida==='fronteira'&&d.paginas.length>1?`<p class="small muted">Dica: uma folha ilegível ou em branco no meio de um contrato normalmente continua o mesmo documento. Só separe se a página tiver outro título, outro fornecedor ou recomeçar a numeração (“1 de …”).</p>`:''}
+  <div class="actions">${d.duvida==='fronteira'&&S.outrasPags&&S.outrasPags.length?`<select class="inp" id="outrapag" data-did="${d.id}" style="max-width:260px" aria-label="Começa outro em outra página"><option value="">Começa outro em outra página…</option>${S.outrasPags.map(n=>`<option value="${n}">Página ${n}</option>`).join('')}</select>`:''}<select class="inp" id="outrotipo" data-did="${d.id}" style="max-width:260px" aria-label="Outro tipo"><option value="">É outro tipo…</option>${r.tipos.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+  ${temAnterior?`<button class="btn light sm" data-dec='{"acao":"juntar"}' data-did="${d.id}">Juntar com o anterior</button>`:''}<button class="btn light sm" data-dec='{"acao":"reprocessar"}' data-did="${d.id}">${ic('refresh')}Ler de novo</button><button class="btn light sm" data-dec='{"acao":"pedir"}' data-did="${d.id}">Pedir nova cópia</button></div>
+  <details class="why"><summary>Por que estou vendo isso?</summary><ul>${d.sinais.map(s=>`<li>${esc(s)}</li>`).join('')}<li>Ponto mais fraco: ${esc(d.motivo)}</li></ul></details></div>
+  <div class="c" style="display:grid;gap:8px;align-content:start"><h3>Fila de revisão</h3>${L.map((x,i)=>`<div class="li" style="cursor:pointer;${i===S.q?'opacity:.5':''}" data-q="${i}"><span class="doci warn">${ic('pendencias')}</span><div class="t"><b>${esc(x.tipo)}</b><span>${cw(x.conf)} ${x.conf}% · ${esc(x.empresa||'empresa não identificada')}</span></div></div>`).join('')}</div></div>`,L.length];
+};
+
+V.documentos=async()=>{
+  const docs=await api(`/api/ws/${S.ws}/documentos`);
+  const NOMES={numero:'Número',nome_prestador:'Prestador / contratada',cnpj_prestador:'CNPJ do prestador',cnpj_tomador:'CNPJ do tomador',objeto:'Objeto',valor_mensal:'Valor mensal',valor_total:'Valor total',vigencia_inicio:'Início da vigência',vigencia_fim:'Fim da vigência',contrato_ref:'Contrato de referência',valor_adicional:'Acréscimo mensal',data_emissao:'Emissão',competencia:'Competência',descricao:'Serviço',valor:'Valor'};
+  const campo=(k,v)=>k.startsWith('cnpj')&&String(v).length===14?String(v).replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'):k.startsWith('valor')?brl(v):(k.startsWith('vigencia')||k==='data_emissao')?dt(v):esc(v);
+  let viewer='';
+  if(S.doc){try{const d=await api(`/api/docs/${S.doc}`);const txt=S.revelado&&S.revelado.id===d.id?esc(S.revelado.texto):prot(d.texto);
+   const C=d.dados&&d.dados.campos;
+   viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>${esc(d.tipo)}${d.empresa?' · '+esc(d.empresa):''}</h3><p class="small muted">Envio #${d.envio_id} · páginas ${d.pag_ini}–${d.pag_fim}${d.decisao?' · '+esc(d.decisao):''}</p></div>
+   <div class="actions"><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}Baixar PDF pesquisável</a>${pode('revisor')?`<button class="btn light sm" data-excluir="${d.id}" style="color:var(--erro)">${ic('x')}Excluir</button>`:''}<button class="btn light sm" data-fechar>${ic('x')}Fechar</button></div></div>
+   <div class="viewer"><div class="pgs">${d.paginas.map(p=>{const fraca=p.conf<d.limiar;return `<div style="display:grid;gap:4px"><img src="/api/paginas/${p.id}/imagem?largura=600${S.revelado&&S.revelado.id===d.id?'&revelar=1':''}" alt="Página ${p.n}" data-zoom="${p.id}" ${fraca?'style="outline:3px solid var(--ambar);outline-offset:2px"':''}>
+    <span class="small num" style="font-weight:600;color:${fraca?'var(--ambar-texto)':'var(--suave)'}">pág. ${p.n} · ${cw(p.conf)} ${p.conf}%${fraca?' · esta página derrubou a confiança':''}</span></div>`}).join('')}</div>
+   <div style="display:grid;gap:14px;align-content:start"><div class="kv"><span>Tipo</span><b>${esc(d.tipo)}</b><span>Confiança</span>${conf(d.conf)}<span>Empresa</span><b>${esc(d.empresa||'—')}</b></div>
+   ${d.conf<d.limiar||d.status==='revisao'?`<div style="background:var(--ambar-fundo);color:var(--ambar-texto);border-radius:12px;padding:12px 14px;display:grid;gap:6px"><b>Por que a confiança está baixa</b>
+    <ul style="margin:0;padding-left:18px;display:grid;gap:3px" class="small">${d.sinais.filter(s=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(s)).map(s=>`<li><b>${esc(s)}</b></li>`).join('')}${d.fracas.map(p=>`<li>Página ${p.n} (${p.conf}%): ${esc(p.sinais.filter(s=>!/Primeira página|Numeração/.test(s)).join('; ')||'pouco texto legível')}</li>`).join('')}<li>A confiança do documento é a da página mais fraca. Abaixo de ${d.limiar}%, uma pessoa confirma antes de o documento entrar na conferência.</li></ul>
+    ${d.status==='revisao'?`<b class="small">O que fazer: confirme na Revisão humana se este documento está certo (tipo e onde começa).</b><a class="btn sm" href="#pendencias" style="justify-self:start">Confirmar na Revisão humana</a>`
+     :`<b class="small">Nada pendente: uma pessoa já decidiu${d.decisao?` (“${esc(d.decisao)}”)`:''}.</b>${d.pag_ini>1&&pode('revisor')?`<span class="small">Se esta página na verdade continua o documento anterior (ex.: folha ilegível no meio de um contrato), junte de volta:</span><button class="btn light sm" data-juntar="${d.id}" style="justify-self:start">Juntar com o documento anterior</button>`:''}`}</div>`:''}
+   ${C?`<div><p class="small muted" style="margin-bottom:6px">${d.dados.provisorio?'Campos lidos (ainda não usados na conferência: aguardando confirmação)':'Campos lidos para a conferência'}${d.dados.motor==='claude'?' (pelo Claude)':''}</p><div class="kv">${Object.entries(C).map(([k,v])=>`<span>${NOMES[k]||k}</span><b class="num">${campo(k,v)}</b>`).join('')}</div></div>`:''}
+   ${d.aviso?`<p class="small" style="background:var(--ambar-fundo);color:var(--ambar-texto);padding:10px 12px;border-radius:10px">${esc(d.aviso)}</p>`:''}
+   <div><p class="small muted" style="margin-bottom:6px">Texto reconhecido (pesquisável)</p><div class="ocr">${txt}</div></div>
+   ${d.protegidos&&!(S.revelado&&S.revelado.id===d.id)?`<form id="revelar" class="actions" data-id="${d.id}"><span class="small muted">${ic('shield')} ${d.protegidos} dado(s) protegido(s).</span><input class="inp" id="motivo" placeholder="Motivo para ver (fica registrado)" style="flex:1;min-width:200px"><button class="btn light sm">Ver dados</button></form><p class="err" id="reverr"></p>`:''}</div></div></div>`;}catch(e){S.doc=null}}
+  // O que melhorar: traduz os sinais da IA em ações para quem enviou o documento.
+  const melhorar=d=>{const out=[];const s=(d.sinais||[]).join(' | ');
+    (d.sinais||[]).filter(x=>/^(Página repetida|Documento incompleto|Página escaneada)/.test(x)).forEach(x=>out.push(x+(x.startsWith('Documento incompleto')?'. Peça as páginas que faltam.':'. Remova a duplicata e reenvie.')));
+    if(/pouco texto legível/.test(s))out.push(`${esc(d.motivo&&!/^(Página|Documento)/.test(d.motivo)?d.motivo[0].toUpperCase()+d.motivo.slice(1):'Uma página')} saiu com pouco texto legível. Digitalize de novo, reta e com mais contraste.`);
+    if(/nenhuma palavra típica/.test(s)||d.tipo==='Não identificado')out.push('Tipo não reconhecido. Confirme o tipo na revisão humana.');
+    const duv=(d.sinais||[]).find(x=>x.startsWith('Dúvida: também parece'));if(duv)out.push(duv.replace('Dúvida: também parece','Pode ser também')+'. Confirme o tipo na revisão.');
+    if(d.aviso)out.push(d.aviso);
+    if(!out.length&&d.conf<d.limiar)out.push(`Confiança abaixo de ${d.limiar}%. Uma pessoa precisa confirmar.`);
+    return out;};
+  const nRev=docs.filter(d=>d.status==='revisao').length;
+  const tipos={};docs.forEach(d=>tipos[d.tipo]=(tipos[d.tipo]||0)+1);
+  const filtro=S.ftipo&&tipos[S.ftipo]?S.ftipo:'';
+  const lista=docs.filter(d=>!filtro||d.tipo===filtro);
+  const sit=d=>d.status==='confirmado'?chip('ok',d.decisao?'Pronto · revisado':'Pronto'):d.status==='revisao'?chip('rev','Precisa de você'):chip('neu','Aguardando cópia');
+  const card=d=>{const m=melhorar(d);const mini=d.paginas.slice(0,4);const fracas=new Set(d.paginas.filter(p=>p.conf<d.limiar).map(p=>p.id));
+   return `<div class="c" style="display:grid;gap:14px;border:1.5px solid ${d.status==='revisao'?'var(--ambar)':'var(--borda)'}">
+    <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:200px;display:grid;gap:4px"><b style="font-size:16px">${esc(d.tipo)}</b><span class="small muted">${esc(d.empresa||'Empresa não identificada')} · envio #${d.envio_id} · ${d.total_paginas} página(s)</span></div>${sit(d)}</div>
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">${mini.map(p=>`<div style="display:grid;gap:3px;justify-items:center;flex:none"><img class="thumb ${p.inicio?'start':''}" loading="lazy" src="/api/paginas/${p.id}/imagem?largura=180" alt="Página ${p.n}" data-zoom="${p.id}" style="width:86px;height:116px;${fracas.has(p.id)?'outline:3px solid var(--ambar);outline-offset:1px':''}"><span class="small num" style="color:${fracas.has(p.id)?'var(--ambar-texto)':'var(--suave)'};font-weight:600">${p.conf}%</span></div>`).join('')}${d.total_paginas>4?`<div class="thumb wait" style="width:86px;height:116px;flex:none">+${d.total_paginas-4}</div>`:''}</div>
+    <div style="display:grid;gap:6px"><span class="small muted">Confiança do documento</span>${conf(d.conf)}</div>
+    <div style="background:${m.length?'var(--ambar-fundo)':'var(--nevoa)'};color:${m.length?'var(--ambar-texto)':'var(--tinta)'};border-radius:12px;padding:10px 12px;display:grid;gap:4px"><b class="small">${m.length?'O que melhorar':'Nada a melhorar'}</b>${m.length?`<ul class="small" style="margin:0;padding-left:18px;display:grid;gap:2px">${m.map(x=>`<li>${x}</li>`).join('')}</ul>`:'<span class="small">Separado, classificado e lido com confiança alta.</span>'}</div>
+    <div class="actions"><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Ver documento completo</button>${d.status==='confirmado'?`<a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}PDF pesquisável</a>`:''}${d.status==='revisao'?`<a class="btn sm" href="#pendencias">Revisar agora</a>`:''}${pode('revisor')?`<button class="btn light sm" data-excluir="${d.id}" style="color:var(--erro)">${ic('x')}Excluir</button>`:''}</div></div>`;};
+  return [`<div class="head"><div><h1>Documentos</h1><p>Cada documento separado do lote, com as páginas, a confiança da IA e o que melhorar.</p></div>
+  <div class="actions"><a class="btn ghost" href="#enviar">${ic('enviar')}Enviar documentos</a>${docs.some(d=>d.status==='confirmado')?`<a class="btn" href="/api/ws/${S.ws}/documentos.zip">${ic('download')}Baixar tudo (ZIP)</a>`:''}</div></div>
+  ${nRev?`<div class="c task hl" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px;display:grid;gap:4px"><div class="eb">${ic('pendencias')}Precisam de você</div><p>${nRev} documento(s) com confiança baixa. A IA preferiu perguntar a errar.</p></div><a class="btn white" href="#pendencias">Revisar agora ${ic('arrow')}</a></div>`:''}
+  <form class="c" id="fbusca" style="display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px">${ic('busca')}<input id="q" class="inp" style="border:0;font-size:16px" value="${esc(S.busq||'')}" placeholder="Buscar dentro dos documentos (ex.: limpeza, CTR-002, 10/2026)" aria-label="Buscar dentro dos documentos"><button class="btn">Buscar</button></form><div id="results" class="grid"></div>
+  ${viewer}
+  ${docs.length?`<div class="actions">${[['',`Todos (${docs.length})`],...Object.entries(tipos).sort((a,b)=>b[1]-a[1]).map(([t,n])=>[t,`${t} (${n})`])].map(([t,l])=>`<button class="btn sm ${filtro===t?'':'light'}" data-ftipo="${esc(t)}">${esc(l)}</button>`).join('')}</div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr))">${lista.map(card).join('')}</div>`
+   :`<div class="c empty"><span class="bigic">${ic('documentos')}</span><h3>Nenhum documento ainda</h3><p class="muted">Envie um lote e os documentos aparecem aqui, separados, com as páginas e a confiança de cada um.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
+};
+
+V['novo-cliente']=async()=>{S.menu=false;return [`<div class="head"><div><h1>Novo cliente</h1><p>Cada empresa atendida pela Bernhoeft tem um espaço separado: fornecedores, contratos, notas e regras próprios. Ninguém de um cliente vê os dados de outro.</p></div></div>
+  ${pode('admin')?`<form class="c" id="cliente" style="display:grid;gap:12px;max-width:560px"><label style="display:grid;gap:6px;font-weight:600;font-size:14px">Nome da empresa<input class="inp" name="nome" placeholder="Ex.: Construtora Boa Vista S.A." required></label>
+  <label style="display:grid;gap:6px;font-weight:600;font-size:14px">CNPJ (opcional)<input class="inp" name="cnpj" placeholder="00.000.000/0000-00"></label>
+  <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Setor<input class="inp" name="setor" placeholder="Ex.: Construção civil"></label>
+  <p class="err" id="clierr"></p><div class="actions"><button class="btn">${ic('plus')}Criar cliente</button><span class="small muted">Depois, cadastre os fornecedores em Fornecedores ou envie notas e contratos.</span></div></form>`
+  :`<div class="c"><p class="muted">Só o administrador cadastra clientes.</p></div>`}`];};
+
+// ---------------------------------------------------------------- conciliação
+const FILTROS=[['aberta','Abertas'],['aprovada','Aprovadas'],['rejeitada','Rejeitadas'],['todas','Todas']];
+const caixaAviso=d=>{const a=S.aviso&&S.aviso.id===d.id?S.aviso:null;
+  if(!a)return d.avisado_em?`<p class="small muted">${ic('check')} Fornecedor avisado em ${esc(d.avisado_em.slice(0,16))}.</p>`:'';
+  return `<div style="background:var(--nevoa);border-radius:14px;padding:14px;display:grid;gap:8px"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Aviso ao fornecedor</b><span class="small muted">Para: ${esc(a.para||'sem e-mail cadastrado')}${a.responsavel?` · responsável no cliente: ${esc(a.responsavel)}`:''}</span></div>
+   <p class="small"><b>Assunto:</b> <span id="avassunto">${esc(a.assunto)}</span></p><textarea class="inp" id="avcorpo" rows="9" style="font:inherit;font-size:13px;resize:vertical">${esc(a.corpo)}</textarea>
+   <div class="actions"><button class="btn sm" data-copiar>${ic('check')}Copiar texto</button>${a.para?`<a class="btn light sm" href="mailto:${encodeURIComponent(a.para)}?subject=${encodeURIComponent(a.assunto)}&body=${encodeURIComponent(a.corpo)}">${ic('enviar')}Abrir no e-mail</a>`:`<a class="btn light sm" href="#fornecedores">Cadastrar e-mail do fornecedor</a>`}<span class="small muted">O aviso fica registrado no relatório “Avisos enviados”.</span></div></div>`;};
+V.divergencias=async()=>{
+  const f=S.fdiv||'aberta';const r=await api(`/api/ws/${S.ws}/divergencias?status=${f}`);const L=r.divergencias;const n=r.contagem;
+  const total=Object.values(n).reduce((a,b)=>a+b,0);
+  const card=d=>{const st=STD[d.status]||['neu',d.status];
+    return `<div class="c" style="display:grid;gap:14px" id="div-${d.id}"><div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+     <span class="doci ${d.severidade==='critica'?'bad':'warn'}">${ic('alert')}</span><div style="flex:1;min-width:240px;display:grid;gap:4px"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><h3>${esc(d.titulo)}</h3>${sev(d.severidade)}${chip(st[0],st[1])}</div>
+     <p class="small muted">Nota <b class="num">${esc(d.numero)}</b> · ${esc(d.nome_prestador||'')} · CNPJ ${esc(d.cnpj_fmt)} · emitida em ${dt(d.data_emissao)} · ${brl(d.valor)}</p><p>${esc(d.mensagem)}</p></div></div>
+     <div class="grid g2"><div style="background:var(--papel);border-radius:14px;padding:14px"><p class="small muted" style="margin-bottom:4px">O contrato diz</p><b>${esc(d.esperado||'—')}</b>${d.contrato_numero?`<p class="small muted" style="margin-top:6px">Contrato ${esc(d.contrato_numero)} · ${esc(d.objeto||'')} · ${brl(d.valor_mensal)}/mês · ${dt(d.vigencia_inicio)} a ${dt(d.vigencia_fim)}</p>`:''}</div>
+      <div style="background:var(--ambar-fundo);border-radius:14px;padding:14px"><p class="small" style="margin-bottom:4px;color:var(--ambar-texto)">A nota diz</p><b>${esc(d.encontrado||'—')}</b><p class="small muted" style="margin-top:6px">${d.origem==='xml'?'Lido do XML da NFS-e':'Lido do PDF da nota'}</p></div></div>
+     ${d.status==='aberta'?(pode('revisor')?`<div class="actions"><input class="inp" id="com-${d.id}" placeholder="Comentário (obrigatório para rejeitar)" style="flex:1;min-width:220px"><button class="btn sm" data-div="${d.id}" data-acao-div="aprovar">${ic('check')}Aprovar</button><button class="btn light sm" data-div="${d.id}" data-acao-div="rejeitar" style="color:var(--erro)">${ic('x')}Rejeitar</button>${pode('revisor')?`<button class="btn light sm" data-aviso="${d.id}">${ic('enviar')}Avisar fornecedor</button>`:''}<button class="btn light sm" data-nota="${d.nota_id}">${ic('eye')}Ver nota</button></div><p class="err" id="err-${d.id}"></p>`
+       :`<p class="small muted">Só revisor ou administrador decide divergências.</p>`)
+      :`<div class="actions"><p class="small muted" style="flex:1">${st[1]} por ${esc(d.decidido_por||'—')} em ${esc((d.decidido_em||'').slice(0,16))}${d.comentario?`: “${esc(d.comentario)}”`:''}</p>${pode('revisor')?`<button class="btn light sm" data-div="${d.id}" data-acao-div="reabrir">Reabrir</button>`:''}${pode('revisor')?`<button class="btn light sm" data-aviso="${d.id}">${ic('enviar')}Avisar fornecedor</button>`:''}<button class="btn light sm" data-nota="${d.nota_id}">${ic('eye')}Ver nota</button></div>`}${caixaAviso(d)}</div>`;};
+  return [`<div class="head"><div><h1>Divergências</h1><p>Cada nota é conferida contra o contrato do fornecedor por regras fixas. Aqui aparece só o que não bateu, com o valor esperado e o encontrado. Você aprova (com justificativa) ou rejeita para cobrar o fornecedor.</p></div>
+  <div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=divergencias">${ic('download')}Baixar relatório (Excel)</a></div></div>
+  <div class="actions">${FILTROS.map(([k,t])=>`<button class="btn sm ${f===k?'':'light'}" data-fdiv="${k}">${t} <span class="num">${k==='todas'?total:(n[k]||0)}</span></button>`).join('')}</div>
+  ${L.length?L.map(card).join(''):`<div class="c empty"><span class="doci" style="width:60px;height:60px">${ic('check')}</span><h2>${f==='aberta'?'Nenhuma divergência aberta':'Nada aqui'}</h2><p class="muted">${total?'As notas conferidas estão em Notas fiscais.':'Envie notas e contratos para começar a conferência.'}</p><a class="btn" href="${total?'#notas':'#enviar'}">${total?'Ver notas':'Enviar documentos'}</a></div>`}`];
+};
+
+V.notas=async()=>{
+  const L=await api(`/api/ws/${S.ws}/notas`);let viewer='';
+  if(S.nota){try{const n=await api(`/api/notas/${S.nota}`);const c=n.contrato;
+   viewer=`<div class="c" id="viewer"><div class="ch"><div><h3>Nota ${esc(n.numero)} · ${esc(n.nome_prestador||n.cnpj_fmt)}</h3><p class="small muted">${n.origem==='xml'?`${esc(n.formato||'XML')}${n.chave?' · chave '+esc(n.chave):''}`:'Lida do PDF da nota'}</p></div>
+   <div class="actions">${stNota(n.status)}${n.tem_xml?`<a class="btn light sm" href="/api/notas/${n.id}/xml">${ic('download')}XML</a>`:''}${n.doc_id?`<button class="btn light sm" data-doc="${n.doc_id}">${ic('eye')}PDF</button>`:''}<button class="btn light sm" data-fechar>${ic('x')}Fechar</button></div></div>
+   <div class="grid g2"><div><p class="small muted" style="margin-bottom:6px">Nota fiscal</p><div class="kv"><span>Prestador</span><b>${esc(n.nome_prestador||'—')}</b><span>CNPJ</span><b class="num">${esc(n.cnpj_fmt)}</b><span>Emissão</span><b>${dt(n.data_emissao)}</b><span>Competência</span><b>${esc(n.competencia||'—')}</b><span>Serviço</span><b>${esc(n.descricao||'—')}</b><span>Código</span><b>${esc(n.codigo_servico||'—')}</b><span>Valor</span><b class="num">${brl(n.valor)}</b></div></div>
+   <div><p class="small muted" style="margin-bottom:6px">Contrato usado na conferência</p>${c?`<div class="kv"><span>Contrato</span><b>${esc(c.numero||'—')}</b><span>Objeto</span><b>${esc(c.objeto||'—')}</b><span>Valor mensal</span><b class="num">${brl(c.valor_mensal)}</b><span>Vigência</span><b>${dt(c.vigencia_inicio)} a ${dt(c.vigencia_fim)}</b>${n.aditivos.map(a=>`<span>Aditivo ${esc(a.numero||'')}</span><b class="num">+${brl(a.valor_adicional)} · ${dt(a.vigencia_inicio)} a ${dt(a.vigencia_fim)}</b>`).join('')}</div>${c.doc_id?`<button class="btn light sm" data-doc="${c.doc_id}" style="margin-top:10px">${ic('eye')}Abrir contrato</button>`:''}`:'<p class="muted">Nenhum contrato encontrado para este CNPJ.</p>'}</div></div>
+   ${n.observacao?`<p class="small" style="background:var(--nevoa);color:var(--tinta);padding:10px 12px;border-radius:10px">${esc(n.observacao)}</p>`:''}
+   ${n.divergencias.length?`<div><p class="small muted" style="margin-bottom:6px">Divergências</p>${n.divergencias.map(d=>`<div class="li"><span class="doci warn">${ic('alert')}</span><div class="t"><b>${esc(d.titulo)}</b><span>${esc(d.mensagem)}</span>${d.comentario?`<span style="display:block">Decisão: “${esc(d.comentario)}” (${esc(d.decidido_por||'')})</span>`:''}</div>${chip(...(STD[d.status]||['neu',d.status]))}</div>`).join('')}</div>`:'<p class="small muted">Nenhuma divergência: a nota bate com o contrato.</p>'}</div>`;}catch(e){S.nota=null}}
+  const cont={};L.forEach(n=>cont[n.status]=(cont[n.status]||0)+1);
+  return [`<div class="head"><div><h1>Notas fiscais</h1><p>Todas as notas de serviço recebidas deste cliente e o resultado da conferência com o contrato.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=notas">${ic('download')}Baixar notas (Excel)</a></div></div>
+  ${viewer}
+  ${L.length?`<div class="c"><div class="ch"><h3>${L.length} nota(s)</h3><div class="legend">${Object.entries(cont).map(([k,v])=>`${stNota(k)} <span class="num">${v}</span>`).join(' ')}</div></div><div class="tablewrap"><table><thead><tr><th>Nota</th><th>Prestador</th><th>Emissão</th><th>Valor</th><th>Contrato</th><th>Origem</th><th>Situação</th><th></th></tr></thead><tbody>
+   ${L.map(n=>`<tr><td class="num"><b>${esc(n.numero)}</b></td><td>${esc(n.nome_prestador||'—')}<br><span class="small muted num">${esc(n.cnpj_fmt)}</span></td><td class="num">${dt(n.data_emissao)}</td><td class="num"><b>${brl(n.valor)}</b></td><td>${esc(n.contrato_numero||'—')}</td><td>${n.origem==='xml'?'XML':'PDF'}</td><td>${stNota(n.status)}${n.observacao?`<br><span class="small muted">${n.status==='pendente'?'contrato em dúvida da leitura':'coberto por aditivo'}</span>`:''}</td><td><button class="btn light sm" data-nota="${n.id}">${ic('eye')}Abrir</button></td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="c empty"><span class="bigic">${ic('notas')}</span><h3>Nenhuma nota ainda</h3><p class="muted">Envie o XML das NFS-e (ou o PDF) e elas aparecem aqui, já conferidas.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
+};
+
+V.contratos=async()=>{
+  const r=await api(`/api/ws/${S.ws}/contratos`);const L=r.contratos;
+  return [`<div class="head"><div><h1>Contratos</h1><p>A referência da conferência: objeto, valor mensal, vigência e aditivos, lidos dos PDFs. Cada nota é comparada com o contrato do seu fornecedor.</p></div></div>
+  ${L.length?`<div class="c"><div class="tablewrap"><table><thead><tr><th>Contrato</th><th>Fornecedor</th><th>Objeto</th><th>Valor mensal</th><th>Vigência</th><th>Aditivos</th><th>Notas</th><th>Faturado</th><th></th></tr></thead><tbody>
+   ${L.map(c=>`<tr><td><b>${esc(c.numero||'—')}</b></td><td>${esc(c.nome_prestador||'—')}<br><span class="small muted num">${esc(c.cnpj_fmt)}</span></td><td>${esc(c.objeto||'—')}</td><td class="num">${brl(c.valor_mensal)}</td><td class="num">${dt(c.vigencia_inicio)} a ${dt(c.vigencia_fim)}</td>
+   <td>${c.aditivos.length?c.aditivos.map(a=>`<span class="small" style="display:block">${esc(a.numero||'Aditivo')} +${brl(a.valor_adicional)}<br><span class="muted num">${dt(a.vigencia_inicio)} a ${dt(a.vigencia_fim)}</span></span>`).join(''):'<span class="muted">—</span>'}</td>
+   <td class="num">${c.notas}${c.abertas?` ${chip('rev',c.abertas+' aberta(s)')}`:''}</td><td class="num">${brl(c.faturado)}</td><td>${c.doc_id?`<button class="btn light sm" data-doc="${c.doc_id}">${ic('eye')}PDF</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="c empty"><span class="bigic">${ic('contratos')}</span><h3>Nenhum contrato ainda</h3><p class="muted">Envie os contratos em PDF (pode ser digitalizado). Sem contrato, toda nota do fornecedor vira divergência “Fornecedor sem contrato”.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}
+  ${r.aditivos_sem_contrato.length?`<div class="c"><h3>Aditivos sem contrato encontrado</h3><p class="small muted">Lidos, mas o contrato de referência não está cadastrado.</p>${r.aditivos_sem_contrato.map(a=>`<div class="li"><div class="t"><b>${esc(a.numero||'Aditivo')}</b><span>Contrato ${esc(a.contrato_ref||'?')} · +${brl(a.valor_adicional)}</span></div></div>`).join('')}</div>`:''}`];
+};
+
+V.fornecedores=async()=>{
+  const L=await api(`/api/ws/${S.ws}/fornecedores`);const ed=S.fedit?L.find(f=>f.id===S.fedit):null;
+  const contr=f=>f.contratos?String(f.contratos):f.contrato_em_duvida?`<a href="#pendencias" style="text-decoration:none">${chip('rev','Aguardando confirmação')}</a>`:chip('err','Sem contrato');
+  const form=pode('revisor')?`<details class="c" ${ed||!L.length?'open':''}><summary style="cursor:pointer;font-weight:700;font-size:16px">${ed?'Editar fornecedor':'+ Cadastrar fornecedor'}</summary>
+   <form id="fornecedor" style="display:grid;gap:10px;margin-top:14px"><div class="grid g2"><input class="inp" name="cnpj" placeholder="CNPJ (14 números)" value="${esc(ed?ed.cnpj_fmt:'')}" ${ed?'readonly':''} required><input class="inp" name="nome" placeholder="Razão social" value="${esc(ed?.nome||'')}" required>
+   <input class="inp" name="email" placeholder="E-mail do fornecedor" value="${esc(ed?.email||'')}"><input class="inp" name="telefone" placeholder="Telefone do fornecedor" value="${esc(ed?.telefone||'')}"></div>
+   <input class="inp" name="responsavel" placeholder="Responsável no cliente (quem acompanha este fornecedor), ex.: Carlos, gestor de contratos" value="${esc(ed?.responsavel||'')}">
+   <p class="err" id="fornerr"></p><div class="actions"><button class="btn sm">${ic('check')}${ed?'Salvar':'Cadastrar'}</button>${ed?`<button type="button" class="btn light sm" data-fedit="0">Cancelar</button>`:''}<span class="small muted">Fornecedores também são cadastrados sozinhos pelo CNPJ das notas e dos contratos enviados.</span></div></form></details>`:'';
+  return [`<div class="head"><div><h1>Fornecedores</h1><p>As micro e pequenas empresas terceirizadas de ${esc(W().nome)}, com o que faturaram e quantas notas tiveram problema.</p></div><div class="actions"><a class="btn ghost" href="/api/ws/${S.ws}/relatorio.csv?tipo=fornecedores">${ic('download')}Baixar (Excel)</a></div></div>
+  ${form}
+  ${L.length?`<div class="c"><div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>CNPJ</th><th>Contato</th><th>Contratos</th><th>Notas</th><th>Faturado</th><th>Abertas</th><th>Rejeitadas</th><th>Última nota</th><th></th></tr></thead><tbody>
+   ${L.map(f=>`<tr><td><b>${esc(f.nome||'—')}</b>${f.cadastro==='manual'?'<br><span class="small muted">cadastrado à mão</span>':''}</td><td class="num">${esc(f.cnpj_fmt)}</td><td class="small">${[f.responsavel&&'Resp.: '+esc(f.responsavel),esc(f.email||''),esc(f.telefone||'')].filter(Boolean).join('<br>')||'<span class="muted">—</span>'}</td><td class="num">${contr(f)}</td><td class="num">${f.notas}</td><td class="num">${brl(f.faturado)}</td><td>${f.abertas?chip('rev',f.abertas):'<span class="muted">0</span>'}</td><td>${f.rejeitadas?chip('err',f.rejeitadas):'<span class="muted">0</span>'}</td><td class="num">${dt(f.ultima)}</td><td>${pode('revisor')?`<button class="btn light sm" data-fedit="${f.id}">Editar</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`
+   :`<div class="c empty"><span class="bigic">${ic('fornecedores')}</span><h3>Nenhum fornecedor ainda</h3><p class="muted">Os fornecedores são cadastrados sozinhos pelo CNPJ das notas e dos contratos.</p><a class="btn" href="#enviar">Enviar documentos</a></div>`}`];
+};
+
+V.busca=async()=>[`<div class="head"><div><h1>Busca</h1><p>Procura dentro do texto de todos os documentos lidos, inclusive digitalizados e fotos. Pode escrever sem acento.</p></div></div>
+  <form class="c" id="fbusca" style="display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px">${ic('busca')}<input id="q" class="inp" style="border:0;font-size:17px" value="${esc(S.busq||'')}" placeholder="Ex.: limpeza, CTR-001, vigência, 4.350" aria-label="O que você procura?"><button class="btn">Buscar</button></form><div id="results" class="grid"></div>`];
+async function buscar(){const q=document.getElementById('q').value.trim();S.busq=q;const box=document.getElementById('results');if(!q){box.innerHTML='';return}
+  const r=await api(`/api/ws/${S.ws}/busca?q=${encodeURIComponent(q)}`);
+  box.innerHTML=r.length?`<p class="small muted">${r.length} documento(s) encontrado(s)</p>`+r.map(d=>`<div class="res"><span class="doci">${ic('file')}</span><div class="t"><b>${esc(d.tipo)}</b><span class="small muted">${esc(d.empresa||'')} · envio #${d.envio_id} · pág. ${d.pag_ini}–${d.pag_fim}</span><p>${prot(d.trecho).replace(/\[\[/g,'<mark>').replace(/\]\]/g,'</mark>')}</p></div><div class="actions"><button class="btn light sm" data-doc="${d.id}">${ic('eye')}Abrir</button><a class="btn light sm" href="/api/docs/${d.id}/pdf">${ic('download')}PDF</a></div></div>`).join(''):`<div class="c empty"><h3>Nada encontrado com “${esc(q)}”</h3><p class="muted">Tente um fornecedor, um número de contrato, um serviço ou uma data.</p></div>`;}
+
+V.relatorios=async()=>[`<div class="head"><div><h1>Relatórios</h1><p>Planilhas prontas (abrem no Excel), geradas na hora com os dados reais deste cliente.</p></div></div>
+  <div class="grid g2">${[['divergencias','Divergências','Cada problema encontrado: regra, valor esperado e encontrado, decisão e comentário.'],['notas','Notas fiscais','Todas as notas, o contrato usado na conferência e a situação de cada uma.'],['fornecedores','Fornecedores','Faturado por fornecedor, divergências abertas e rejeitadas.'],['trilha','Decisões da equipe','Quem aprovou, rejeitou ou reabriu cada divergência, quando e por quê.'],['avisos','Avisos enviados','Cada aviso gerado para um fornecedor: para quem, quando e o texto.'],['documentos','Documentos lidos','Tipo, páginas, confiança e decisões sobre a leitura.'],['acessos','Acesso a dados protegidos','Quem pediu para ver dados protegidos, quando e por quê.']].map(r=>`<div class="c" style="display:grid;gap:14px"><div style="display:flex;gap:14px"><span class="doci">${ic('relatorios')}</span><div><h3>${r[1]}</h3><p class="small muted">${r[2]}</p></div></div><a class="btn sm" style="justify-self:start" href="/api/ws/${S.ws}/relatorio.csv?tipo=${r[0]}">${ic('download')}Baixar planilha</a></div>`).join('')}</div>`];
+
+V.configuracoes=async()=>{
+  const r=await api(`/api/ws/${S.ws}/config`);const c=r.config;
+  const tg=(k,l,d)=>`<div class="row"><div class="t"><b>${l}</b><span>${d}</span></div><label class="sw"><input type="checkbox" data-cfg="${k}" ${c[k]==='1'?'checked':''} aria-label="${l}"><span></span></label></div>`;
+  return [`<div class="head"><div><h1>Configurações</h1><p>Valem para o cliente ${esc(W().nome)}.${pode('admin')?'':' Só o administrador pode alterar.'}</p></div></div><div class="grid g2" ${pode('admin')?'':'style="pointer-events:none;opacity:.6"'}>
+  <div class="c"><h3 style="margin-bottom:6px">Inteligência artificial</h3>
+   <div class="row"><div class="t"><b>Status</b><span>${r.claude_configurado?`Chave encontrada. Modelo: ${esc(r.modelo)}`:'Sem chave. Para ligar, crie o arquivo .env na pasta do projeto com ANTHROPIC_API_KEY=sua-chave e reinicie.'}</span></div>${r.claude_configurado?chip('ok','Pronto'):chip('neu','Desligado')}</div>
+   ${tg('usar_claude','Usar o Claude quando houver chave','Lê imagem e texto juntos. Sem chave, usa OCR e regras locais.')}
+   <div class="row" style="display:grid;gap:6px"><div class="t"><b>Perguntar quando a confiança da leitura ficar abaixo de <span id="vlim">${c.limiar}</span>%</b><span>Acima disso, o documento entra na conferência sem ninguém olhar. Vale para os próximos envios.</span></div><input type="range" min="50" max="95" step="1" value="${c.limiar}" id="limiar" style="width:100%;accent-color:var(--confere)"></div></div>
+  <div class="c"><h3 style="margin-bottom:6px">Regras de conferência</h3>
+   <div class="row" style="display:grid;gap:6px"><div class="t"><b>Tolerância de valor: <span id="vtol">${c.tolerancia}</span>%</b><span>Diferença aceita acima do valor mensal do contrato (somado aos aditivos vigentes) antes de virar divergência. Refaz a conferência na hora.</span></div><input type="range" min="0" max="10" step="0.5" value="${c.tolerancia}" id="tolerancia" style="width:100%;accent-color:var(--confere)"></div>
+   <ul class="small muted" style="margin:8px 0 0;padding-left:18px;display:grid;gap:4px"><li><b>Fornecedor sem contrato</b> (crítica): nenhum contrato para o CNPJ do prestador.</li><li><b>Valor acima do contratado</b> (alta): considera aditivos vigentes na data da nota.</li><li><b>Fora da vigência</b> (alta): nota emitida antes ou depois do contrato.</li><li><b>Nota duplicada</b> (alta): mesmo número do mesmo prestador.</li><li><b>Serviço diferente</b> (média): descrição sem relação com o objeto do contrato.</li><li><b>Outro tomador</b> (média): nota emitida para outro CNPJ.</li></ul></div>
+  <div class="c"><div class="ch"><h3>Dados protegidos</h3>${ic('shield')}</div><p class="small muted">Escondidos na tela, na busca, nas imagens e nos PDFs. Ver o original exige um motivo, que fica registrado (${r.acessos} acesso(s) até agora).</p>
+   ${tg('cpf','CPF e RG','Números de documento pessoal')}${tg('banco','Dados bancários','Agência e conta')}${tg('saude','Informações de saúde','CID e diagnósticos')}${tg('endereco','Endereço','Rua e número')}${tg('contato','Telefone e e-mail','Contato pessoal')}</div>
+  <div class="c" style="display:grid;gap:12px;align-content:start"><h3>Tipos de documento deste cliente</h3><p class="small muted">A IA separa o lote nestes tipos. Contratos, aditivos e notas entram na conferência.</p><div class="tagset">${r.tipos.map(t=>`<span>${esc(t.nome)}</span>`).join('')}</div></div>
+  <form class="c" id="novotipo" style="display:grid;gap:10px;align-content:start"><h3>Ensinar um novo tipo</h3><input class="inp" name="nome" placeholder="Nome, ex.: Ordem de compra"><input class="inp" name="titulos" placeholder="Títulos que aparecem no topo, separados por vírgula"><input class="inp" name="palavras" placeholder="Palavras típicas, separadas por vírgula">
+   <p class="err" id="tipoerr"></p><button class="btn" style="justify-self:start">${ic('plus')}Adicionar tipo</button></form></div>`];
+};
+
+V.acerto=async()=>{
+  const L=await api(`/api/ws/${S.ws}/avaliacoes`);const vivo=L.some(x=>!x.resultado&&!['recusado'].includes(x.envio.status));
+  const big=(v,l,s)=>`<div class="c task"><div class="eb">${l}</div><div class="big num">${v}%</div><p>${s}</p></div>`;
+  const ult=L.find(x=>x.resultado);const r=ult&&ult.resultado;
+  const k=r&&r.conciliacao;
+  return [`<div class="head"><div><h1>Acerto da IA</h1><p>Um lote fictício é gerado junto com o gabarito: onde começa cada documento, qual é o tipo e quais notas têm problema. A Concilia processa o lote sem ver o gabarito, e aqui comparamos o resultado.</p></div>
+  <div class="actions">${pode('admin')?`<button class="btn" id="avaliar">${ic('zap')}Gerar lote com gabarito e medir</button>`:'<span class="small muted">Só o administrador pode iniciar uma avaliação.</span>'}</div></div>
+  ${k?`<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">Conferência das notas</h3><div class="grid g3">${big(k.cobertura,'Problemas encontrados',`${k.detectadas} de ${k.divergencias_esperadas} notas com problema foram apontadas; ${k.regra_certa}% delas com a regra certa.`)}
+   ${big(k.precisao,'Alarmes corretos',`${k.falsos_alarmes} alarme(s) falso(s). ${k.corretas_sem_alerta} notas certas passaram sem alerta.`)}
+   ${big(k.pct_lidas,'Notas lidas',`${k.notas_lidas} de ${k.notas_gabarito} notas do gabarito foram lidas e conferidas.`)}</div>
+   ${k.erros.length?`<div class="c"><h3 style="margin-bottom:10px">Onde a conferência errou</h3><div class="tablewrap"><table><thead><tr><th>Nota</th><th>Certo</th><th>A Concilia disse</th></tr></thead><tbody>${k.erros.map(e=>`<tr><td>${esc(e.nota)}</td><td>${esc(e.esperado)}</td><td>${esc(e.encontrado)}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+   <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">Leitura do lote em PDF</h3>`:''}
+  ${r?`<div class="grid g3">${big(r.fronteira_f1,'Separação de documentos (F1)',`Acertou o início de ${r.fronteira_cobertura}% dos documentos; ${r.fronteira_precisao}% dos inícios marcados estavam certos.`)}
+   ${big(r.tipo_correto,'Documento inteiro certo',`Páginas e tipo corretos em ${r.tipo_correto}% dos ${r.documentos_gabarito} documentos.`)}
+   ${big(r.acerto_automaticos,'Acerto do que foi aprovado sozinho',`${r.automaticos} documentos aprovados sem revisão. ${r.enviados_revisao} foram para a fila humana (${r.pct_revisao}%).`)}</div>
+   <div class="c"><div class="ch"><h3>Onde a IA errou no último lote (envio #${ult.envio.id})</h3><span class="small muted num">${r.paginas} páginas · ${r.documentos_gabarito} documentos no gabarito · ${r.documentos_previstos} previstos · páginas com tipo certo: ${r.paginas_tipo_correto}%</span></div>
+   ${r.erros.length?`<div class="tablewrap"><table><thead><tr><th>Documento</th><th>Páginas</th><th>Certo</th><th>A IA disse</th></tr></thead><tbody>${r.erros.map(e=>`<tr><td>${esc(e.documento)}</td><td class="num">${esc(e.paginas)}</td><td>${esc(e.esperado)}</td><td>${esc(e.previsto)}</td></tr>`).join('')}</tbody></table></div>${r.total_erros>r.erros.length?`<p class="small muted">E mais ${r.total_erros-r.erros.length}.</p>`:''}`:'<p class="muted">Nenhum erro: todos os documentos foram separados e classificados corretamente.</p>'}</div>`
+  :`<div class="c empty"><span class="doci" style="width:56px;height:56px">${ic('acerto')}</span><h3>${L.length?'Medindo… o resultado aparece quando o lote terminar':'Nenhuma avaliação ainda'}</h3><p class="muted">O lote de teste tem 8 fornecedores: contratos de 9 páginas, aditivos e notas (XML e PDF), com 6 problemas escondidos. Uma parte é digitalizada para testar o OCR.</p></div>`}
+  ${L.length?`<div class="c"><div class="ch"><h3>Histórico de avaliações</h3></div><div class="tablewrap"><table><thead><tr><th>Envio</th><th>Quando</th><th>Situação</th><th>Problemas encontrados</th><th>Alarmes corretos</th><th>Separação (F1)</th><th>Documento certo</th></tr></thead><tbody>
+   ${L.map(x=>`<tr><td><a href="#envio-${x.envio.id}">#${x.envio.id}</a></td><td>${esc(x.envio.criado_em)}</td><td>${stEnvio(x.envio)}</td><td class="num">${x.resultado?x.resultado.conciliacao.cobertura+'%':'—'}</td><td class="num">${x.resultado?x.resultado.conciliacao.precisao+'%':'—'}</td><td class="num">${x.resultado?x.resultado.fronteira_f1+'%':'—'}</td><td class="num">${x.resultado?x.resultado.tipo_correto+'%':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}`,null,vivo];
+};
+
+V.entrar=async()=>[`<div style="max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;background:#fff;border-radius:28px;box-shadow:0 20px 60px rgba(47,107,255,.14);padding:14px;min-height:calc(100vh - 32px)" class="login">
+  <div style="border-radius:20px;padding:34px;display:flex;flex-direction:column;justify-content:space-between;color:#fff;background:radial-gradient(70% 55% at 25% 78%,#0A1A6B 0%,transparent 72%),radial-gradient(55% 60% at 80% 15%,#8FB4FF 0%,transparent 70%),linear-gradient(165deg,#9CC3FF 0%,#2F6BFF 50%,#1D47B8 100%);min-height:300px">
+   <div style="display:flex;align-items:center;gap:10px">${MARK(42)}<b style="font-size:22px">concilia AI</b></div>
+   <div style="display:grid;gap:14px"><h2 style="font-size:clamp(26px,3vw,36px);font-weight:800;line-height:1.15">Lotes de documentos separados, classificados e pesquisáveis, sem trabalho manual.</h2><p style="opacity:.9">Acesso da equipe Bernhoeft.</p></div></div>
+  <div style="display:flex;align-items:center;justify-content:center;padding:32px 20px"><form id="login" style="width:100%;max-width:360px;display:grid;gap:14px" novalidate>${MARK(30)}<h1 style="font-size:32px;font-weight:800">Entrar</h1>
+   <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Usuário<input class="inp" name="usuario" autocomplete="username" placeholder="admin, revisor ou operador"></label>
+   <label style="display:grid;gap:6px;font-weight:600;font-size:14px">Senha<input class="inp" name="senha" type="password" autocomplete="current-password"></label>
+   <p class="err" id="loginerr"></p><button class="btn" style="padding:13px">Entrar</button>
+   <p class="small muted">Usuários: <b>admin</b>, <b>revisor</b> ou <b>operador</b>. Peça a senha a quem te convidou.</p></form></div></div>
+  <style>@media(max-width:900px){.login{grid-template-columns:1fr!important}}</style>`];
+
+V['como-funciona']=async()=>{
+  const R=[['min','1. Recebe as notas fiscais','XML da NFS-e (leiaute nacional, ABRASF ou o de teste) lido na hora, sem OCR. Nota em PDF também é aceita.','notas'],
+  ['min','2. Separa o lote em PDF','Contratos, aditivos e notas misturados: cada página recebe “começa um novo” ou “continua”, e as páginas viram documentos.','enviar'],
+  ['min','3. Classifica e lê cada documento','Tipo, confiança e texto pesquisável (OCR em digitalizados). Abaixo do limite, a IA pergunta na Revisão humana.','pendencias'],
+  ['min','4. Extrai os campos do contrato','Número, CNPJ, objeto, valor mensal, vigência e aditivos, por regras ou pelo Claude.','contratos'],
+  ['min','5. Confere nota × contrato','Regras fixas: sem contrato, valor acima (com aditivos vigentes), fora da vigência, duplicada, serviço e tomador diferentes.','divergencias'],
+  ['min','6. Revisão humana e relatório','A equipe aprova ou rejeita cada divergência, com comentário. Tudo vira planilha e trilha de decisões.','relatorios'],
+  ['dif','IA multimodal','Com a chave, o Claude lê a imagem e o texto da página juntos e extrai os campos dos contratos.','configuracoes'],
+  ['dif','Retomada após falha','Cada página é salva ao terminar. Em queda ou fechamento, continua da próxima.','enviar'],
+  ['dif','Anonimização de dados','CPF, conta, saúde, endereço e contato escondidos no texto e na imagem.','configuracoes'],
+  ['dif','Um workspace por cliente','Cada cliente da Bernhoeft com seus fornecedores, contratos, notas e regras.','fornecedores'],
+  ['dif','Acerto medido com gabarito','Lote fictício com resposta certa mede a separação e a conferência das notas.','acerto'],
+  ['dif','Login com perfis','Operador envia, revisor decide, administrador configura. Decisões ficam registradas.','configuracoes']];
+  const row=r=>`<div class="req ${r[0]==='dif'?'dif':''}"><span class="ok">${ic('check')}</span><div><b>${r[1]}</b><span>${r[2]}</span></div><a class="btn light sm" href="#${r[3]}">Ver</a></div>`;
+  return [`<div class="head"><div><h1>Como funciona</h1><p>A nota fiscal é o centro: tudo o mais serve para conferir se ela bate com o que foi contratado.</p></div></div>
+  <div class="grid g2"><div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--tinta)">O caminho de uma nota</h3>${R.filter(r=>r[0]==='min').map(row).join('')}</div>
+  <div class="grid" style="align-content:start;gap:10px"><h3 style="font-size:13px;text-transform:uppercase;letter-spacing:.08em">Diferenciais</h3>${R.filter(r=>r[0]==='dif').map(row).join('')}</div></div>
+  <p class="small muted">A Concilia aponta diferenças e mostra de onde elas vêm. Não substitui análise jurídica, contábil ou tributária.</p>`];
+};
+
+async function render(){
+  clearTimeout(S.timer);
+  let h=(location.hash||'#inicio').slice(1);let arg=null;
+  const m=h.match(/^envio-(\d+)$/);if(m){h='envio';arg=+m[1]}
+  if(h==='inicio'||!V[h])h='documentos';  // a tela inicial é Documentos
+  if(h==='entrar'||!S.usuario){if(h!=='entrar')location.hash='#entrar';document.getElementById('root').innerHTML=(await V.entrar())[0];document.querySelector('#login input')?.focus();return}
+  try{
+    const [inner,c0,vivo]=await V[h](arg);
+    let cont=c0;if(!cont||typeof cont!=='object'){try{cont=await api(`/api/ws/${S.ws}/contagens`)}catch(e){cont={}}}
+    const foco=document.activeElement&&document.activeElement.id;
+    document.getElementById('root').innerHTML=shell(h,inner,cont);
+    if(foco&&document.getElementById(foco)&&foco!=='wsbtn')document.getElementById(foco).focus();
+    if((h==='busca'||h==='documentos')&&S.busq)buscar();
+    if(vivo)S.timer=setTimeout(render,1500);
+  }catch(e){document.getElementById('root').innerHTML=shell(h,`<div class="c empty"><h3>Não foi possível carregar</h3><p class="muted">${esc(e.message)}. Confira se o programa está aberto (iniciar.bat).</p></div>`,{});}
+}
+async function enviarArquivos(files){
+  if(!files.length)return;const fd=new FormData();[...files].forEach(f=>fd.append('arquivos',f));
+  const msg=document.getElementById('upmsg');if(msg)msg.textContent='Enviando…';
+  try{const e=await api(`/api/ws/${S.ws}/envios`,{method:'POST',body:fd});toast(`Recebido. ${e.total} páginas na fila.`);location.hash=`#envio-${e.id}`;}
+  catch(err){if(msg)msg.textContent=err.message;}
+}
+document.addEventListener('click',async ev=>{
+  if(S.menu&&!ev.target.closest('.ws')){S.menu=false;render();}
+  const t=ev.target.closest('#wsbtn,[data-ws],[data-acao],[data-dec],[data-q],[data-doc],[data-nota],[data-div],[data-fdiv],[data-ftipo],[data-excluir],[data-fedit],[data-juntar],[data-aviso],[data-copiar],[data-fechar],[data-toast],[data-zoom],#exemplo,#avaliar,[data-sair],.zoom');if(!t)return;
+  if(t.hasAttribute('data-sair')){ev.preventDefault();await post('/api/sair');S.usuario=null;location.hash='#entrar';render();return}
+  if(t.id==='avaliar'){t.disabled=true;t.textContent='Gerando lote com gabarito…';try{const e=await post(`/api/ws/${S.ws}/avaliacao`,{fornecedores:8});toast(`${e.notas_xml} notas e ${e.total} páginas na fila. O resultado aparece ao terminar.`);render();}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.dataset.fdiv){S.fdiv=t.dataset.fdiv;render();return}
+  if(t.dataset.excluir){
+    if(!t.dataset.confirmar){t.dataset.confirmar='1';t.innerHTML=`${ic('alert')}Clique de novo para excluir`;t.style.background='var(--erro)';t.style.color='#fff';
+      setTimeout(()=>{if(document.body.contains(t)){delete t.dataset.confirmar;t.innerHTML=`${ic('x')}Excluir`;t.style.background='';t.style.color='var(--erro)'}},4000);return}
+    t.disabled=true;try{const r=await api(`/api/docs/${t.dataset.excluir}`,{method:'DELETE'});if(S.doc==+t.dataset.excluir)S.doc=null;toast(r.msg);render();}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.dataset.ftipo!==undefined){S.ftipo=t.dataset.ftipo;render();return}
+  if(t.dataset.aviso){t.disabled=true;try{const r=await post(`/api/divergencias/${t.dataset.aviso}/aviso`);S.aviso={id:+t.dataset.aviso,...r};toast(r.msg);await render();document.getElementById(`div-${t.dataset.aviso}`)?.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.hasAttribute('data-copiar')){const txt=`Assunto: ${document.getElementById('avassunto').textContent}\n\n${document.getElementById('avcorpo').value}`;try{await navigator.clipboard.writeText(txt);toast('Texto copiado. Cole no e-mail ou no WhatsApp.')}catch(e){document.getElementById('avcorpo').select();toast('Selecionado. Use Ctrl+C.')}return}
+  if(t.dataset.juntar){t.disabled=true;try{const r=await post(`/api/docs/${t.dataset.juntar}/decisao`,{acao:'juntar'});S.doc=null;toast(r.msg);render();}catch(e){toast(e.message);t.disabled=false}return}
+  if(t.dataset.fedit!==undefined){S.fedit=+t.dataset.fedit||null;await render();document.getElementById('fornecedor')?.scrollIntoView({behavior:'smooth'});return}
+  if(t.dataset.div){const id=t.dataset.div,acao=t.dataset.acaoDiv,com=document.getElementById(`com-${id}`)?.value||'';t.disabled=true;
+    try{const r=await post(`/api/divergencias/${id}/decisao`,{acao,comentario:com});toast(r.msg);render();}catch(e){const er=document.getElementById(`err-${id}`);if(er)er.textContent=e.message;else toast(e.message);t.disabled=false}return}
+  if(t.dataset.nota){S.nota=+t.dataset.nota;if(location.hash!=='#notas')location.hash='#notas';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
+  if(t.classList.contains('zoom')){t.remove();return}
+  if(t.id==='wsbtn'){S.menu=!S.menu;render();return}
+  if(t.dataset.ws){S.ws=t.dataset.ws;S.menu=false;S.q=0;S.doc=null;S.nota=null;S.revelado=null;try{localStorage.setItem('ws',S.ws)}catch(e){}toast(`Agora você está vendo o cliente ${W().nome}`);render();return}
+  if(t.dataset.zoom){const z=document.createElement('div');z.className='zoom';z.innerHTML=`<img src="/api/paginas/${t.dataset.zoom}/imagem" alt="Página ampliada">`;document.body.appendChild(z);return}
+  if(t.dataset.acao){const id=location.hash.split('-')[1];await post(`/api/envios/${id}/${t.dataset.acao}`);toast({pausar:'Pausado. Nada se perde.',retomar:'Retomando da próxima página.','simular-falha':'Queda simulada. Veja a retomada automática.'}[t.dataset.acao]);render();return}
+  if(t.dataset.dec){const did=+t.dataset.did;if(!did)return;
+    t.disabled=true;try{const r=await post(`/api/docs/${did}/decisao`,JSON.parse(t.dataset.dec));toast(r.msg);}catch(e){toast(e.message)}render();return}
+  if(t.dataset.q){S.q=+t.dataset.q;render();return}
+  if(t.dataset.doc){S.doc=+t.dataset.doc;S.revelado=null;if(location.hash!=='#documentos')location.hash='#documentos';else{await render();document.getElementById('viewer')?.scrollIntoView({behavior:'smooth'})}return}
+  if(t.hasAttribute('data-fechar')){S.doc=null;S.nota=null;S.revelado=null;render();return}
+  if(t.dataset.toast){toast(t.dataset.toast);return}
+  if(t.id==='exemplo'){t.disabled=true;t.textContent='Gerando lote fictício…';try{const e=await post(`/api/ws/${S.ws}/exemplo`);toast(`${e.notas_xml} notas lidas do XML. ${e.total} páginas de contratos e notas na fila.`);location.hash=`#envio-${e.id}`;}catch(e){toast(e.message);t.disabled=false}}
+});
+document.addEventListener('change',async ev=>{
+  if(ev.target.id==='files')enviarArquivos(ev.target.files);
+  if(ev.target.dataset.cfg){await post(`/api/ws/${S.ws}/config`,{[ev.target.dataset.cfg]:ev.target.checked?1:0});toast(ev.target.checked?'Ativado':'Desativado');if(ev.target.dataset.cfg==='usar_claude'){S.cfgClaude=ev.target.checked?'1':'0';render();}}
+  if(ev.target.id==='limiar'){await post(`/api/ws/${S.ws}/config`,{limiar:ev.target.value});toast(`Limite de revisão: ${ev.target.value}%`)}
+  if(ev.target.id==='tolerancia'){try{await post(`/api/ws/${S.ws}/config`,{tolerancia:ev.target.value});toast(`Tolerância de valor: ${ev.target.value}%. Conferência refeita.`)}catch(e){toast(e.message)}}
+  if(ev.target.id==='outrapag'&&ev.target.value){const did=+ev.target.dataset.did;try{const r=await post(`/api/docs/${did}/decisao`,{acao:'dividir',pagina:+ev.target.value});toast(r.msg)}catch(e){toast(e.message)}render();}
+  if(ev.target.id==='outrotipo'&&ev.target.value){const did=+ev.target.dataset.did;try{const r=await post(`/api/docs/${did}/decisao`,{acao:'confirmar',tipo:ev.target.value});toast(r.msg)}catch(e){toast(e.message)}render();}
+});
+document.addEventListener('input',ev=>{if(ev.target.id==='limiar')document.getElementById('vlim').textContent=ev.target.value;if(ev.target.id==='tolerancia')document.getElementById('vtol').textContent=ev.target.value;});
+document.addEventListener('submit',async ev=>{ev.preventDefault();const f=ev.target;
+  if(f.id==='login'){const d=Object.fromEntries(new FormData(f));if(!d.usuario||!d.senha){document.getElementById('loginerr').textContent='Preencha usuário e senha.';return}
+    try{await post('/api/login',d);location.hash='#inicio';await iniciar();toast(`Olá, ${S.usuario.nome}`);}catch(e){document.getElementById('loginerr').textContent=e.message}return}
+  if(f.id==='fbusca')buscar();
+  if(f.id==='fornecedor'){const fd=Object.fromEntries(new FormData(f));try{const r=await post(`/api/ws/${S.ws}/fornecedores`,fd);S.fedit=null;toast(r.msg);render();}catch(e){document.getElementById('fornerr').textContent=e.message}}
+  if(f.id==='cliente'){const fd=Object.fromEntries(new FormData(f));try{const c=await post('/api/clientes',fd);S.estado=await api('/api/estado');S.clientes=S.estado.clientes;S.ws=c.id;try{localStorage.setItem('ws',c.id)}catch(e){}toast(`Cliente ${c.nome} criado. Agora cadastre os fornecedores.`);location.hash='#fornecedores';}catch(e){document.getElementById('clierr').textContent=e.message}}
+  if(f.id==='revelar'){const m=document.getElementById('motivo').value;try{const r=await post(`/api/docs/${f.dataset.id}/revelar`,{motivo:m});S.revelado={id:+f.dataset.id,texto:r.texto};toast('Acesso registrado.');render();}catch(e){document.getElementById('reverr').textContent=e.message}}
+  if(f.id==='novotipo'){const fd=Object.fromEntries(new FormData(f));fd.exigido=!!fd.exigido;try{await post(`/api/ws/${S.ws}/tipos`,fd);toast('Tipo adicionado. Vale para os próximos envios.');render();}catch(e){document.getElementById('tipoerr').textContent=e.message}}
+});
+document.addEventListener('keydown',ev=>{
+  if(ev.target.id==='topq'&&ev.key==='Enter'){S.busq=ev.target.value;location.hash='#documentos';render();return}
+  if(ev.key==='Escape'){document.querySelector('.zoom')?.remove();if(S.menu){S.menu=false;render()}}
+  if(location.hash==='#pendencias'&&/^[1-4]$/.test(ev.key)&&!/INPUT|SELECT/.test(ev.target.tagName)){document.querySelectorAll('.answers .ans')[+ev.key-1]?.click()}
+});
+document.addEventListener('dragover',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d){ev.preventDefault();d.classList.add('over')}});
+document.addEventListener('dragleave',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d)d.classList.remove('over')});
+document.addEventListener('drop',ev=>{const d=ev.target.closest&&ev.target.closest('#drop');if(d){ev.preventDefault();enviarArquivos(ev.dataTransfer.files)}});
+window.addEventListener('hashchange',render);
+// Lembra a pasta aberta em Documentos entre uma atualização e outra da tela.
+document.addEventListener('toggle',ev=>{const p=ev.target.dataset&&ev.target.dataset.pasta;if(p!==undefined&&ev.target.open)S.pasta=p;},true);
+async function iniciar(){S.estado=await api('/api/estado');S.usuario=S.estado.usuario;S.clientes=S.estado.clientes;
+  if(!S.usuario){render();return}
+  let w=null;try{w=localStorage.getItem('ws')}catch(e){}S.ws=S.clientes.some(c=>c.id===w)?w:S.clientes[0].id;
+  try{S.cfgClaude=(await api(`/api/ws/${S.ws}/config`)).config.usar_claude}catch(e){}
+  if(location.hash==='#entrar'||!location.hash)location.hash='#inicio';render();}
+iniciar();
+</script>
+</body>
+</html>

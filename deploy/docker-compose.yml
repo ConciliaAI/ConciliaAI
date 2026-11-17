@@ -1,0 +1,14 @@
+# Copie para a pasta do deploy (na VPS: /opt/concilia-ai) junto com um .env (veja deploy/LEIA-ME.md).
+services:
+  concilia:
+    build: ./app
+    container_name: concilia-ai
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8095:8000"
+    volumes:
+      - dados:/dados
+    mem_limit: 3g
+volumes:
+  dados:
