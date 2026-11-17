@@ -68,7 +68,7 @@ Todas as telas estão no front novo; a pasta `web/` guarda a versão anterior, u
 | Diferencial | Como funciona |
 |---|---|
 | Multimodal | Com `ANTHROPIC_API_KEY` no `.env`, o Claude lê **imagem + texto** de cada página e extrai os campos dos contratos. Sem chave ou se falhar, usa a leitura local |
-| Retomada após falha | Cada página é salva ao terminar; queda ou fechamento continua da próxima. Botão "Simular queda" |
+| Retomada após falha | Cada página é salva ao terminar; queda, reinício ou fechamento continua da próxima página, sem refazer as anteriores |
 | Anonimização | CPF/RG, conta, saúde, endereço e contato escondidos no texto, na busca, na imagem e no PDF; ver o original exige motivo, registrado |
 
 ## Conferência das notas (o diferencial da proposta)
