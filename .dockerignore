@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+.venv
+.env
+.externos
+.tmp
+dados
+casos-de-teste
+apresentacao
+rascunhos
+marca
+tests
+frontend/node_modules
+frontend/dist
+**/__pycache__
+*.pyc

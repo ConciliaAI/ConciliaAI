@@ -14,14 +14,51 @@ function chave(item) {
   return `${item.tipoItem}-${item.id}`
 }
 
+// Documento lido com confiança que só entrou na fila porque o subtipo (NFS-e, DANFE…) não ficou claro.
+// O "duvida" gravado na leitura não vale para ele: a leitura não teve dúvida.
+const soSubtipo = (item) => item.tipoItem === 'documento' && item.status !== 'revisao'
+
+// Subtipo esperado para cada tipo principal (o inverso de TIPO_COMPATIVEL, no servidor).
+const SUBTIPO_DO_TIPO = {
+  'Nota fiscal de serviço': 'nfse', 'Nota fiscal de produto (NF-e)': 'danfe',
+  'Contrato de prestação de serviços': 'contrato', 'Aditivo contratual': 'aditivo',
+  'Comprovante de pagamento': 'comprovante_pagamento',
+}
+
+// Ordem da fila: o que tem dinheiro em jogo primeiro, depois o que impede a conferência, e o subtipo por último.
+function prioridade(item) {
+  if (item.tipoItem === 'divergencia') return { critica: 0, alta: 1, media: 2 }[item.severidade] ?? 2
+  if (soSubtipo(item)) return 7
+  return { integridade: 3, fronteira: 4 }[item.duvida] ?? 5
+}
+
 // Monta a pergunta de cada item: título, aviso, páginas em destaque, respostas e um rodapé explicando.
-function pergunta(item, tipos) {
+function pergunta(item, tipos, rotulos = {}) {
+  if (soSubtipo(item)) {
+    const achado = item.subtipo && item.subtipo !== 'nao_identificado' ? item.subtipo : null
+    const sugerido = achado || SUBTIPO_DO_TIPO[item.tipo]
+    const nome = (s) => rotulos[s] || s
+    return {
+      titulo: nomeDocumento(item),
+      meta: `${(item.paginas || []).length} página${(item.paginas || []).length === 1 ? '' : 's'} · envio #${item.envio_id} · tipo lido com ${item.conf}% de confiança`,
+      aviso: ['Confirme o subtipo',
+        achado
+          ? `O tipo está certo. A IA acha que é ${nome(achado)}, mas encontrou poucos sinais para ter certeza.`
+          : `O tipo está certo. A IA não encontrou no texto os sinais de um modelo específico (NFS-e, DANFE, CT-e…).`],
+      destaque: [item.pag_ini, Math.min(item.pag_ini + 1, item.pag_fim)].filter((n, i, a) => a.indexOf(n) === i),
+      legendas: ['Primeira página', 'Segunda página'],
+      rodape: 'O subtipo não muda a conferência da nota. Ele ajuda a organizar e a buscar os documentos.',
+      respostas: sugerido ? [{ rotulo: `É ${nome(sugerido)}`, acao: { acao: 'corrigir_subtipo', subtipo: sugerido }, principal: true }] : [],
+    }
+  }
   if (item.tipoItem === 'divergencia') {
     return {
       titulo: `${item.origem === 'xml' ? 'NFS-e' : 'Nota'} nº ${item.numero} · ${item.nome_prestador || item.cnpj_fmt}`,
       meta: `${brl(item.valor)} · emitida em ${item.data_emissao ? new Date(item.data_emissao + 'T00:00').toLocaleDateString('pt-BR') : '—'}${item.contrato_numero ? ` · contrato ${item.contrato_numero}` : ''}`,
       aviso: [item.titulo, item.mensagem],
-      rodape: <>O contrato prevê <b>{item.esperado || '—'}</b>. A nota apresenta <b>{item.encontrado || '—'}</b>.</>,
+      rodape: item.contrato_doc_id || item.contrato_numero
+        ? <>O contrato prevê <b>{item.esperado || '—'}</b>. A nota apresenta <b>{item.encontrado || '—'}</b>.</>
+        : 'Sem contrato, não há como conferir valor, vigência nem serviço. Aprove só se o contrato existir fora da Concilia.',
       respostas: [
         { rotulo: 'Aprovar mesmo assim', acao: { acao: 'aprovar' }, principal: true },
         { rotulo: 'Rejeitar a nota', acao: { acao: 'rejeitar' }, precisaMotivo: true },
@@ -83,6 +120,7 @@ function pergunta(item, tipos) {
 
 function CartaoFila({ item, ativo, aoClicar }) {
   const doc = item.tipoItem === 'documento'
+  const subtipo = soSubtipo(item)
   const [sev, corSev] = SEVERIDADE[item.severidade] || []
   const ref = useRef(null)
   // O item escolhido (pelo clique ou depois de responder) fica sempre à vista dentro da fila que rola.
@@ -92,14 +130,16 @@ function CartaoFila({ item, ativo, aoClicar }) {
             className={`grid min-h-[6.25rem] w-full content-center gap-1 rounded-2xl border px-4 py-3.5 text-left transition-colors
               ${ativo ? 'border-confere bg-nevoa/60 ring-1 ring-confere' : 'border-borda bg-white hover:border-confere/50'}`}>
       <span className="flex items-center gap-2.5 text-[0.9375rem] font-bold">
-        <span className={`size-2 shrink-0 rounded-full ${doc ? (item.duvida === 'integridade' ? 'bg-erro' : 'bg-ambar') : 'bg-erro'}`} />
-        <span className="truncate">{doc ? DUVIDA[item.duvida]?.(item) || 'Leitura com dúvida' : item.titulo}</span>
+        <span className={`size-2 shrink-0 rounded-full ${subtipo ? 'bg-suave' : doc ? (item.duvida === 'integridade' ? 'bg-erro' : 'bg-ambar') : 'bg-erro'}`} />
+        <span className="truncate">{subtipo ? 'Confirme o subtipo' : doc ? DUVIDA[item.duvida]?.(item) || 'Leitura com dúvida' : item.titulo}</span>
       </span>
       <span className="truncate text-[0.8125rem] text-apoio">
         {doc ? nomeDocumento(item) : `${item.origem === 'xml' ? 'NFS-e' : 'Nota'} nº ${item.numero} · ${item.nome_prestador || item.cnpj_fmt}`}
       </span>
       <span className="flex gap-2">
-        {doc
+        {subtipo
+          ? <span className="rounded-full bg-papel px-2.5 py-0.5 text-xs font-semibold text-apoio">Tipo certo · falta o subtipo</span>
+          : doc
           ? <span className="rounded-full bg-ambar-fundo px-2.5 py-0.5 text-xs font-semibold text-ambar-texto">Confiança {item.conf}%</span>
           : <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${corSev}`}>{sev} · {item.encontrado}</span>}
       </span>
@@ -107,13 +147,13 @@ function CartaoFila({ item, ativo, aoClicar }) {
   )
 }
 
-function Pagina({ pagina, legenda, destaque }) {
+function Pagina({ pagina, legenda, destaque, vazio }) {
   return (
     <figure className={`grid gap-2.5 rounded-2xl p-4 ${destaque ? 'bg-nevoa' : 'bg-papel'}`}>
       <div className="grid h-[18.25rem] place-items-center overflow-hidden rounded-lg">
         {pagina
           ? <img src={imagem(pagina.id)} alt={`Página ${pagina.n} do lote`} className="max-h-full max-w-full rounded-md bg-white shadow-sm" />
-          : <span className="text-sm text-suave">Página indisponível</span>}
+          : <span className="max-w-[16rem] text-center text-sm text-suave">{vazio || 'Página indisponível'}</span>}
       </div>
       <figcaption className="flex justify-between gap-2 text-[0.8125rem]">
         <b className="truncate">{legenda}{pagina ? ` · página ${pagina.n} do lote` : ''}</b>
@@ -123,11 +163,11 @@ function Pagina({ pagina, legenda, destaque }) {
   )
 }
 
-function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
+function Painel({ item, tipos, rotulos, podeDecidir, aoDecidir, ocupado }) {
   const [motivo, setMotivo] = useState('')
   const [pedindoMotivo, setPedindoMotivo] = useState(false)
   const [extras, setExtras] = useState(null) // páginas da nota e do contrato (divergência)
-  const p = pergunta(item, tipos)
+  const p = pergunta(item, tipos, rotulos)
 
   useEffect(() => {
     setMotivo(''); setPedindoMotivo(false); setExtras(null)
@@ -189,7 +229,10 @@ function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
       )}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
-        {grandes.map(([pg, legenda], i) => <Pagina key={i} pagina={pg} legenda={legenda} destaque={i === 1} />)}
+        {grandes.map(([pg, legenda], i) => (
+          <Pagina key={i} pagina={pg} legenda={legenda} destaque={i === 1}
+                  vazio={item.tipoItem === 'divergencia' && i === 1 && !item.contrato_doc_id ? 'Nenhum contrato deste prestador foi enviado' : null} />
+        ))}
       </div>
 
       {item.tipoItem === 'documento' && (
@@ -222,7 +265,7 @@ function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
             {r.precisaMotivo && pedindoMotivo ? 'Confirmar rejeição' : r.rotulo}
           </button>
         ))}
-        {item.tipoItem === 'documento' && item.subtipo_revisao && !item.subtipo_manual &&
+        {item.tipoItem === 'documento' && !soSubtipo(item) && item.subtipo_revisao && !item.subtipo_manual &&
           item.subtipo && item.subtipo !== 'nao_identificado' && (
           <button disabled={ocupado}
                   onClick={() => aoDecidir(item, { acao: 'corrigir_subtipo', subtipo: item.subtipo })}
@@ -247,7 +290,7 @@ function Painel({ item, tipos, podeDecidir, aoDecidir, ocupado }) {
             {item.vizinhas?.some((v) => v.n < item.pag_ini) && <option value={JSON.stringify({ acao: 'juntar' })}>Juntar com o documento anterior</option>}
             <option value={JSON.stringify({ acao: 'pedir' })}>Pedir nova cópia</option>
             <option value={JSON.stringify({ acao: 'reprocessar' })}>Ler de novo</option>
-            {(p.outrosTipos || tipos).map((t) => <option key={t} value={JSON.stringify({ acao: 'confirmar', tipo: t })}>É {t}</option>)}
+            {!soSubtipo(item) && (p.outrosTipos || tipos).map((t) => <option key={t} value={JSON.stringify({ acao: 'confirmar', tipo: t })}>É {t}</option>)}
           </select>
         )}
       </div>
@@ -271,8 +314,8 @@ export default function Revisao({ ws, perfil, aoMudar }) {
       const fila = [
         ...pend.pendencias.map((d) => ({ ...d, tipoItem: 'documento' })),
         ...div.divergencias.map((d) => ({ ...d, tipoItem: 'divergencia' })),
-      ]
-      setDados({ fila, tipos: pend.tipos, decididos: visao.decididos + (div.contagem.aprovada || 0) + (div.contagem.rejeitada || 0) })
+      ].map((x, i) => [x, i]).sort((a, b) => prioridade(a[0]) - prioridade(b[0]) || a[1] - b[1]).map(([x]) => x)
+      setDados({ fila, tipos: pend.tipos, rotulos: pend.subtipos || {}, decididos: visao.decididos + (div.contagem.aprovada || 0) + (div.contagem.rejeitada || 0) })
       return fila
     } catch (e) {
       setAviso({ texto: e.message, erro: true })
@@ -305,11 +348,13 @@ export default function Revisao({ ws, perfil, aoMudar }) {
   const { fila, tipos } = dados
   const atual = fila.find((x) => chave(x) === selecionado) || fila[0]
   const contar = (f) => fila.filter(f).length
+  const leitura = (x) => x.tipoItem === 'documento' && !soSubtipo(x)
   const resumo = [
-    ['Páginas repetidas ou faltando', contar((x) => x.duvida === 'integridade')],
-    ['Onde começa o documento', contar((x) => x.duvida === 'fronteira')],
-    ['Leitura com dúvida', contar((x) => x.tipoItem === 'documento' && !['integridade', 'fronteira'].includes(x.duvida))],
     ['Nota diferente do contrato', contar((x) => x.tipoItem === 'divergencia')],
+    ['Páginas repetidas ou faltando', contar((x) => leitura(x) && x.duvida === 'integridade')],
+    ['Onde começa o documento', contar((x) => leitura(x) && x.duvida === 'fronteira')],
+    ['Leitura com dúvida', contar((x) => leitura(x) && !['integridade', 'fronteira'].includes(x.duvida))],
+    ['Subtipo a confirmar', contar(soSubtipo)],
   ]
 
   return (
@@ -353,7 +398,7 @@ export default function Revisao({ ws, perfil, aoMudar }) {
         </div>
 
         {atual ? (
-          <Painel key={chave(atual)} item={atual} tipos={tipos} podeDecidir={podeDecidir} aoDecidir={decidir} ocupado={ocupado} />
+          <Painel key={chave(atual)} item={atual} tipos={tipos} rotulos={dados.rotulos} podeDecidir={podeDecidir} aoDecidir={decidir} ocupado={ocupado} />
         ) : (
           <section className="grid min-h-[20rem] place-items-center rounded-2xl border border-dashed border-borda p-8 text-center">
             <div>
