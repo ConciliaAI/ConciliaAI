@@ -211,8 +211,8 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
 
       {/* Figma: tabela 712 + painel 328, espaço 16, os dois com 384 de altura. */}
       <div className="mt-7 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_20.5rem]">
-        <section id="lista-documentos" className="min-w-0 scroll-mt-4 rounded-2xl border border-borda px-6 pt-4 pb-3 xl:min-h-[24rem]">
-          <div className="flex items-center justify-between gap-3">
+        <section id="lista-documentos" className="min-w-0 scroll-mt-4 rounded-2xl border border-borda px-4 pt-4 pb-3 sm:px-6 xl:min-h-[24rem]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-bold">{tipoPasta ? pasta(tipoPasta) : 'Todos os documentos'}</h2>
               {tipoPasta && <button type="button" onClick={() => { setTipoPasta(null); setQuantos(POR_VEZ) }}
@@ -233,8 +233,34 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
             <p className="py-6 text-sm text-apoio">{documentos.length === 0 ? "Os documentos aparecem aqui depois do primeiro envio." : "Nenhum documento corresponde a esta pasta e aos filtros selecionados."}</p>
           ) : (
             <div className="mt-3 max-h-[19rem] overflow-auto overscroll-contain [scrollbar-width:thin]">
+              {/* Celular: um cartão por documento, sem colunas espremidas. */}
+              <ul className="grid sm:hidden">
+                {documentosVisiveis.slice(0, quantos).map((d) => {
+                  const [rotulo, cor] = SITUACAO[d.status] || [d.status, 'bg-papel text-apoio']
+                  return (
+                    <li key={d.id} className={`flex items-center gap-3 border-t border-borda py-3 ${d.status === 'revisao' ? 'bg-nevoa/60' : ''}`}>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-borda text-confere"><Icone nome="arquivo" className="size-4" /></span>
+                      <div className="min-w-0 flex-1">
+                        <a href={`#documento-${d.id}`} className="block truncate text-sm font-bold hover:underline" title={`Abrir ${nomeDocumento(d)}`}>{nomeDocumento(d)}</a>
+                        <p className="mt-0.5 truncate text-xs text-apoio">
+                          {curto(d.tipo)} · {d.total_paginas} pág. · <span className={`font-bold ${corConfianca(d.conf)}`}>{d.conf}%</span>
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${cor}`}>{rotulo}</span>
+                      {podeExcluir && (
+                        <button onClick={() => excluir(d)} disabled={excluindo === d.id}
+                                aria-label={confirmando === d.id ? `Confirmar exclusão de ${nomeDocumento(d)}` : `Excluir ${nomeDocumento(d)}`}
+                                className={`inline-flex h-8 shrink-0 items-center justify-center rounded-full text-xs font-bold disabled:opacity-50
+                                  ${confirmando === d.id ? 'bg-erro px-3 text-white' : 'w-8 text-suave hover:bg-erro-fundo hover:text-erro'}`}>
+                          {confirmando === d.id ? 'Excluir?' : <Icone nome="lixeira" className="size-4" />}
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
               {/* Colunas do Figma (664 de largura): documento 288, tipo 120, páginas 80, confiança 88, status 88. */}
-              <table className="w-full min-w-[37.5rem] table-fixed text-[0.8125rem]">
+              <table className="hidden w-full min-w-[37.5rem] table-fixed text-[0.8125rem] sm:table">
                 <colgroup><col className="w-[40%]" /><col className="w-[16%]" /><col className="w-[11%]" /><col className="w-[12.5%]" /><col className="w-[13.5%]" />{podeExcluir && <col className="w-[7%]" />}</colgroup>
                 <thead>
                   <tr className="sticky top-0 z-10 h-9 bg-white text-left text-[0.6875rem] tracking-[0.04em] whitespace-nowrap text-suave uppercase">
@@ -254,7 +280,7 @@ export default function Dashboard({ ws, perfil, aoMudar }) {
                             <a href={`#documento-${d.id}`} className="truncate hover:text-tinta hover:underline" title={`Abrir ${nomeDocumento(d)}`}>{nomeDocumento(d)}</a>
                           </span>
                         </td>
-                        <td className="pr-4 whitespace-nowrap text-apoio">{curto(d.tipo)}</td>
+                        <td className="truncate pr-4 text-apoio" title={curto(d.tipo)}>{curto(d.tipo)}</td>
                         <td className="pr-4 text-apoio tabular-nums">{d.total_paginas}</td>
                         <td className={`pr-4 font-bold tabular-nums ${corConfianca(d.conf)}`}>{d.conf}%</td>
                         <td><span className={`rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${cor}`}>{rotulo}</span></td>
