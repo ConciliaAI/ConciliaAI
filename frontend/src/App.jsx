@@ -116,7 +116,7 @@ export default function App() {
 
   const menu = (
     <MenuLateral rota={rota.startsWith('documento-') ? 'documentos' : rota} contagens={contagens} totalDocumentos={estado.conta?.documentos}
-                 limite={estado.conta?.limite_documentos} aoSair={sair}
+                 limite={estado.conta?.limite_documentos} aoSair={estado.acesso_livre ? null : sair}
                  aoNavegar={() => setMenuAberto(false)} />
   )
   return (

@@ -231,6 +231,7 @@ def estado(request: Request):
         "claude_configurado": config.claude_configurado(),
         "modelo": config.MODELO,
         "cadastro_aberto": config.CADASTRO_ABERTO,
+        "acesso_livre": config.ACESSO_LIVRE,
         "usuario": {k: u[k] for k in ("usuario", "nome", "perfil")} if u else None,
         "conta": {**conta, "documentos": documentos_da_conta(conta_id),
                   "limite_documentos": config.LIMITE_DOCUMENTOS} if u else None,
