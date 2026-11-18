@@ -18,6 +18,7 @@ import time
 from fastapi import HTTPException, Request
 
 from . import db
+from . import config
 from .config import DADOS
 from .seed import CONTA_DEMO
 
@@ -161,9 +162,17 @@ def sair(request: Request):
         db.x("DELETE FROM sessoes_encerradas WHERE exp < ?", (time.time(),))
 
 
+def usuario_livre() -> dict | None:
+    """No acesso livre, quem chega sem sessão entra como o usuário de demonstração configurado."""
+    if not config.ACESSO_LIVRE:
+        return None
+    u = db.q("SELECT usuario, nome, perfil FROM usuarios WHERE usuario=?", (config.USUARIO_LIVRE,), um=True)
+    return dict(u) if u else None
+
+
 def usuario_da_requisicao(request: Request) -> dict | None:
     token = request.cookies.get(COOKIE)
-    return _ler(token) if token else None
+    return (_ler(token) if token else None) or usuario_livre()
 
 
 def exigir(request: Request, perfil_minimo: str) -> dict:

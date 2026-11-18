@@ -20,6 +20,14 @@ ela fica em `/opt/concilia-ai`, atrás do Caddy, que já cuida do HTTPS dos outr
 | `CONCILIA_SEGREDO` | Assina o cookie de login |
 | `CONCILIA_SERVIDOR` | Nome deste servidor na fila de processamento |
 | `ANTHROPIC_API_KEY` | Liga a leitura com o Claude. Vazia, a Concilia usa só o OCR local |
+| `CONCILIA_ACESSO_LIVRE` | `1` abre o sistema sem login: quem acessa o link entra direto no painel (para avaliação). Padrão `0` |
+| `CONCILIA_USUARIO_LIVRE` | Usuário usado no acesso livre (padrão `admin`, da conta de demonstração) |
+
+## Abrir para avaliação (sem login)
+
+Acrescente `CONCILIA_ACESSO_LIVRE=1` ao `.env` e rode `docker compose up -d --force-recreate`. Para voltar a exigir
+login, troque para `0` e rode o mesmo comando. Com o acesso livre, qualquer pessoa com o link usa a chave da
+Anthropic: defina um limite de gasto no console da Anthropic.
 
 Para ver as senhas: `grep SENHA /opt/concilia-ai/.env` (como root).
 

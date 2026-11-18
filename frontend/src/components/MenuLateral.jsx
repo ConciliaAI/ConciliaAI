@@ -39,9 +39,11 @@ export default function MenuLateral({ rota, contagens, totalDocumentos, limite =
       <p className={`${ROTULO} pt-7 [@media(max-height:760px)]:pt-4`}>GERAL</p>
       <nav className="grid gap-1.5">
         {GERAL.map((item) => <Item key={item.id} item={item} ativo={rota === item.id} aoClicar={aoNavegar} />)}
-        <button onClick={aoSair} className={`${ITEM} text-left text-white/75 hover:bg-white/8 hover:text-white`}>
-          <Icone nome="sair" className="size-[1.125rem]" />Sair
-        </button>
+        {aoSair && (
+          <button onClick={aoSair} className={`${ITEM} text-left text-white/75 hover:bg-white/8 hover:text-white`}>
+            <Icone nome="sair" className="size-[1.125rem]" />Sair
+          </button>
+        )}
       </nav>
 
       <div className="mt-auto grid shrink-0 gap-3 rounded-2xl bg-white/6 p-4">

@@ -67,6 +67,10 @@ MAX_PAGINAS = int(os.environ.get("CONCILIA_MAX_PAGINAS", "2000"))
 LIMITE_DOCUMENTOS = int(os.environ.get("CONCILIA_LIMITE_DOCUMENTOS", "100000"))
 # Criar conta pela tela de login. Desligue (0) num servidor aberto na internet se não quiser cadastro livre.
 CADASTRO_ABERTO = os.environ.get("CONCILIA_CADASTRO_ABERTO", "1") != "0"
+# Acesso livre (avaliação, demonstração): quem abre o link entra direto no painel como este usuário,
+# sem tela de login. Ligue só num servidor de demonstração; o padrão é desligado.
+ACESSO_LIVRE = os.environ.get("CONCILIA_ACESSO_LIVRE", "0") == "1"
+USUARIO_LIVRE = os.environ.get("CONCILIA_USUARIO_LIVRE", "admin").strip().lower()
 
 
 def claude_configurado() -> bool:
